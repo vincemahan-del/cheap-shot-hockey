@@ -1,19 +1,44 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { listOrdersForUser } from "@/lib/store";
+import { getOrder, listOrdersForUser } from "@/lib/store";
+import { getGuestOrderIds } from "@/lib/guest-orders";
 import { formatPrice } from "@/lib/format";
+import type { Order } from "@/lib/types";
 
 export default async function OrdersPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login?next=/orders");
-  const orders = listOrdersForUser(user.id);
+
+  let orders: Order[] = [];
+  let isGuest = false;
+
+  if (user) {
+    orders = listOrdersForUser(user.id);
+  } else {
+    isGuest = true;
+    const ids = await getGuestOrderIds();
+    orders = ids
+      .map((id) => getOrder(id))
+      .filter((o): o is Order => Boolean(o))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="mb-6 text-3xl font-bold" data-testid="orders-heading">
-        Your Orders
+      <h1 className="font-display mb-2 text-3xl md:text-4xl" data-testid="orders-heading">
+        {isGuest ? "Your Guest Orders" : "Your Orders"}
       </h1>
+      {isGuest && (
+        <p className="mb-6 text-sm text-[color:var(--muted)]">
+          These are the orders you&apos;ve placed on this device.{" "}
+          <Link
+            href="/login?next=/orders"
+            className="text-[color:var(--accent)] hover:underline"
+          >
+            Log in
+          </Link>{" "}
+          to see orders across devices.
+        </p>
+      )}
       {orders.length === 0 ? (
         <div
           className="rounded-lg border border-dashed border-[color:var(--border)] p-10 text-center text-[color:var(--muted)]"

@@ -43,6 +43,8 @@ const SPEC = {
       get: { summary: "Get current cart", responses: { "200": { description: "OK" } } },
       post: {
         summary: "Add or update a cart line",
+        description:
+          "Use mode='add' to increment (each call adds the supplied quantity to the current line). Use mode='set' (default) to replace the line's quantity. Quantity 0 with mode='set' removes the line.",
         requestBody: {
           required: true,
           content: {
@@ -53,6 +55,11 @@ const SPEC = {
                 properties: {
                   productId: { type: "string" },
                   quantity: { type: "integer", minimum: 0 },
+                  mode: {
+                    type: "string",
+                    enum: ["set", "add"],
+                    default: "set",
+                  },
                 },
               },
             },
@@ -68,11 +75,21 @@ const SPEC = {
     },
     "/api/orders": {
       get: {
-        summary: "List the current user's orders",
-        responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } },
+        summary: "List orders",
+        description:
+          "Logged-in users get their own orders. Anonymous callers can pass ?email=<address> to look up guest orders.",
+        parameters: [
+          { name: "email", in: "query", schema: { type: "string", format: "email" } },
+        ],
+        responses: {
+          "200": { description: "OK" },
+          "401": { description: "Unauthorized (not logged in and no email provided)" },
+        },
       },
       post: {
-        summary: "Place an order from the current cart",
+        summary: "Place an order (supports guest checkout)",
+        description:
+          "Logged-in users don't need customerEmail. Anonymous users MUST pass customerEmail — the order is created as a guest order and the session is issued a cookie that grants read access to that order on the current device.",
         requestBody: {
           required: true,
           content: {
@@ -81,6 +98,12 @@ const SPEC = {
                 type: "object",
                 required: ["shippingAddress"],
                 properties: {
+                  customerEmail: {
+                    type: "string",
+                    format: "email",
+                    description:
+                      "Required for guest checkout, ignored when the caller is logged in.",
+                  },
                   shippingAddress: {
                     type: "object",
                     required: ["name", "street", "city", "state", "postalCode", "country"],
@@ -101,7 +124,6 @@ const SPEC = {
         responses: {
           "201": { description: "Created" },
           "400": { description: "Bad request" },
-          "401": { description: "Unauthorized" },
           "503": { description: "Demo failure" },
         },
       },
@@ -109,10 +131,11 @@ const SPEC = {
     "/api/orders/{id}": {
       get: {
         summary: "Get a single order",
+        description:
+          "Accessible by the logged-in owner, admins, or by an anonymous caller on the same device that placed the guest order (via the csh_guest_orders cookie).",
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
         responses: {
           "200": { description: "OK" },
-          "401": { description: "Unauthorized" },
           "403": { description: "Forbidden" },
           "404": { description: "Not found" },
         },

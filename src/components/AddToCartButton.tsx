@@ -21,7 +21,7 @@ export function AddToCartButton({
     const res = await fetch("/api/cart", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ productId, quantity: 1 }),
+      body: JSON.stringify({ productId, quantity: 1, mode: "add" }),
     });
     if (!res.ok) {
       let msg = `request failed (${res.status})`;
@@ -33,8 +33,13 @@ export function AddToCartButton({
       setMessage(msg);
       return;
     }
+    const body = await res.json();
+    const line = body.lines?.find?.(
+      (l: { productId: string; quantity: number }) => l.productId === productId,
+    );
+    const qty = line?.quantity ?? 1;
     setState("added");
-    setMessage("Added to cart");
+    setMessage(qty > 1 ? `${qty} in cart` : "Added to cart");
     startTransition(() => router.refresh());
   }
 
@@ -51,7 +56,11 @@ export function AddToCartButton({
       {message && (
         <span
           data-testid={`add-to-cart-feedback-${productId}`}
-          className={state === "error" ? "text-sm text-[color:var(--primary)]" : "text-sm text-[color:var(--success)]"}
+          className={
+            state === "error"
+              ? "text-sm text-[color:var(--primary)]"
+              : "text-sm text-[color:var(--success)]"
+          }
         >
           {message}
         </span>

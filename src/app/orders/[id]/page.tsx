@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { getOrder } from "@/lib/store";
+import { hasGuestOrder } from "@/lib/guest-orders";
 import { formatPrice } from "@/lib/format";
 
 export default async function OrderDetailPage({
@@ -11,13 +12,18 @@ export default async function OrderDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ new?: string }>;
 }) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
   const { id } = await params;
   const { new: isNew } = await searchParams;
   const order = getOrder(id);
   if (!order) notFound();
-  if (order.userId !== user.id && user.role !== "admin") notFound();
+
+  const user = await getCurrentUser();
+  const isOwnedByUser =
+    user && (order.userId === user.id || user.role === "admin");
+  const isAccessibleAsGuest = !order.userId && (await hasGuestOrder(id));
+  if (!isOwnedByUser && !isAccessibleAsGuest) notFound();
+
+  const isGuestOrder = order.guestEmail != null && order.userId == null;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -27,9 +33,14 @@ export default async function OrderDetailPage({
           className="mb-6 rounded bg-[color:var(--success)]/20 p-4 text-[color:var(--success)]"
         >
           🏒 Order placed! Confirmation ID {order.id}.
+          {isGuestOrder && order.guestEmail && (
+            <span className="block text-sm">
+              Confirmation sent to <strong>{order.guestEmail}</strong>.
+            </span>
+          )}
         </div>
       )}
-      <h1 className="text-3xl font-bold" data-testid="order-id">
+      <h1 className="font-display text-3xl md:text-4xl" data-testid="order-id">
         Order {order.id}
       </h1>
       <div className="mt-1 text-sm text-[color:var(--muted)]">
@@ -40,6 +51,11 @@ export default async function OrderDetailPage({
         >
           {order.status}
         </span>
+        {isGuestOrder && (
+          <span className="ml-2 rounded bg-[color:var(--surface-2)] px-2 py-0.5 text-xs font-bold uppercase tracking-wider">
+            Guest order
+          </span>
+        )}
       </div>
 
       <section className="mt-6 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] p-5">
@@ -69,7 +85,9 @@ export default async function OrderDetailPage({
           </div>
           <div className="flex justify-between">
             <span className="text-[color:var(--muted)]">Shipping</span>
-            <span data-testid="order-shipping">{formatPrice(order.shippingCents)}</span>
+            <span data-testid="order-shipping">
+              {order.shippingCents === 0 ? "FREE" : formatPrice(order.shippingCents)}
+            </span>
           </div>
           <div className="flex justify-between border-t border-[color:var(--border)] pt-2 font-bold">
             <span>Total</span>
@@ -85,20 +103,31 @@ export default async function OrderDetailPage({
           <br />
           {order.shippingAddress.street}
           <br />
-          {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.postalCode}
+          {order.shippingAddress.city}, {order.shippingAddress.state}{" "}
+          {order.shippingAddress.postalCode}
           <br />
           {order.shippingAddress.country}
         </address>
       </section>
 
       <div className="mt-6 text-sm">
-        <Link
-          href="/orders"
-          data-testid="order-back"
-          className="text-[color:var(--muted)] hover:text-[color:var(--foreground)]"
-        >
-          ← Back to orders
-        </Link>
+        {user ? (
+          <Link
+            href="/orders"
+            data-testid="order-back"
+            className="text-[color:var(--muted)] hover:text-[color:var(--foreground)]"
+          >
+            ← Back to orders
+          </Link>
+        ) : (
+          <Link
+            href="/products"
+            data-testid="order-keep-shopping"
+            className="text-[color:var(--muted)] hover:text-[color:var(--foreground)]"
+          >
+            ← Keep shopping
+          </Link>
+        )}
       </div>
     </div>
   );

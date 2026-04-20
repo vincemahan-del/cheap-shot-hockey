@@ -1,10 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
-export function CheckoutForm({ defaultName }: { defaultName: string }) {
-  const router = useRouter();
+export function CheckoutForm({
+  defaultName,
+  defaultEmail,
+  isGuest,
+}: {
+  defaultName: string;
+  defaultEmail: string;
+  isGuest: boolean;
+}) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -12,8 +18,7 @@ export function CheckoutForm({ defaultName }: { defaultName: string }) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
-    const form = e.currentTarget;
-    const data = new FormData(form);
+    const data = new FormData(e.currentTarget);
     const shippingAddress = {
       name: String(data.get("name") ?? ""),
       street: String(data.get("street") ?? ""),
@@ -22,11 +27,16 @@ export function CheckoutForm({ defaultName }: { defaultName: string }) {
       postalCode: String(data.get("postalCode") ?? ""),
       country: String(data.get("country") ?? ""),
     };
+    const customerEmail = String(data.get("customerEmail") ?? "").trim();
+
+    const payload: Record<string, unknown> = { shippingAddress };
+    if (isGuest) payload.customerEmail = customerEmail;
+
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shippingAddress }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         let msg = `checkout failed (${res.status})`;
@@ -39,7 +49,8 @@ export function CheckoutForm({ defaultName }: { defaultName: string }) {
         return;
       }
       const body = await res.json();
-      router.push(`/orders/${body.id}?new=1`);
+      // Hard nav so the guest-order cookie + session state are honored.
+      window.location.assign(`/orders/${body.id}?new=1`);
     } catch {
       setError("network error");
       setSubmitting(false);
@@ -52,17 +63,54 @@ export function CheckoutForm({ defaultName }: { defaultName: string }) {
       data-testid="checkout-form"
       className="space-y-4 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] p-5"
     >
-      <h2 className="font-bold">Shipping address</h2>
-      <Field label="Full name" name="name" defaultValue={defaultName} required />
-      <Field label="Street" name="street" required />
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="City" name="city" required />
-        <Field label="State" name="state" required />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Postal code" name="postalCode" required />
-        <Field label="Country" name="country" defaultValue="US" required />
-      </div>
+      {isGuest && (
+        <section>
+          <h2 className="font-bold">Contact</h2>
+          <p className="mb-3 text-xs text-[color:var(--muted)]">
+            We&apos;ll send your confirmation here.
+          </p>
+          <Field
+            label="Email"
+            name="customerEmail"
+            type="email"
+            required
+            defaultValue={defaultEmail}
+            testId="checkout-customer-email"
+          />
+        </section>
+      )}
+      <section>
+        <h2 className="font-bold">Shipping address</h2>
+        <div className="mt-3 space-y-4">
+          <Field
+            label="Full name"
+            name="name"
+            defaultValue={defaultName}
+            required
+            testId="checkout-name"
+          />
+          <Field label="Street" name="street" required testId="checkout-street" />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="City" name="city" required testId="checkout-city" />
+            <Field label="State" name="state" required testId="checkout-state" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label="Postal code"
+              name="postalCode"
+              required
+              testId="checkout-postalCode"
+            />
+            <Field
+              label="Country"
+              name="country"
+              defaultValue="US"
+              required
+              testId="checkout-country"
+            />
+          </div>
+        </div>
+      </section>
       {error && (
         <div
           data-testid="checkout-error"
@@ -77,7 +125,7 @@ export function CheckoutForm({ defaultName }: { defaultName: string }) {
         data-testid="checkout-submit"
         className="w-full rounded bg-[color:var(--primary)] py-3 font-semibold text-white hover:opacity-90 disabled:opacity-50"
       >
-        {submitting ? "Placing order…" : "Place order"}
+        {submitting ? "Placing order…" : isGuest ? "Place guest order" : "Place order"}
       </button>
       <p className="text-center text-xs text-[color:var(--muted)]">
         No real payment is taken — this is a demo store.
@@ -89,13 +137,17 @@ export function CheckoutForm({ defaultName }: { defaultName: string }) {
 function Field({
   label,
   name,
+  type = "text",
   defaultValue,
   required,
+  testId,
 }: {
   label: string;
   name: string;
+  type?: string;
   defaultValue?: string;
   required?: boolean;
+  testId: string;
 }) {
   return (
     <label className="block">
@@ -104,9 +156,10 @@ function Field({
       </span>
       <input
         name={name}
+        type={type}
         defaultValue={defaultValue}
         required={required}
-        data-testid={`checkout-${name}`}
+        data-testid={testId}
         className="w-full rounded border border-[color:var(--border)] bg-[color:var(--background)] px-3 py-2 text-sm"
       />
     </label>

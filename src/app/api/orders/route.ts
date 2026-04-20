@@ -5,19 +5,32 @@ import {
   currentPrice,
   getCart,
   getProduct,
+  listOrdersByGuestEmail,
   listOrdersForUser,
 } from "@/lib/store";
 import { getCurrentUser, getSessionId } from "@/lib/session";
+import { rememberGuestOrder } from "@/lib/guest-orders";
 import { badRequest, created, ok, serviceUnavailable, unauthorized } from "@/lib/api";
 import { applyDemoDelay, readDemoMode, shouldDemoFail } from "@/lib/demo";
 
 const SHIPPING_CENTS = 999;
+const FREE_SHIP_THRESHOLD_CENTS = 9900;
 const TAX_RATE = 0.08;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
-  if (!user) return unauthorized("log in to view orders");
-  const orders = listOrdersForUser(user.id);
+  if (user) {
+    const orders = listOrdersForUser(user.id);
+    return ok({ count: orders.length, items: orders });
+  }
+
+  // Guest: allow lookup by email via ?email=<address>.
+  const { searchParams } = new URL(req.url);
+  const email = searchParams.get("email");
+  if (!email) {
+    return unauthorized("log in or pass ?email=<address> to view orders");
+  }
+  const orders = listOrdersByGuestEmail(email);
   return ok({ count: orders.length, items: orders });
 }
 
@@ -29,9 +42,9 @@ export async function POST(req: NextRequest) {
   }
 
   const user = await getCurrentUser();
-  if (!user) return unauthorized("log in to place an order");
 
   let body: {
+    customerEmail?: string;
     shippingAddress?: {
       name: string;
       street: string;
@@ -56,7 +69,20 @@ export async function POST(req: NextRequest) {
     !addr.postalCode ||
     !addr.country
   ) {
-    return badRequest("shippingAddress with name, street, city, state, postalCode, country is required");
+    return badRequest(
+      "shippingAddress with name, street, city, state, postalCode, country is required",
+    );
+  }
+
+  let guestEmail: string | null = null;
+  if (!user) {
+    const rawEmail = body.customerEmail?.trim() ?? "";
+    if (!rawEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
+      return badRequest(
+        "customerEmail is required for guest checkout (must be a valid email)",
+      );
+    }
+    guestEmail = rawEmail;
   }
 
   const sessionId = await getSessionId();
@@ -78,18 +104,24 @@ export async function POST(req: NextRequest) {
     0,
   );
   const taxCents = Math.round(subtotalCents * TAX_RATE);
-  const totalCents = subtotalCents + taxCents + SHIPPING_CENTS;
+  const shippingCents =
+    subtotalCents >= FREE_SHIP_THRESHOLD_CENTS ? 0 : SHIPPING_CENTS;
+  const totalCents = subtotalCents + taxCents + shippingCents;
 
   const order = createOrder({
-    userId: user.id,
+    userId: user?.id ?? null,
+    guestEmail,
     lines,
     subtotalCents,
     taxCents,
-    shippingCents: SHIPPING_CENTS,
+    shippingCents,
     totalCents,
     status: "paid",
     shippingAddress: addr,
   });
   clearCart(sessionId);
+
+  if (!user) await rememberGuestOrder(order.id);
+
   return created(order);
 }

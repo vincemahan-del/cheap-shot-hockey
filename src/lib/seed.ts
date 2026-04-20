@@ -595,6 +595,7 @@ export const SEED_ORDERS: Order[] = [
   {
     id: "o-1001",
     userId: "u-001",
+    guestEmail: null,
     lines: [
       {
         productId: "p-stk-001",

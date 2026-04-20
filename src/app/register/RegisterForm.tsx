@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export function RegisterForm() {
-  const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,8 +30,8 @@ export function RegisterForm() {
       setSubmitting(false);
       return;
     }
-    router.push("/");
-    router.refresh();
+    // Hard nav so the browser attaches the new auth cookie.
+    window.location.assign("/");
   }
 
   return (

@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export function LoginForm({ next }: { next?: string }) {
-  const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,8 +29,9 @@ export function LoginForm({ next }: { next?: string }) {
       setSubmitting(false);
       return;
     }
-    router.push(next ?? "/");
-    router.refresh();
+    // Hard navigation so the browser picks up the new httpOnly auth
+    // cookie on the next request. router.push races with Set-Cookie.
+    window.location.assign(next || "/");
   }
 
   return (

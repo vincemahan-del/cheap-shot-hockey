@@ -61,7 +61,8 @@ export type OrderStatus = "pending" | "paid" | "shipped" | "delivered" | "cancel
 
 export interface Order {
   id: string;
-  userId: string;
+  userId: string | null;
+  guestEmail: string | null;
   lines: OrderLine[];
   subtotalCents: number;
   taxCents: number;

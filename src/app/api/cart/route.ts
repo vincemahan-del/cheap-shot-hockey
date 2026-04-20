@@ -1,5 +1,12 @@
 import type { NextRequest } from "next/server";
-import { clearCart, currentPrice, getCart, getProduct, setCartLine } from "@/lib/store";
+import {
+  addToCart,
+  clearCart,
+  currentPrice,
+  getCart,
+  getProduct,
+  setCartLine,
+} from "@/lib/store";
 import { getSessionId } from "@/lib/session";
 import { badRequest, ok, serviceUnavailable } from "@/lib/api";
 import { applyDemoDelay, readDemoMode, shouldDemoFail } from "@/lib/demo";
@@ -39,25 +46,36 @@ export async function POST(req: NextRequest) {
     return serviceUnavailable("demo mode: cart write temporarily unavailable");
   }
 
-  let body: { productId?: string; quantity?: number };
+  let body: { productId?: string; quantity?: number; mode?: "add" | "set" };
   try {
     body = await req.json();
   } catch {
     return badRequest("invalid JSON body");
   }
-  const { productId, quantity } = body;
+  const { productId, quantity, mode: writeMode = "set" } = body;
   if (typeof productId !== "string") return badRequest("productId is required");
   if (typeof quantity !== "number" || !Number.isFinite(quantity)) {
     return badRequest("quantity must be a number");
   }
+  if (writeMode !== "add" && writeMode !== "set") {
+    return badRequest("mode must be 'add' or 'set'");
+  }
   const product = getProduct(productId);
   if (!product) return badRequest("unknown productId");
-  if (quantity > product.stock) {
+
+  const sessionId = await getSessionId();
+  const existing = getCart(sessionId).lines.find((l) => l.productId === productId);
+  const targetQty =
+    writeMode === "add" ? (existing?.quantity ?? 0) + quantity : quantity;
+  if (targetQty > product.stock) {
     return badRequest(`only ${product.stock} in stock`);
   }
 
-  const sessionId = await getSessionId();
-  setCartLine(sessionId, { productId, quantity });
+  if (writeMode === "add") {
+    addToCart(sessionId, { productId, quantity });
+  } else {
+    setCartLine(sessionId, { productId, quantity });
+  }
   return cartResponse(sessionId);
 }
 

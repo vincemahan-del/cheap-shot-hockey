@@ -134,6 +134,13 @@ export function setCartLine(sessionId: string, line: CartLine): Cart {
   return cart;
 }
 
+export function addToCart(sessionId: string, line: CartLine): Cart {
+  const cart = getCart(sessionId);
+  const existing = cart.lines.find((l) => l.productId === line.productId);
+  const nextQty = Math.max(0, (existing?.quantity ?? 0) + line.quantity);
+  return setCartLine(sessionId, { productId: line.productId, quantity: nextQty });
+}
+
 export function clearCart(sessionId: string): void {
   store().carts.set(sessionId, {
     sessionId,
@@ -147,6 +154,13 @@ export function clearCart(sessionId: string): void {
 export function listOrdersForUser(userId: string): Order[] {
   return Array.from(store().orders.values())
     .filter((o) => o.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function listOrdersByGuestEmail(email: string): Order[] {
+  const lower = email.toLowerCase();
+  return Array.from(store().orders.values())
+    .filter((o) => o.guestEmail?.toLowerCase() === lower)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
