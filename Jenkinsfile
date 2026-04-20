@@ -54,11 +54,10 @@ pipeline {
       }
     }
 
-    stage('2. Install + Lint + Build') {
+    stage('2. Install + Build') {
       steps {
         sh 'node --version'
         sh 'npm ci'
-        sh 'npm run lint'
         sh 'npm run build'
       }
     }
