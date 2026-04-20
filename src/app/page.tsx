@@ -3,7 +3,6 @@ import { listProducts } from "@/lib/store";
 import { ProductCard } from "@/components/ProductCard";
 import { CategoryTiles } from "@/components/CategoryTile";
 import { BrandRow } from "@/components/BrandRow";
-import { ProductIllustration } from "@/components/ProductIllustration";
 
 export default function Home() {
   const onSale = listProducts({ onSale: true }).slice(0, 8);
@@ -72,27 +71,32 @@ export default function Home() {
           </div>
           <div className="relative hidden md:block">
             <div
-              className="relative mx-auto h-full w-full max-w-md rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)]/70 p-6 shadow-2xl backdrop-blur"
+              className="relative mx-auto h-full w-full max-w-md overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)]/70 shadow-2xl"
               style={{ aspectRatio: "1 / 1" }}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/product-photos/sticks.jpg"
+                alt="Apex Velocity Pro Stick"
+                className="absolute inset-0 h-full w-full object-cover"
+                style={{ filter: "brightness(0.9) saturate(1.08) contrast(1.05)" }}
+              />
+              <div
+                className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent"
+                aria-hidden="true"
+              />
               <div className="absolute left-4 top-4 rounded bg-[color:var(--primary)] px-2 py-1 text-[10px] font-black uppercase tracking-wider text-white">
                 Featured
               </div>
-              <div className="h-full w-full">
-                <ProductIllustration
-                  category="sticks"
-                  color="#f03e3e"
-                />
-              </div>
-              <div className="absolute bottom-4 left-4 right-4 rounded-lg bg-black/50 p-3 backdrop-blur">
+              <div className="absolute bottom-4 left-4 right-4">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--accent)]">
                   Apex · Pro Series
                 </div>
-                <div className="font-black">Apex Velocity Pro Stick</div>
+                <div className="font-black text-white">Apex Velocity Pro Stick</div>
                 <div className="mt-1 flex items-baseline gap-2">
-                  <span className="text-xl font-black text-[color:var(--primary)]">$199.99</span>
-                  <span className="text-xs text-[color:var(--muted)] line-through">$289.99</span>
-                  <span className="ml-auto rounded bg-[color:var(--primary)]/25 px-1.5 py-0.5 text-[10px] font-black text-[color:var(--primary)]">
+                  <span className="text-xl font-black text-white">$199.99</span>
+                  <span className="text-xs text-white/60 line-through">$289.99</span>
+                  <span className="ml-auto rounded bg-[color:var(--primary)] px-1.5 py-0.5 text-[10px] font-black text-white">
                     SAVE 31%
                   </span>
                 </div>

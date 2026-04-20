@@ -1,16 +1,15 @@
 import Link from "next/link";
 import type { Category } from "@/lib/types";
-import { ProductIllustration } from "./ProductIllustration";
 
-const TILES: { category: Category; label: string; blurb: string; color: string }[] = [
-  { category: "sticks", label: "Sticks", blurb: "Composite · Wood · Youth → Senior", color: "#f03e3e" },
-  { category: "skates", label: "Skates", blurb: "Player · Goalie · Every fit", color: "#4a78b5" },
-  { category: "helmets", label: "Helmets", blurb: "HECC certified · Cage-ready", color: "#e8783a" },
-  { category: "gloves", label: "Gloves", blurb: "Protection · Grip · Mobility", color: "#7b5fd6" },
-  { category: "pads", label: "Protective", blurb: "Shin · Shoulder · Elbow", color: "#3d8f6b" },
-  { category: "jerseys", label: "Jerseys", blurb: "Home · Away · Practice", color: "#d63d3d" },
-  { category: "pucks", label: "Pucks", blurb: "Game · Practice · Novelty", color: "#9aa3b2" },
-  { category: "goalie-gear", label: "Goalie Gear", blurb: "Pads · Mask · Catcher · Blocker", color: "#f0cb44" },
+const TILES: { category: Category; label: string; blurb: string }[] = [
+  { category: "sticks", label: "Sticks", blurb: "Composite · Wood · Youth → Senior" },
+  { category: "skates", label: "Skates", blurb: "Player · Goalie · Every fit" },
+  { category: "helmets", label: "Helmets", blurb: "HECC certified · Cage-ready" },
+  { category: "gloves", label: "Gloves", blurb: "Protection · Grip · Mobility" },
+  { category: "pads", label: "Protective", blurb: "Shin · Shoulder · Elbow" },
+  { category: "jerseys", label: "Jerseys", blurb: "Home · Away · Practice" },
+  { category: "pucks", label: "Pucks", blurb: "Game · Practice · Novelty" },
+  { category: "goalie-gear", label: "Goalie Gear", blurb: "Pads · Mask · Catcher · Blocker" },
 ];
 
 export function CategoryTiles() {
@@ -24,23 +23,36 @@ export function CategoryTiles() {
           key={t.category}
           href={`/products?category=${t.category}`}
           data-testid={`category-${t.category}`}
-          className="group relative flex flex-col overflow-hidden rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] p-4 transition hover:-translate-y-0.5 hover:border-[color:var(--accent)]"
+          className="group relative flex flex-col overflow-hidden rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] transition hover:-translate-y-0.5 hover:border-[color:var(--accent)]"
         >
-          <div className="h-28 w-full">
-            <ProductIllustration category={t.category} color={t.color} />
+          <div className="relative h-36 w-full overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/product-photos/${t.category}.jpg`}
+              alt={t.label}
+              loading="lazy"
+              className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+              style={{ filter: "brightness(0.85) saturate(1.05)" }}
+            />
+            <div
+              className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"
+              aria-hidden="true"
+            />
+            <span
+              className="absolute right-3 top-3 text-sm text-white/80 transition group-hover:text-[color:var(--accent)]"
+              aria-hidden="true"
+            >
+              →
+            </span>
           </div>
-          <div className="mt-3">
-            <div className="font-bold group-hover:text-[color:var(--accent)]">
+          <div className="p-4">
+            <div className="font-black group-hover:text-[color:var(--accent)]">
               {t.label}
             </div>
-            <div className="text-xs text-[color:var(--muted)]">{t.blurb}</div>
+            <div className="mt-0.5 text-xs text-[color:var(--muted)]">
+              {t.blurb}
+            </div>
           </div>
-          <span
-            className="absolute right-3 top-3 text-xs text-[color:var(--muted)] transition group-hover:text-[color:var(--accent)]"
-            aria-hidden="true"
-          >
-            →
-          </span>
         </Link>
       ))}
     </div>
