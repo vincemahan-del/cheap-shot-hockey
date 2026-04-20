@@ -28,6 +28,12 @@ pipeline {
     buildDiscarder(logRotator(numToKeepStr: '25'))
   }
 
+  triggers {
+    // Poll GitHub every minute for new commits on main. Fastest path
+    // without a webhook; fine for a demo laptop.
+    pollSCM('* * * * *')
+  }
+
   environment {
     MABL_API_TOKEN = credentials('mabl-api-token')
     // Ensure Homebrew-installed node/npm/jq are on PATH for Jenkins (macOS local).
