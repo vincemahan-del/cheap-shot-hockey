@@ -1,14 +1,14 @@
 import type { NextRequest } from "next/server";
 import {
-  clearCart,
   createOrder,
   currentPrice,
-  getCart,
   getProduct,
   listOrdersByGuestEmail,
   listOrdersForUser,
 } from "@/lib/store";
-import { getCurrentUser, getSessionId } from "@/lib/session";
+import { getCurrentUser } from "@/lib/session";
+import { clearCartCookie, readCartLines } from "@/lib/cart-cookie";
+import { rememberOrderInCookie } from "@/lib/order-cookie";
 import { rememberGuestOrder } from "@/lib/guest-orders";
 import { badRequest, created, ok, serviceUnavailable, unauthorized } from "@/lib/api";
 import { applyDemoDelay, readDemoMode, shouldDemoFail } from "@/lib/demo";
@@ -24,7 +24,6 @@ export async function GET(req: NextRequest) {
     return ok({ count: orders.length, items: orders });
   }
 
-  // Guest: allow lookup by email via ?email=<address>.
   const { searchParams } = new URL(req.url);
   const email = searchParams.get("email");
   if (!email) {
@@ -85,11 +84,10 @@ export async function POST(req: NextRequest) {
     guestEmail = rawEmail;
   }
 
-  const sessionId = await getSessionId();
-  const cart = getCart(sessionId);
-  if (cart.lines.length === 0) return badRequest("cart is empty");
+  const cartLines = await readCartLines();
+  if (cartLines.length === 0) return badRequest("cart is empty");
 
-  const lines = cart.lines.map((l) => {
+  const lines = cartLines.map((l) => {
     const p = getProduct(l.productId);
     if (!p) throw new Error("missing product");
     return {
@@ -119,8 +117,8 @@ export async function POST(req: NextRequest) {
     status: "paid",
     shippingAddress: addr,
   });
-  clearCart(sessionId);
-
+  await clearCartCookie();
+  await rememberOrderInCookie(order);
   if (!user) await rememberGuestOrder(order.id);
 
   return created(order);

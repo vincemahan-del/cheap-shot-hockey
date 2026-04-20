@@ -1,19 +1,17 @@
 import type { NextRequest } from "next/server";
+import { currentPrice, getProduct } from "@/lib/store";
 import {
-  addToCart,
-  clearCart,
-  currentPrice,
-  getCart,
-  getProduct,
-  setCartLine,
-} from "@/lib/store";
-import { getSessionId } from "@/lib/session";
+  addCartLineCookie,
+  clearCartCookie,
+  readCartLines,
+  setCartLineCookie,
+} from "@/lib/cart-cookie";
 import { badRequest, ok, serviceUnavailable } from "@/lib/api";
 import { applyDemoDelay, readDemoMode, shouldDemoFail } from "@/lib/demo";
+import type { CartLine } from "@/lib/types";
 
-async function cartResponse(sessionId: string) {
-  const cart = getCart(sessionId);
-  const enriched = cart.lines.map((line) => {
+function enrich(lines: CartLine[]) {
+  const enriched = lines.map((line) => {
     const product = getProduct(line.productId);
     const unitPriceCents = product ? currentPrice(product) : 0;
     return {
@@ -26,17 +24,17 @@ async function cartResponse(sessionId: string) {
     };
   });
   const subtotalCents = enriched.reduce((sum, l) => sum + l.lineTotalCents, 0);
-  return ok({
-    sessionId: cart.sessionId,
-    lines: enriched,
-    subtotalCents,
-    updatedAt: cart.updatedAt,
-  });
+  return { lines: enriched, subtotalCents };
 }
 
 export async function GET() {
-  const sessionId = await getSessionId();
-  return cartResponse(sessionId);
+  const lines = await readCartLines();
+  const { lines: enriched, subtotalCents } = enrich(lines);
+  return ok({
+    lines: enriched,
+    subtotalCents,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -63,24 +61,28 @@ export async function POST(req: NextRequest) {
   const product = getProduct(productId);
   if (!product) return badRequest("unknown productId");
 
-  const sessionId = await getSessionId();
-  const existing = getCart(sessionId).lines.find((l) => l.productId === productId);
-  const targetQty =
-    writeMode === "add" ? (existing?.quantity ?? 0) + quantity : quantity;
+  const existing = await readCartLines();
+  const currentQty =
+    existing.find((l) => l.productId === productId)?.quantity ?? 0;
+  const targetQty = writeMode === "add" ? currentQty + quantity : quantity;
   if (targetQty > product.stock) {
     return badRequest(`only ${product.stock} in stock`);
   }
 
-  if (writeMode === "add") {
-    addToCart(sessionId, { productId, quantity });
-  } else {
-    setCartLine(sessionId, { productId, quantity });
-  }
-  return cartResponse(sessionId);
+  const nextLines =
+    writeMode === "add"
+      ? await addCartLineCookie({ productId, quantity })
+      : await setCartLineCookie({ productId, quantity });
+
+  const { lines: enriched, subtotalCents } = enrich(nextLines);
+  return ok({
+    lines: enriched,
+    subtotalCents,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 export async function DELETE() {
-  const sessionId = await getSessionId();
-  clearCart(sessionId);
-  return ok({ sessionId, lines: [], subtotalCents: 0 });
+  await clearCartCookie();
+  return ok({ lines: [], subtotalCents: 0 });
 }

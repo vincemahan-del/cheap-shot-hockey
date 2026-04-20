@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { getCurrentUser, getSessionId } from "@/lib/session";
-import { getCart } from "@/lib/store";
+import { getCurrentUser } from "@/lib/session";
+import { readCartLines } from "@/lib/cart-cookie";
 
 const CATEGORY_LINKS = [
   { label: "Sticks", href: "/products?category=sticks" },
@@ -13,9 +13,8 @@ const CATEGORY_LINKS = [
 
 export async function Nav() {
   const user = await getCurrentUser();
-  const sessionId = await getSessionId();
-  const cart = getCart(sessionId);
-  const cartCount = cart.lines.reduce((sum, l) => sum + l.quantity, 0);
+  const cartLines = await readCartLines();
+  const cartCount = cartLines.reduce((sum, l) => sum + l.quantity, 0);
 
   return (
     <header className="sticky top-0 z-40 border-b border-[color:var(--border)] bg-[color:var(--background)]/95 backdrop-blur">

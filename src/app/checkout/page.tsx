@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { currentPrice, getCart, getProduct } from "@/lib/store";
-import { getCurrentUser, getSessionId } from "@/lib/session";
+import { currentPrice, getProduct } from "@/lib/store";
+import { readCartLines } from "@/lib/cart-cookie";
+import { getCurrentUser } from "@/lib/session";
 import { formatPrice } from "@/lib/format";
 import { CheckoutForm } from "./CheckoutForm";
 
@@ -9,17 +10,20 @@ const SHIPPING_CENTS = 999;
 
 export default async function CheckoutPage() {
   const user = await getCurrentUser();
-  const sessionId = await getSessionId();
-  const cart = getCart(sessionId);
+  const cartLines = await readCartLines();
 
-  const enriched = cart.lines.map((l) => {
-    const p = getProduct(l.productId)!;
-    const unit = currentPrice(p);
-    return { line: l, product: p, unit, lineTotal: unit * l.quantity };
-  });
+  const enriched = cartLines
+    .map((l) => {
+      const p = getProduct(l.productId);
+      if (!p) return null;
+      const unit = currentPrice(p);
+      return { line: l, product: p, unit, lineTotal: unit * l.quantity };
+    })
+    .filter((e): e is NonNullable<typeof e> => e !== null);
   const subtotal = enriched.reduce((s, e) => s + e.lineTotal, 0);
   const tax = Math.round(subtotal * 0.08);
-  const shipping = subtotal >= FREE_SHIP_THRESHOLD_CENTS ? 0 : subtotal > 0 ? SHIPPING_CENTS : 0;
+  const shipping =
+    subtotal >= FREE_SHIP_THRESHOLD_CENTS ? 0 : subtotal > 0 ? SHIPPING_CENTS : 0;
   const total = subtotal + tax + shipping;
 
   if (enriched.length === 0) {

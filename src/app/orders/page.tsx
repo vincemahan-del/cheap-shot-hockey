@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/session";
 import { getOrder, listOrdersForUser } from "@/lib/store";
 import { getGuestOrderIds } from "@/lib/guest-orders";
+import { readRecentOrders } from "@/lib/order-cookie";
 import { formatPrice } from "@/lib/format";
 import type { Order } from "@/lib/types";
 
@@ -16,9 +17,14 @@ export default async function OrdersPage() {
   } else {
     isGuest = true;
     const ids = await getGuestOrderIds();
-    orders = ids
+    const recent = await readRecentOrders();
+    const fromStore = ids
       .map((id) => getOrder(id))
-      .filter((o): o is Order => Boolean(o))
+      .filter((o): o is Order => Boolean(o));
+    const combined = [...fromStore, ...recent];
+    const seen = new Set<string>();
+    orders = combined
+      .filter((o) => (seen.has(o.id) ? false : (seen.add(o.id), true)))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 

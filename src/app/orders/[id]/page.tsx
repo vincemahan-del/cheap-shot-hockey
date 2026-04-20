@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { getOrder } from "@/lib/store";
 import { hasGuestOrder } from "@/lib/guest-orders";
+import { findRecentOrder } from "@/lib/order-cookie";
 import { formatPrice } from "@/lib/format";
 
 export default async function OrderDetailPage({
@@ -14,14 +15,15 @@ export default async function OrderDetailPage({
 }) {
   const { id } = await params;
   const { new: isNew } = await searchParams;
-  const order = getOrder(id);
+  const order = getOrder(id) ?? (await findRecentOrder(id));
   if (!order) notFound();
 
   const user = await getCurrentUser();
   const isOwnedByUser =
     user && (order.userId === user.id || user.role === "admin");
   const isAccessibleAsGuest = !order.userId && (await hasGuestOrder(id));
-  if (!isOwnedByUser && !isAccessibleAsGuest) notFound();
+  const isInRecentCookie = Boolean(await findRecentOrder(id));
+  if (!isOwnedByUser && !isAccessibleAsGuest && !isInRecentCookie) notFound();
 
   const isGuestOrder = order.guestEmail != null && order.userId == null;
 

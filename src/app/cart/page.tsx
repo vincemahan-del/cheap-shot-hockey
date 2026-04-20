@@ -1,18 +1,20 @@
 import Link from "next/link";
-import { currentPrice, getCart, getProduct } from "@/lib/store";
-import { getSessionId } from "@/lib/session";
+import { currentPrice, getProduct } from "@/lib/store";
+import { readCartLines } from "@/lib/cart-cookie";
 import { formatPrice } from "@/lib/format";
 import { ProductThumb } from "@/components/ProductThumb";
 import { CartLineControls } from "@/components/CartLineControls";
 
 export default async function CartPage() {
-  const sessionId = await getSessionId();
-  const cart = getCart(sessionId);
-  const enriched = cart.lines.map((l) => {
-    const p = getProduct(l.productId)!;
-    const unit = currentPrice(p);
-    return { line: l, product: p, unit, lineTotal: unit * l.quantity };
-  });
+  const cartLines = await readCartLines();
+  const enriched = cartLines
+    .map((l) => {
+      const p = getProduct(l.productId);
+      if (!p) return null;
+      const unit = currentPrice(p);
+      return { line: l, product: p, unit, lineTotal: unit * l.quantity };
+    })
+    .filter((e): e is NonNullable<typeof e> => e !== null);
   const subtotal = enriched.reduce((s, e) => s + e.lineTotal, 0);
   const progress = Math.min(100, Math.round((subtotal / 9900) * 100));
   const freeShipGap = Math.max(0, 9900 - subtotal);
