@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0b0f16;
-  --surface: #121826;
-  --surface-2: #1a2130;
+  --background: #0a0d13;
+  --surface: #131822;
+  --surface-2: #1b212c;
   --foreground: #e6e8ec;
-  --muted: #9aa3b2;
-  --border: #222b3a;
+  --muted: #8892a0;
+  --border: #232a36;
   --primary: #f03e3e;
   --primary-fg: #ffffff;
   --accent: #ffc857;
@@ -25,6 +25,7 @@
   --color-accent: var(--accent);
   --color-success: var(--success);
   --font-sans: var(--font-geist-sans);
+  --font-display: var(--font-archivo-black);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -35,8 +36,17 @@ body {
 }
 
 body {
-  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
-    Helvetica, Arial, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI,
+    Roboto, Helvetica, Arial, sans-serif;
+  background-image:
+    radial-gradient(800px 400px at 10% -10%, rgba(240, 62, 62, 0.08), rgba(0, 0, 0, 0) 60%),
+    radial-gradient(700px 500px at 100% 0%, rgba(74, 120, 181, 0.07), rgba(0, 0, 0, 0) 60%);
+  background-attachment: fixed;
+}
+
+.font-display {
+  font-family: var(--font-archivo-black), var(--font-geist-sans), Impact, "Arial Black", sans-serif;
+  letter-spacing: -0.01em;
 }
 
 a {
@@ -45,4 +55,14 @@ a {
 
 button {
   cursor: pointer;
+}
+
+/* Faux ice-rink line pattern utility */
+.rink-lines {
+  background-image:
+    linear-gradient(0deg, rgba(240, 62, 62, 0.08) 2px, transparent 2px),
+    linear-gradient(0deg, rgba(74, 120, 181, 0.08) 2px, transparent 2px);
+  background-position: 0 68%, 0 82%;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
 }

@@ -2,48 +2,79 @@ import Link from "next/link";
 import type { Product } from "@/lib/types";
 import { formatPrice } from "@/lib/format";
 import { ProductThumb } from "./ProductThumb";
+import { StarRating } from "./StarRating";
 
 export function ProductCard({ product }: { product: Product }) {
   const onSale = product.salePriceCents != null;
+  const savingsPct = onSale
+    ? Math.round(
+        ((product.priceCents - product.salePriceCents!) / product.priceCents) * 100,
+      )
+    : 0;
   return (
     <Link
       href={`/products/${product.slug}`}
       data-testid={`product-card-${product.slug}`}
-      className="group flex flex-col rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] p-3 transition hover:border-[color:var(--accent)]"
+      className="group relative flex flex-col overflow-hidden rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] shadow-[0_1px_0_rgba(255,255,255,0.02)] transition hover:-translate-y-0.5 hover:border-[color:var(--accent)] hover:shadow-[0_10px_30px_-12px_rgba(0,0,0,0.5)]"
     >
-      <ProductThumb slug={product.slug} name={product.name} category={product.category} />
-      <div className="mt-3 flex-1">
-        <div className="text-xs uppercase tracking-wide text-[color:var(--muted)]">
-          {product.brand}
+      {onSale && (
+        <span
+          className="absolute right-3 top-3 z-10 rounded-md bg-[color:var(--primary)] px-2 py-1 text-[10px] font-black uppercase tracking-wider text-white shadow-lg"
+          data-testid={`sale-badge-${product.slug}`}
+        >
+          −{savingsPct}%
+        </span>
+      )}
+      {product.stock <= 6 && product.stock > 0 && (
+        <span className="absolute left-3 top-3 z-10 rounded-md bg-amber-500/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-black">
+          Low stock
+        </span>
+      )}
+      <div className="px-3 pt-3">
+        <ProductThumb
+          slug={product.slug}
+          name={product.name}
+          category={product.category}
+          brand={product.brand}
+        />
+      </div>
+      <div className="flex flex-1 flex-col p-4">
+        <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-[color:var(--muted)]">
+          <span className="font-bold">{product.brand}</span>
+          {product.position !== "any" && (
+            <span className="rounded bg-[color:var(--surface-2)] px-1.5 py-0.5">
+              {product.position}
+            </span>
+          )}
         </div>
-        <div className="mt-0.5 line-clamp-2 font-semibold group-hover:text-[color:var(--accent)]">
+        <div className="mt-1 line-clamp-2 min-h-[2.75rem] font-bold leading-snug group-hover:text-[color:var(--accent)]">
           {product.name}
         </div>
-      </div>
-      <div className="mt-3 flex items-baseline gap-2">
-        {onSale ? (
-          <>
+        <div className="mt-2">
+          <StarRating value={product.rating} />
+        </div>
+        <div className="mt-3 flex items-baseline gap-2">
+          {onSale ? (
+            <>
+              <span
+                className="text-lg font-black text-[color:var(--primary)]"
+                data-testid={`price-${product.slug}`}
+              >
+                {formatPrice(product.salePriceCents!)}
+              </span>
+              <span className="text-sm text-[color:var(--muted)] line-through">
+                {formatPrice(product.priceCents)}
+              </span>
+            </>
+          ) : (
             <span
-              className="text-lg font-bold text-[color:var(--primary)]"
+              className="text-lg font-black"
               data-testid={`price-${product.slug}`}
             >
-              {formatPrice(product.salePriceCents!)}
-            </span>
-            <span className="text-sm text-[color:var(--muted)] line-through">
               {formatPrice(product.priceCents)}
             </span>
-            <span className="ml-auto rounded bg-[color:var(--primary)]/20 px-1.5 py-0.5 text-xs font-bold text-[color:var(--primary)]">
-              SALE
-            </span>
-          </>
-        ) : (
-          <span
-            className="text-lg font-bold"
-            data-testid={`price-${product.slug}`}
-          >
-            {formatPrice(product.priceCents)}
-          </span>
-        )}
+          )}
+        </div>
       </div>
     </Link>
   );
