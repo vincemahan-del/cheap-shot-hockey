@@ -30,8 +30,9 @@ pipeline {
 
   environment {
     MABL_API_TOKEN = credentials('mabl-api-token')
-    NODE_ENV       = 'production'
     // Ensure Homebrew-installed node/npm/jq are on PATH for Jenkins (macOS local).
+    // Don't set NODE_ENV=production — it makes `npm ci` skip devDeps the
+    // Next.js build needs (e.g. @tailwindcss/postcss).
     PATH           = "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:${env.PATH}"
   }
 
