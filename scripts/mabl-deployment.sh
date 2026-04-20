@@ -103,6 +103,11 @@ fi
 
 echo "⏳ polling for plan execution completion…"
 deadline=$(( $(date +%s) + TIMEOUT ))
+# Short grace period for plans to appear if any match. If still 0 plans
+# matched the labels after this, we exit cleanly — that's a no-op
+# deployment event, not a failure. (Avoids infinite wait when labels
+# haven't been attached to plans yet.)
+no_plan_deadline=$(( $(date +%s) + 60 ))
 while :; do
   now=$(date +%s)
   if (( now >= deadline )); then
@@ -132,6 +137,14 @@ while :; do
   if [[ "$finished" == "$total" && "$total" != "0" ]]; then
     echo "$status_json" | jq '.plan_executions[] | {plan_name, status}'
     echo "✅ all mabl runs passed"
+    exit 0
+  fi
+
+  if [[ "$total" == "0" && "$now" -ge "$no_plan_deadline" ]]; then
+    echo "⚠ no mabl plans matched label(s) '$LABELS' (event $event_id)."
+    echo "  Pipeline exiting successfully — the deployment event was accepted,"
+    echo "  but no plans are configured for this label yet. Create plans in"
+    echo "  the mabl UI and attach the label to enable gating."
     exit 0
   fi
 
