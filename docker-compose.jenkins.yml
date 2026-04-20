@@ -1,0 +1,28 @@
+# Run:  docker compose -f docker-compose.jenkins.yml up -d
+# Then: open http://localhost:8080 and grab the initial admin password from:
+#       docker compose -f docker-compose.jenkins.yml logs jenkins | grep password
+#
+# Install the recommended plugins. Then:
+#   1. Create credentials: mabl-api-token (String), github-token (String)
+#   2. New Item → Pipeline → "Pipeline script from SCM" → Git → this repo URL
+#   3. Save → Build Now
+#
+# The Jenkinsfile at the repo root drives the rest.
+
+services:
+  jenkins:
+    image: jenkins/jenkins:lts-jdk17
+    container_name: csh-jenkins
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    environment:
+      JAVA_OPTS: -Djenkins.install.runSetupWizard=true
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      # Mount docker so pipelines can run docker-based agents if needed
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  jenkins_home:

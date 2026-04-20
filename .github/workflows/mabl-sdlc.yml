@@ -1,0 +1,135 @@
+name: mabl SDLC gate
+
+# Mirrors Jenkinsfile for orgs that prefer GitHub Actions.
+# Required secrets: MABL_API_TOKEN, MABL_WORKSPACE_ID, MABL_APPLICATION_ID,
+# MABL_ENV_PREVIEW_ID, MABL_ENV_PROD_ID.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  PRODUCTION_URL: https://cheap-shot-hockey.vercel.app
+
+jobs:
+  build:
+    name: build + lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  mabl-api-smoke:
+    name: mabl — API smoke (shift-left)
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
+      MABL_WORKSPACE_ID: ${{ secrets.MABL_WORKSPACE_ID }}
+      MABL_APPLICATION_ID: ${{ secrets.MABL_APPLICATION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y jq
+      - name: trigger mabl API smoke
+        run: |
+          env_id="${{ github.event_name == 'pull_request' && secrets.MABL_ENV_PREVIEW_ID || secrets.MABL_ENV_PROD_ID }}"
+          url="${{ github.event_name == 'pull_request' && format('https://cheap-shot-hockey-git-{0}.vercel.app', github.head_ref) || env.PRODUCTION_URL }}"
+          chmod +x scripts/mabl-deployment.sh
+          ./scripts/mabl-deployment.sh \
+            --environment "$env_id" \
+            --application "$MABL_APPLICATION_ID" \
+            --labels api-smoke \
+            --url "$url" \
+            --commit "${{ github.sha }}" \
+            --branch "${{ github.head_ref || github.ref_name }}" \
+            --wait
+
+  mabl-ui-pr-gate:
+    name: mabl — UI PR gate
+    needs: build
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
+      MABL_APPLICATION_ID: ${{ secrets.MABL_APPLICATION_ID }}
+      MABL_ENV_PREVIEW_ID: ${{ secrets.MABL_ENV_PREVIEW_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y jq
+      - name: trigger mabl UI PR gate
+        run: |
+          chmod +x scripts/mabl-deployment.sh
+          ./scripts/mabl-deployment.sh \
+            --environment "$MABL_ENV_PREVIEW_ID" \
+            --application "$MABL_APPLICATION_ID" \
+            --labels pr-gate \
+            --url "https://cheap-shot-hockey-git-${{ github.head_ref }}.vercel.app" \
+            --commit "${{ github.sha }}" \
+            --branch "${{ github.head_ref }}" \
+            --wait
+
+  mabl-regression:
+    name: mabl — full regression (main)
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
+      MABL_APPLICATION_ID: ${{ secrets.MABL_APPLICATION_ID }}
+      MABL_ENV_PROD_ID: ${{ secrets.MABL_ENV_PROD_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y jq
+      - name: trigger mabl regression
+        run: |
+          chmod +x scripts/mabl-deployment.sh
+          ./scripts/mabl-deployment.sh \
+            --environment "$MABL_ENV_PROD_ID" \
+            --application "$MABL_APPLICATION_ID" \
+            --labels regression \
+            --url "${{ env.PRODUCTION_URL }}" \
+            --commit "${{ github.sha }}" \
+            --branch main \
+            --wait
+
+  post-deploy-smoke:
+    name: post-deploy smoke (main)
+    needs: mabl-regression
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
+      MABL_APPLICATION_ID: ${{ secrets.MABL_APPLICATION_ID }}
+      MABL_ENV_PROD_ID: ${{ secrets.MABL_ENV_PROD_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: wait for Vercel to reflect new commit
+        run: |
+          short="${GITHUB_SHA:0:7}"
+          for i in $(seq 1 30); do
+            live=$(curl -fsS ${{ env.PRODUCTION_URL }}/api/build-info | jq -r '.commit' | cut -c1-7)
+            echo "live=$live expected=$short"
+            [ "$live" = "$short" ] && exit 0
+            sleep 10
+          done
+          echo "deploy never reflected new commit"; exit 1
+      - run: sudo apt-get install -y jq
+      - name: mabl post-deploy smoke
+        run: |
+          chmod +x scripts/mabl-deployment.sh
+          ./scripts/mabl-deployment.sh \
+            --environment "$MABL_ENV_PROD_ID" \
+            --application "$MABL_APPLICATION_ID" \
+            --labels post-deploy-smoke \
+            --url "${{ env.PRODUCTION_URL }}" \
+            --commit "${{ github.sha }}" \
+            --branch main \
+            --wait
