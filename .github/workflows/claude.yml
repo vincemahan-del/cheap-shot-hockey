@@ -1,10 +1,14 @@
 name: Claude Code
 
 # Responds when @claude is mentioned in issues, PR comments, or review
-# comments. Uses anthropic/claude-code-action.
+# comments. Uses anthropics/claude-code-action.
 #
-# Required secret:
-#   ANTHROPIC_API_KEY  — your Claude API key (get one at console.anthropic.com)
+# Auth — one of these secrets must be set:
+#   CLAUDE_CODE_OAUTH_TOKEN  (preferred — uses your Claude Pro/Max/Team
+#                            subscription; no separate API billing)
+#     Create by running `/install-github-app` in Claude Code, OR
+#     run `claude setup-token` in a terminal to mint one manually.
+#   ANTHROPIC_API_KEY        (alternative — a console.anthropic.com key)
 
 on:
   issue_comment:
@@ -40,8 +44,7 @@ jobs:
         id: claude
         uses: anthropics/claude-code-action@beta
         with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # Let Claude run npm/git inside sessions
           allowed_tools: "Bash,Edit,Read,Glob,Grep,WebFetch,WebSearch"
-          # Tag the triggering comment so users know Claude saw it
           trigger_phrase: "@claude"
