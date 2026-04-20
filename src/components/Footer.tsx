@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export function Footer() {
   return (
     <footer className="mt-20 border-t border-[color:var(--border)] bg-[color:var(--surface)]">
@@ -30,24 +32,24 @@ export function Footer() {
             </h3>
             <ul className="space-y-1.5 text-sm">
               <li>
-                <a href="/products?category=sticks" className="hover:text-[color:var(--accent)]">
+                <Link href="/products?category=sticks" className="hover:text-[color:var(--accent)]">
                   Sticks
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/products?category=skates" className="hover:text-[color:var(--accent)]">
+                <Link href="/products?category=skates" className="hover:text-[color:var(--accent)]">
                   Skates
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/products?category=goalie-gear" className="hover:text-[color:var(--accent)]">
+                <Link href="/products?category=goalie-gear" className="hover:text-[color:var(--accent)]">
                   Goalie gear
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/products?onSale=true" className="text-[color:var(--primary)] hover:opacity-80">
-                  Deals & clearance
-                </a>
+                <Link href="/products?onSale=true" className="text-[color:var(--primary)] hover:opacity-80">
+                  Deals &amp; clearance
+                </Link>
               </li>
             </ul>
           </div>
