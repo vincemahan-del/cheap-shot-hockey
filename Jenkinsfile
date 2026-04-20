@@ -31,6 +31,8 @@ pipeline {
   environment {
     MABL_API_TOKEN = credentials('mabl-api-token')
     NODE_ENV       = 'production'
+    // Ensure Homebrew-installed node/npm/jq are on PATH for Jenkins (macOS local).
+    PATH           = "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:${env.PATH}"
   }
 
   stages {
