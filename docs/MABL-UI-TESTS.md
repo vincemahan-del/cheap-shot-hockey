@@ -165,12 +165,35 @@ will derive alternative selectors automatically.
 
 #### 1. Homepage verify
 
+> **Reject any auto-generated assertion that references hero headline
+> text, marketing taglines, or the category list.** Those change every
+> time marketing ships a seasonal push — a CHP test must not break
+> when a campaign swaps "DROP THE GLOVES. NOT YOUR BUDGET." for
+> "SLAPSHOT SALE." The only durable surfaces on a home page are
+> structural (the hero *exists*) and load-bearing (the product we're
+> about to buy in Step 2 is reachable).
+
 | Action | Selector / Value |
 | --- | --- |
 | Navigate | `http://localhost:3000/` (or just let the env URL load) |
-| Assert element exists | `[data-testid="hero"]` |
-| Assert text present | Text `Apex Velocity Pro Stick` within `[data-testid="product-card-apex-velocity-pro-stick"]` |
-| Visual snapshot | Full page — name `home-page` |
+| Assert element exists | `[data-testid="hero"]` *(structural: hero section rendered, copy ignored)* |
+| Assert element exists | `[data-testid="product-card-apex-velocity-pro-stick"]` *(load-bearing: the product we buy in step 2 must be findable from home; prefer existence over text matching)* |
+| Visual snapshot | Full page — name `home-page` *(mabl's visual diff catches layout regressions without coupling to specific copy)* |
+
+**Red-flag assertions to reject (if the Trainer auto-suggests them):**
+
+| Auto-suggestion | Why it's brittle |
+| --- | --- |
+| Assert hero heading text equals `DROP THE GLOVES. NOT YOUR BUDGET.` | Seasonal marketing copy; changes often |
+| Assert nav contains `Sticks, Skates, ...` as a list | Categories can be added/renamed without affecting checkout |
+| Assert featured product = `Apex Velocity Pro Stick` *(as an equality check)* | The homepage "Deals of the week" rotates; the product only needs to *exist* on the site, not be featured |
+| Assert promo strip text `FREE SHIPPING ON ORDERS $99+` | Promotional banner text is under marketing control |
+| Assert exact number of cards in `[data-testid="category-grid"]` | Adding a category shouldn't fail a checkout test |
+
+**Rule of thumb:** if a content-team edit in a CMS would turn the test
+red, that assertion does not belong in a CHP test. Move content-copy
+checks into a separate `CSH-CONTENT-UI-*` layer if you want them at
+all.
 
 #### 2. Open product detail
 
@@ -257,6 +280,21 @@ will derive alternative selectors automatically.
 | Add-to-cart feedback | `Added to cart` in a dedicated `[data-testid="add-to-cart-feedback-p-stk-001"]` span, not a toast | toast/snackbar pattern |
 | Cart count after add | `1` in `[data-testid="nav-cart-count"]` | searching for a cart-badge by class name |
 | Order id | dynamic `o-mo8xfujo49fa` | regex/pattern match, not equality |
+
+### When the Trainer's AI assist over-asserts
+
+mabl's Trainer will sometimes auto-suggest a combined "verify the page
+loaded" assertion that globs together nav + hero headline + featured
+product text. **Reject it.** Use the smaller assertions in the tables
+above instead. A single combined assertion:
+
+- fails on the first dirty bit (hard to diagnose),
+- couples to marketing copy (breaks on seasonal pushes),
+- and offers no more signal than the individual structural checks
+  already in the playbook.
+
+If the Trainer keeps suggesting it, delete it after adding and replace
+with the tabled rows for that step.
 
 ### Labels (apply after saving the test)
 
