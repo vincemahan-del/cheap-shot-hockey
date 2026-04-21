@@ -95,9 +95,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: compute Vercel preview URL (slugify branch)
+        id: preview
+        run: |
+          # Vercel slugifies branch names: /, _ → -. Mirror that exactly.
+          slug="${GITHUB_HEAD_REF//\//-}"
+          slug="${slug//_/-}"
+          echo "url=https://cheap-shot-hockey-git-${slug}.vercel.app" >> "$GITHUB_OUTPUT"
+          echo "Computed preview URL: https://cheap-shot-hockey-git-${slug}.vercel.app"
       - name: wait for Vercel Preview to be ready
         run: |
-          url="https://cheap-shot-hockey-git-${{ github.head_ref }}.vercel.app"
+          url="${{ steps.preview.outputs.url }}"
           echo "Polling $url/api/health ..."
           for i in $(seq 1 30); do
             if curl -fsS -m 5 "$url/api/health" >/dev/null 2>&1; then
@@ -110,7 +118,7 @@ jobs:
           exit 1
       - name: run newman T1 smoke
         run: |
-          url="https://cheap-shot-hockey-git-${{ github.head_ref }}.vercel.app/api"
+          url="${{ steps.preview.outputs.url }}/api"
           npx --yes newman run mabl/postman/csh-api-smoke.postman_collection.json \
             --env-var "baseUrl=$url" \
             --reporters cli \
@@ -162,6 +170,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y jq
+      - name: compute Vercel preview URL (slugify branch)
+        id: preview
+        run: |
+          slug="${GITHUB_HEAD_REF//\//-}"
+          slug="${slug//_/-}"
+          echo "url=https://cheap-shot-hockey-git-${slug}.vercel.app" >> "$GITHUB_OUTPUT"
       - name: trigger CSH-SMOKE-PR against Preview
         run: |
           chmod +x scripts/mabl-deployment.sh
@@ -169,7 +183,7 @@ jobs:
             --environment "$MABL_ENV_PREVIEW_ID" \
             --application "$MABL_APPLICATION_ID" \
             --labels type-smk,exec-pr \
-            --url "https://cheap-shot-hockey-git-${{ github.head_ref }}.vercel.app" \
+            --url "${{ steps.preview.outputs.url }}" \
             --commit "${{ github.sha }}" \
             --branch "${{ github.head_ref }}" \
             --wait
