@@ -121,7 +121,7 @@ pipeline {
           ./scripts/mabl-deployment.sh \\
             --environment $MABL_ENV_PREVIEW_ID \\
             --application $MABL_APPLICATION_ID \\
-            --labels type-e2e,exec-pr \\
+            --labels type-ui,exec-pr \\
             --url "$PREVIEW_URL" \\
             --commit "$GIT_COMMIT_SHORT" \\
             --branch "$GIT_BRANCH_NAME" \\

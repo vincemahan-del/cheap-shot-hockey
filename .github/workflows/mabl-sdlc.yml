@@ -105,7 +105,7 @@ jobs:
           ./scripts/mabl-deployment.sh \
             --environment "$MABL_ENV_PREVIEW_ID" \
             --application "$MABL_APPLICATION_ID" \
-            --labels type-e2e,exec-pr \
+            --labels type-ui,exec-pr \
             --url "https://cheap-shot-hockey-git-${{ github.head_ref }}.vercel.app" \
             --commit "${{ github.sha }}" \
             --branch "${{ github.head_ref }}" \
