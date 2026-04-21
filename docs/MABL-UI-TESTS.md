@@ -133,33 +133,169 @@ Lives in a future `CSH-REGRESSION-UI` plan with labels
 
 ---
 
-## Authoring
+## Authoring playbook (walk-verified)
 
-### Option A: mabl Cloud Test Generation (tried first)
+Claude drove the full CHP flow in the live app and captured every
+`data-testid`, URL, and actual on-screen text. Below is the exact
+step-by-step — every selector is confirmed against the running app,
+not guessed.
+
+> **Authoring path recommendation:** mabl Cloud Test Generation was
+> attempted twice via MCP (`create_mabl_test_cloud`, `create_mabl_test_from_plan`).
+> Both sessions returned non-success statuses (`failed` / `terminated`).
+> Until mabl's cloud-gen reliability improves, the Trainer is the
+> reliable path. This playbook makes that 15 minutes of deterministic
+> work.
+
+### Setup
+
+1. **Tests → Create new → Browser test** (NOT API test)
+2. Application: **Cheap Shot Hockey**
+3. Environment: **Local**
+4. Starting URL: `http://localhost:3000/` (populated automatically from env)
+5. Name: `CSH-CHP-CHECKOUT-UI-CustomerPlacesOrderEndToEnd`
+6. Open the mabl Desktop Trainer on that test
+7. Make sure `npm run dev` is running locally on port 3000
+
+### Step-by-step
+
+Selectors below are **CSS selectors** — paste them into the Trainer's
+"Use selector" dialog when recording an interaction. mabl's auto-heal
+will derive alternative selectors automatically.
+
+#### 1. Homepage verify
+
+| Action | Selector / Value |
+| --- | --- |
+| Navigate | `http://localhost:3000/` (or just let the env URL load) |
+| Assert element exists | `[data-testid="hero"]` |
+| Assert text present | Text `Apex Velocity Pro Stick` within `[data-testid="product-card-apex-velocity-pro-stick"]` |
+| Visual snapshot | Full page — name `home-page` |
+
+#### 2. Open product detail
+
+| Action | Selector / Value |
+| --- | --- |
+| Click | `[data-testid="product-card-apex-velocity-pro-stick"]` |
+| Assert URL | contains `/products/apex-velocity-pro-stick` |
+| Assert element text equals | `[data-testid="product-name"]` → `Apex Velocity Pro Stick` |
+| Assert element text equals | `[data-testid="product-price"]` → `$199.99` *(business-logic)* |
+| Visual snapshot | Element `[data-testid="product-name"]`'s section — name `product-detail-apex` |
+
+#### 3. Add to cart
+
+| Action | Selector / Value |
+| --- | --- |
+| Click | `[data-testid="add-to-cart-p-stk-001"]` |
+| Assert element text equals | `[data-testid="add-to-cart-feedback-p-stk-001"]` → `Added to cart` |
+| Assert element text equals | `[data-testid="nav-cart-count"]` → `1` |
+
+#### 4. Log in as demo customer
+
+| Action | Selector / Value |
+| --- | --- |
+| Click | `[data-testid="nav-login"]` (header link to `/login`) |
+| Assert URL | equals `/login` (or ends with `/login`) |
+| Fill | `[data-testid="login-email"]` → `demo@cheapshot.test` |
+| Fill | `[data-testid="login-password"]` → `demo1234` |
+| Click | `[data-testid="login-submit"]` |
+| Assert element text contains | `[data-testid="nav-account"]` → `Hi, Demo` *(this replaces `nav-login` in the header after login)* |
+
+#### 5. Cart verify
+
+| Action | Selector / Value |
+| --- | --- |
+| Click | `[data-testid="nav-cart"]` (or navigate to `/cart`) |
+| Assert URL | equals `/cart` |
+| Assert element text equals | `[data-testid="cart-heading"]` → `Your Cart` |
+| Assert element exists | `[data-testid="cart-line-p-stk-001"]` |
+| Assert element text equals | `[data-testid="qty-p-stk-001"]` → `1` *(structural: quantity)* |
+| Assert element text equals | `[data-testid="cart-line-total-p-stk-001"]` → `$199.99` |
+| Assert element text equals | `[data-testid="cart-subtotal"]` → `$199.99` *(business-logic)* |
+| Visual snapshot | Element `[data-testid="cart-lines"]` — name `cart-line-items` |
+
+#### 6. Checkout — address + preview totals
+
+| Action | Selector / Value |
+| --- | --- |
+| Click | `[data-testid="cart-checkout"]` |
+| Assert URL | equals `/checkout` |
+| Assert element text equals | `[data-testid="checkout-heading"]` → `Checkout` |
+| Fill | `[data-testid="checkout-name"]` → `Demo Customer` |
+| Fill | `[data-testid="checkout-street"]` → `1 Rink Road` |
+| Fill | `[data-testid="checkout-city"]` → `Minneapolis` |
+| Fill | `[data-testid="checkout-state"]` → `MN` |
+| Fill | `[data-testid="checkout-postalCode"]` → `55401` |
+| Fill | `[data-testid="checkout-country"]` → `US` |
+| Assert element text equals | `[data-testid="checkout-subtotal"]` → `$199.99` *(business-logic)* |
+| Assert element text equals | `[data-testid="checkout-tax"]` → `$16.00` *(business-logic: 8% tax)* |
+| Assert element text equals | `[data-testid="checkout-shipping"]` → `FREE` *(business-logic: free over $99; note text is **FREE** not **$0.00**)* |
+| Assert element text equals | `[data-testid="checkout-total"]` → `$215.99` *(business-logic: the big one)* |
+
+#### 7. Place order + confirmation
+
+| Action | Selector / Value |
+| --- | --- |
+| Click | `[data-testid="checkout-submit"]` |
+| Wait for navigation | (mabl auto-waits) |
+| Assert URL | matches regex `^/orders/o-[a-z0-9]+$` *(dynamic id — pattern match, not exact)* |
+| Assert element text starts with | `[data-testid="order-id"]` → `Order o-` |
+| Assert element text equals | `[data-testid="order-status"]` → `paid` *(lowercase — note this is **not** "Paid")* |
+| Assert element text equals | `[data-testid="order-total"]` → `$215.99` *(business-logic: end-to-end math)* |
+| Assert element text equals | `[data-testid="order-shipping"]` → `FREE` |
+| Assert element text equals | `[data-testid="order-tax"]` → `$16.00` |
+| Assert element exists | `[data-testid="order-ship-to"]` |
+| Visual snapshot | Element `[data-testid="order-id"]`'s section — name `order-confirmation` |
+
+### Gotchas caught during the walk
+
+| Thing | Actual value | What you might have written instead |
+| --- | --- | --- |
+| Order status text | `paid` (lowercase) | `"Paid"` |
+| Shipping display | `FREE` (word) | `"$0.00"` |
+| Account indicator after login | `Hi, Demo` in `[data-testid="nav-account"]` | `"Demo Customer"` (full name not shown in header) |
+| Add-to-cart feedback | `Added to cart` in a dedicated `[data-testid="add-to-cart-feedback-p-stk-001"]` span, not a toast | toast/snackbar pattern |
+| Cart count after add | `1` in `[data-testid="nav-cart-count"]` | searching for a cart-badge by class name |
+| Order id | dynamic `o-mo8xfujo49fa` | regex/pattern match, not equality |
+
+### Labels (apply after saving the test)
+
+Open the test → **Add label** → paste each (mabl UI accepts newline or
+comma separation):
 
 ```
-plan_new_test + create_mabl_test_from_plan(mode: "cloud")
+type-chp
+type-ui
+priority-p0
+feat-checkout
+feat-cart
+feat-login
+feat-catalog
+exec-pr
+exec-postdeploy
+exec-nightly
+team-platform
 ```
 
-Works when mabl's cloud agent is available. If the session sits in
-`queued` for more than 5 minutes, fall back to Option B.
+### Plan
 
-### Option B: Local Trainer (reliable)
+Create plan **CSH-UI-PR-GATE** (if not existing):
+- Plan labels: `type-ui, exec-pr, exec-postdeploy, exec-nightly, team-platform`
+- Environments: Preview, Production, Local
+- Include the test above
 
-1. Tests → **Create new** → **Browser test**
-2. App: **Cheap Shot Hockey**, Env: **Local**
-3. Starting URL: `http://localhost:3000`
-4. Open the Trainer (desktop app), record the 7 tasks above
-5. Pause the trainer at each "assert" point and add the assertion
-   (existence for structural, exact-text for business-logic)
-6. Pause at visual checkpoint points and click "Take snapshot"
-7. Save → apply labels → add to plan `CSH-UI-PR-GATE`
+Once the test is labeled + in the plan, the next PR push to GitHub
+will trigger both Jenkins stage 8 and the GHA `mabl-ui-pr-gate` job
+(both dispatch `type-ui,exec-pr`) and the test will run against
+Preview automatically.
 
-### Option C: Playwright export
+### Fallback authoring paths (if the Trainer chokes)
 
-If the Trainer is slow or a Playwright script already exists, use
-`export_to_playwright` after a local author then reuse the recording
-for other envs.
+- **Playwright export:** if a Playwright script exists for the same
+  flow, use `export_to_playwright` or import the `.spec.ts` directly
+  into mabl.
+- **mabl cloud retry:** revisit in a week — mabl's cloud-gen stability
+  changes over time.
 
 ---
 
