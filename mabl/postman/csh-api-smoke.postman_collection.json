@@ -1,0 +1,324 @@
+{
+  "info": {
+    "name": "CSH-SMOKE-API (local gate — T1)",
+    "description": "Local T1 gate. Runs the complete API smoke suite via newman against localhost:3000 before any push. Mirrors the tests that live in the mabl CSH-SMOKE-API plan.\n\nTests included:\n1. CSH-SMK-HEALTH-API-ReturnsOkStatus\n2. CSH-SMK-BUILD-API-BuildInfoReflectsCommit\n3. CSH-CHP-CHECKOUT-API-CustomerPlacesOrderEndToEnd (9 chained steps)\n\nRun via: npm run test:mabl:local\nCI parallel: mabl cloud runs the same logical tests on Preview (T2) and Prod (T3) via label dispatch type-smk,exec-*.\n\nTotal runtime: ~10s against localhost. Exits non-zero on any assertion failure — suitable as a pre-push gate.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "CSH-SMK-HEALTH-API-ReturnsOkStatus",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "pm.test('Content-Type is JSON', () => pm.expect(pm.response.headers.get('Content-Type')).to.match(/^application\\/json/));",
+              "const body = pm.response.json();",
+              "pm.test('status field is ok', () => pm.expect(body.status).to.eql('ok'));",
+              "pm.test('service is cheap-shot-hockey', () => pm.expect(body.service).to.eql('cheap-shot-hockey'));",
+              "pm.test('time is ISO-8601', () => pm.expect(body.time).to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$/));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CSH-SMK-BUILD-API-BuildInfoReflectsCommit",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/build-info",
+          "host": ["{{baseUrl}}"],
+          "path": ["build-info"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('name is cheap-shot-hockey', () => pm.expect(body.name).to.eql('cheap-shot-hockey'));",
+              "pm.test('commit looks like a git sha or dev', () => pm.expect(body.commit).to.match(/^([0-9a-f]{7,40}|dev)$/));",
+              "pm.test('environment is valid', () => pm.expect(body.environment).to.match(/^(production|preview|development)$/));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CSH-CHP-01 Catalog: list products",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/products",
+          "host": ["{{baseUrl}}"],
+          "path": ["products"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('catalog returns products', () => pm.expect(body.count).to.be.above(0));",
+              "pm.test('items array shape', () => pm.expect(body.items).to.be.an('array').and.not.empty);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CSH-CHP-02 Catalog: deep-link by slug",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/products/apex-velocity-pro-stick",
+          "host": ["{{baseUrl}}"],
+          "path": ["products", "apex-velocity-pro-stick"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('product has an id', () => pm.expect(body.id).to.be.a('string').and.not.empty);",
+              "pm.test('salePriceCents 19999', () => pm.expect(body.salePriceCents).to.eql(19999));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CSH-CHP-03 Auth: login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"demo@cheapshot.test\",\n  \"password\": \"demo1234\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('user has id', () => pm.expect(body.id).to.be.a('string').and.not.empty);",
+              "pm.test('role is customer', () => pm.expect(body.role).to.eql('customer'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CSH-CHP-04 Auth: session /me",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/auth/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "me"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('session resolves a user', () => pm.expect(body.id).to.be.a('string').and.not.empty);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CSH-CHP-05 Cart: add Apex Velocity",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"productId\": \"p-stk-001\",\n  \"quantity\": 1,\n  \"mode\": \"add\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/cart",
+          "host": ["{{baseUrl}}"],
+          "path": ["cart"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('cart has a line', () => pm.expect(body.lines).to.be.an('array').and.not.empty);",
+              "pm.test('line productId matches', () => pm.expect(body.lines[0].productId).to.eql('p-stk-001'));",
+              "pm.test('line qty is 1', () => pm.expect(body.lines[0].quantity).to.eql(1));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CSH-CHP-06 Cart: persists",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/cart",
+          "host": ["{{baseUrl}}"],
+          "path": ["cart"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('subtotalCents 19999', () => pm.expect(body.subtotalCents).to.eql(19999));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CSH-CHP-07 Checkout: place order",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"shippingAddress\": {\n    \"name\": \"Demo Customer\",\n    \"street\": \"1 Rink Road\",\n    \"city\": \"Minneapolis\",\n    \"state\": \"MN\",\n    \"postalCode\": \"55401\",\n    \"country\": \"US\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/orders",
+          "host": ["{{baseUrl}}"],
+          "path": ["orders"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 201', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test('status is paid', () => pm.expect(body.status).to.eql('paid'));",
+              "pm.test('userId present', () => pm.expect(body.userId).to.be.a('string').and.not.empty);",
+              "pm.test('shippingCents is 0', () => pm.expect(body.shippingCents).to.eql(0));",
+              "pm.test('taxCents is 1600', () => pm.expect(body.taxCents).to.eql(1600));",
+              "pm.test('totalCents is 21599', () => pm.expect(body.totalCents).to.eql(21599));",
+              "pm.collectionVariables.set('orderId', body.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CSH-CHP-08 Cart cleared",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/cart",
+          "host": ["{{baseUrl}}"],
+          "path": ["cart"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('cart empty', () => pm.expect(body.subtotalCents).to.eql(0));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CSH-CHP-09 Order retrievable",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/orders/{{orderId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["orders", "{{orderId}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('order is paid', () => pm.expect(body.status).to.eql('paid'));",
+              "pm.test('totalCents is 21599', () => pm.expect(body.totalCents).to.eql(21599));"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api",
+      "description": "Override via newman --env-var baseUrl=... for Preview/Prod runs"
+    },
+    {
+      "key": "orderId",
+      "value": "",
+      "description": "Populated by step CSH-CHP-07 via pm.collectionVariables.set"
+    }
+  ]
+}
