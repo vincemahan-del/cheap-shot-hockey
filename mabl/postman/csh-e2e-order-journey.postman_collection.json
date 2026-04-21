@@ -1,0 +1,274 @@
+{
+  "info": {
+    "name": "CSH-CHP-CHECKOUT-API-CustomerPlacesOrderEndToEnd",
+    "description": "End-to-end API journey for Cheap Shot Hockey: catalog browse → authenticate → add to cart → place order → verify. 9 chained requests. Imports into mabl as an API test.\n\nBase URL is driven by the `baseUrl` collection variable. Set it to http://localhost:3000/api for Local, https://cheap-shot-hockey.vercel.app/api for Production, etc.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1 - Catalog: list products",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/products",
+          "host": ["{{baseUrl}}"],
+          "path": ["products"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('count > 19', () => pm.expect(body.count).to.be.above(19));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 - Catalog: deep-link by slug",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/products/apex-velocity-pro-stick",
+          "host": ["{{baseUrl}}"],
+          "path": ["products", "apex-velocity-pro-stick"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('id is p-stk-001', () => pm.expect(body.id).to.eql('p-stk-001'));",
+              "pm.test('salePriceCents is 19999', () => pm.expect(body.salePriceCents).to.eql(19999));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 - Auth: login as demo customer",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"demo@cheapshot.test\",\n  \"password\": \"demo1234\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('id is u-001', () => pm.expect(body.id).to.eql('u-001'));",
+              "pm.test('role is customer', () => pm.expect(body.role).to.eql('customer'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 - Auth: session cookie persists via /me",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/auth/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "me"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('id is u-001', () => pm.expect(body.id).to.eql('u-001'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5 - Cart: add 1 Apex Velocity stick",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"productId\": \"p-stk-001\",\n  \"quantity\": 1,\n  \"mode\": \"add\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/cart",
+          "host": ["{{baseUrl}}"],
+          "path": ["cart"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('line productId is p-stk-001', () => pm.expect(body.lines[0].productId).to.eql('p-stk-001'));",
+              "pm.test('line quantity is 1', () => pm.expect(body.lines[0].quantity).to.eql(1));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6 - Cart: read persists across request",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/cart",
+          "host": ["{{baseUrl}}"],
+          "path": ["cart"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('subtotalCents is 19999', () => pm.expect(body.subtotalCents).to.eql(19999));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7 - Checkout: place the order",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"shippingAddress\": {\n    \"name\": \"Demo Customer\",\n    \"street\": \"1 Rink Road\",\n    \"city\": \"Minneapolis\",\n    \"state\": \"MN\",\n    \"postalCode\": \"55401\",\n    \"country\": \"US\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/orders",
+          "host": ["{{baseUrl}}"],
+          "path": ["orders"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 201', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test('status is paid', () => pm.expect(body.status).to.eql('paid'));",
+              "pm.test('userId is u-001', () => pm.expect(body.userId).to.eql('u-001'));",
+              "pm.test('shippingCents is 0 (free over $99)', () => pm.expect(body.shippingCents).to.eql(0));",
+              "pm.test('taxCents is 1600', () => pm.expect(body.taxCents).to.eql(1600));",
+              "pm.test('totalCents is 21599', () => pm.expect(body.totalCents).to.eql(21599));",
+              "// Extract order id for step 9",
+              "pm.collectionVariables.set('orderId', body.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8 - Cart cleared after order",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/cart",
+          "host": ["{{baseUrl}}"],
+          "path": ["cart"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('cart empty', () => pm.expect(body.subtotalCents).to.eql(0));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9 - Order retrievable by id",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/orders/{{orderId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["orders", "{{orderId}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('order is paid', () => pm.expect(body.status).to.eql('paid'));",
+              "pm.test('totalCents is 21599', () => pm.expect(body.totalCents).to.eql(21599));"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api",
+      "description": "Override per env: http://localhost:3000/api (Local) | https://cheap-shot-hockey-git-main-vincemahan-1163s-projects.vercel.app/api (Preview) | https://cheap-shot-hockey.vercel.app/api (Production)"
+    },
+    {
+      "key": "orderId",
+      "value": "",
+      "description": "Populated by step 7 response"
+    }
+  ]
+}
