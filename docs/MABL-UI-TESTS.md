@@ -85,33 +85,22 @@ covers the gaps.
 
 ---
 
-## Plan
+## Plans
 
-**Name:** `CSH-UI-PR-GATE`
+The UI CHP test is included as **Stage 2** in both split plans
+described in `MABL-API-TESTS.md`:
 
-**Description:** UI-layer PR gate + post-deploy smoke for Cheap Shot
-Hockey. Browser-rendered customer journey. Target: complete in under
-4 min per env.
+- **`CSH-SMOKE-PR`** — env = Preview only, fires on PR push
+- **`CSH-SMOKE-POSTDEPLOY`** — env = Prod only, fires after Vercel
+  reflect on main
 
-**Plan labels (the CI dispatch surface):**
+Stage 1 (API smokes) gates Stage 2 (UI) in both plans, so a broken API
+skips the browser-grid spin-up.
 
-| Label | Why |
-| --- | --- |
-| `type-chp` | Critical-happy-path classification |
-| `type-ui` | Layer classification (not `type-e2e`; UI and E2E are distinct) |
-| `exec-pr` | Fires on PR branch pushes |
-| `exec-postdeploy` | Fires after every prod deploy |
-| `exec-nightly` | Fires on the nightly schedule |
-| `team-platform` | Ownership |
-
-**Environments attached:** Preview, Production, Local
-
-**Tests included:**
-1. `CSH-CHP-CHECKOUT-UI-CustomerPlacesOrderEndToEnd`
-
-> Pipeline label intersection: the Jenkinsfile stage 8 and GHA
-> `mabl-ui-pr-gate` job dispatch on `type-ui,exec-pr` — matches the
-> framework token set and picks up any UI test tagged with both.
+> No separate UI-only plan needed. The split plans carry both
+> `type-api` and `type-ui` labels, and Stage 2 covers the UI layer.
+> This is the "one-plan-per-trigger-context, one-env-per-plan"
+> architecture.
 
 ---
 
@@ -317,7 +306,7 @@ team-platform
 
 ### Plan
 
-Create plan **CSH-UI-PR-GATE** (if not existing):
+Add the test to both split plans (per `MABL-API-TESTS.md`):
 - Plan labels: `type-ui, exec-pr, exec-postdeploy, exec-nightly, team-platform`
 - Environments: Preview, Production, Local
 - Include the test above

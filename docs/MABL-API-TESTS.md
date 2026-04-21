@@ -184,31 +184,73 @@ GET /orders/{{orderId}}
 
 ---
 
-## Plan
+## Plans
 
-**Name:** `CSH-SMOKE-API`
+These tests live in **two env-scoped plans** (split from the original
+`CSH-SMOKE` to avoid cross-env fan-out). Each plan attaches exactly
+one env, so a deployment event can only fire one plan run — no
+multi-env broadcasting.
 
-**Description:** Fast API-layer smoke suite. Catches deploy-breaking
-regressions across infrastructure (health, build-info) + the full
-customer-places-order happy path. Target: complete in under 60s.
+### Plan 1: `CSH-SMOKE-PR`
 
-**Plan labels (the CI dispatch surface):**
+**Description:** Preview-layer gate. Fires on PR branch pushes via
+GHA `mabl-smoke` / Jenkins stage 7. Fast API-layer smokes plus the
+UI CHP in Stage 2.
 
 | Label | Why |
 | --- | --- |
 | `type-smk` | Test type classification |
-| `type-api` | Layer classification |
-| `exec-pr` | Fires on PR branch pushes |
-| `exec-postdeploy` | Fires after every prod deploy |
-| `exec-nightly` | Fires on the nightly schedule |
+| `type-chp` | Contains CHP tests |
+| `type-api` | API layer included |
+| `type-ui` | UI layer included (Stage 2) |
+| `exec-pr` | PR-push dispatch matches here |
 | `team-platform` | Ownership |
+| `priority-p0` | Blocks merge via branch protection |
 
-**Environments attached:** Preview, Production, Local
+**Environment attached:** Preview only
 
-**Tests included (3 total, one parallel stage):**
+### Plan 2: `CSH-SMOKE-POSTDEPLOY`
+
+**Description:** Post-deploy gate against Prod after Vercel reflects
+the new commit. Same tests as PR plan, different env + dispatch label.
+
+| Label | Why |
+| --- | --- |
+| `type-smk` | Test type classification |
+| `type-chp` | Contains CHP tests |
+| `type-api` | API layer included |
+| `type-ui` | UI layer included (Stage 2) |
+| `exec-postdeploy` | Main-push post-deploy dispatch matches here |
+| `exec-nightly` | Future nightly schedule catches this plan too |
+| `team-platform` | Ownership |
+| `priority-p0` | |
+
+**Environment attached:** Production only
+
+### Tests included (shared, both plans, 4 total — 2 stages)
+
+**Stage 1 (API, parallel):**
 1. `CSH-SMK-HEALTH-API-ReturnsOkStatus`
 2. `CSH-SMK-BUILD-API-BuildInfoReflectsCommit`
 3. `CSH-CHP-CHECKOUT-API-CustomerPlacesOrderEndToEnd`
+
+**Stage 2 (UI, gated on Stage 1 success):**
+4. `CSH-CHP-CHECKOUT-UI-CustomerPlacesOrderEndToEnd`
+
+### Why split (instead of one multi-env plan)
+
+The single-plan design (CSH-SMOKE with Preview + Prod attached) fanned
+out to both envs on every deployment event, even when the event
+targeted only one. That created phantom runs against stale Prod during
+PR gates (false signal) and duplicate cross-env runs generally. The
+split plans each attach one env, making fan-out structurally
+impossible. Trade-off: two plans to keep in sync, mitigated by keeping
+the test list identical and using the same labels across both plans
+except for the `exec-*` dispatch token.
+
+> **If the original `CSH-SMOKE` still exists:** disable it or delete
+> it. Otherwise PR + post-deploy dispatches will match it in addition
+> to the split plans, resurrecting the fan-out problem.
 
 ---
 
@@ -233,17 +275,16 @@ Mabl matches plans whose labels include **all** of the passed values.
 One durable plan handles three execution contexts — no duplicate plans.
 
 These exact label intersections are wired up in:
-- `Jenkinsfile` — stage 7 (`type-smk,exec-pr`, PR only), stage 9 post-
-  deploy smoke (`type-smk,exec-postdeploy`, main only)
+- `Jenkinsfile` — stage 7 dispatches `type-smk,exec-pr` → matches
+  `CSH-SMOKE-PR` (Preview), stage 9 dispatches `type-smk,exec-postdeploy`
+  → matches `CSH-SMOKE-POSTDEPLOY` (Prod)
 - `.github/workflows/mabl-sdlc.yml` — `mabl-smoke` job (PR only,
-  `type-smk,exec-pr`) and `post-deploy-smoke` job (main only,
-  `type-smk,exec-postdeploy`)
+  matches `CSH-SMOKE-PR`) and `post-deploy-smoke` job (main only,
+  matches `CSH-SMOKE-POSTDEPLOY`)
 
-**One mabl dispatch per trigger.** The CSH-SMOKE plan carries both
-`type-smk` and `type-ui` labels plus Stage 1 (API) gating Stage 2
-(UI), so one dispatch covers both layers. Extra dispatches just
-duplicate plan runs without adding coverage — this was observed in
-early CI iterations and collapsed after commit fac792f.
+**One mabl dispatch per trigger, one plan per env.** Because each
+plan has exactly one env attached, the dispatch maps to exactly one
+plan run — no fan-out, no phantom cross-env runs.
 
 Full regression (`type-rt,exec-nightly`) is intentionally unwired
 until the CSH-REGRESSION plan exists. Adding that plan later doesn't

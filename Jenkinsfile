@@ -2,8 +2,12 @@
 //
 // Shows mabl as one of several quality tools in a real pipeline:
 //   lint → unit tests + coverage → build → preview deploy →
-//   mabl api-smoke → mabl pr-gate → mabl regression → promote →
-//   mabl post-deploy smoke
+//   mabl CSH-SMOKE-PR (Preview) → promote → mabl CSH-SMOKE-POSTDEPLOY (Prod)
+//
+// Plan architecture in mabl workspace:
+//   CSH-SMOKE-PR           : labels type-smk,exec-pr,...   env=Preview only
+//   CSH-SMOKE-POSTDEPLOY   : labels type-smk,exec-postdeploy,...  env=Prod only
+// Single env per plan → one dispatch = one plan run. No fan-out.
 //
 // Required Jenkins credentials:
 //   mabl-api-token       String     — mabl REST API token (Settings → APIs)
@@ -97,10 +101,10 @@ pipeline {
       }
     }
 
-    stage('7. mabl — CSH-SMOKE (Preview, PR only)') {
-      // One dispatch per trigger. CSH-SMOKE plan has both type-smk and type-ui
-      // labels plus API + UI stages — Stage 1 (API) gates Stage 2 (UI) automatically.
-      // Extra dispatches just duplicate plan runs without extra coverage.
+    stage('7. mabl — CSH-SMOKE-PR (Preview, PR only)') {
+      // Dispatches type-smk,exec-pr — targets plan CSH-SMOKE-PR in mabl
+      // (Preview env only, API + UI stages). The split-plan design means
+      // one dispatch can only fire one plan run — no fan-out possible.
       when { not { branch 'main' } }
       steps {
         sh """
@@ -133,7 +137,11 @@ pipeline {
       }
     }
 
-    stage('9. Post-deploy smoke (Prod)') {
+    stage('9. mabl — CSH-SMOKE-POSTDEPLOY (Prod, main only)') {
+      // Dispatches type-smk,exec-postdeploy — targets plan
+      // CSH-SMOKE-POSTDEPLOY in mabl (Prod env only). Waits for Vercel
+      // to reflect the new commit before firing so the smoke actually
+      // validates the just-deployed code.
       when { branch 'main' }
       steps {
         script {
