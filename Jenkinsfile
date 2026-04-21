@@ -97,9 +97,11 @@ pipeline {
       }
     }
 
-    stage('7. mabl — API smoke (shift-left)') {
-      // Governance labels: type-smk + type-api + exec-pr (per naming framework v2.0).
-      // Same plan (CSH-SMOKE-API), many triggers — pr / postdeploy / nightly all match.
+    stage('7. mabl — CSH-SMOKE (Preview, PR only)') {
+      // One dispatch per trigger. CSH-SMOKE plan has both type-smk and type-ui
+      // labels plus API + UI stages — Stage 1 (API) gates Stage 2 (UI) automatically.
+      // Extra dispatches just duplicate plan runs without extra coverage.
+      when { not { branch 'main' } }
       steps {
         sh """
           ./scripts/mabl-deployment.sh \\
@@ -114,39 +116,12 @@ pipeline {
       }
     }
 
-    stage('8. mabl — UI PR gate') {
-      when { not { branch 'main' } }
-      steps {
-        sh """
-          ./scripts/mabl-deployment.sh \\
-            --environment $MABL_ENV_PREVIEW_ID \\
-            --application $MABL_APPLICATION_ID \\
-            --labels type-ui,exec-pr \\
-            --url "$PREVIEW_URL" \\
-            --commit "$GIT_COMMIT_SHORT" \\
-            --branch "$GIT_BRANCH_NAME" \\
-            --wait
-        """
-      }
-    }
+    // NOTE: mabl full regression is intentionally not wired yet.
+    // Re-add a stage dispatching `type-rt,exec-nightly` against Prod once the
+    // CSH-REGRESSION plan exists in mabl. Until then, dispatching that label
+    // set wastes ~60s per main push with zero matching plans.
 
-    stage('9. mabl — full regression (main only)') {
-      when { branch 'main' }
-      steps {
-        sh """
-          ./scripts/mabl-deployment.sh \\
-            --environment $MABL_ENV_PROD_ID \\
-            --application $MABL_APPLICATION_ID \\
-            --labels type-rt,exec-nightly \\
-            --url "$PRODUCTION_URL" \\
-            --commit "$GIT_COMMIT_SHORT" \\
-            --branch "$GIT_BRANCH_NAME" \\
-            --wait
-        """
-      }
-    }
-
-    stage('10. Promote to production') {
+    stage('8. Promote to production') {
       when {
         allOf {
           branch 'main'
@@ -158,7 +133,7 @@ pipeline {
       }
     }
 
-    stage('11. Post-deploy smoke') {
+    stage('9. Post-deploy smoke (Prod)') {
       when { branch 'main' }
       steps {
         script {
