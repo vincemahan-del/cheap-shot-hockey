@@ -59,7 +59,8 @@ jobs:
       - run: npm run lint
       - name: notify (failure)
         if: failure()
-        run: bash scripts/ci-notify.sh fail "lint" "eslint rules failed"
+        run: |
+          bash scripts/ci-notify.sh fail "lint" "eslint rules failed"
 
   unit:
     name: unit tests + coverage
@@ -82,7 +83,8 @@ jobs:
           retention-days: 7
       - name: notify (failure)
         if: failure()
-        run: bash scripts/ci-notify.sh fail "unit tests" "vitest assertions failed"
+        run: |
+          bash scripts/ci-notify.sh fail "unit tests" "vitest assertions failed"
 
   build:
     name: build (next)
@@ -98,10 +100,12 @@ jobs:
       - run: npm run build
       - name: notify (failure)
         if: failure()
-        run: bash scripts/ci-notify.sh fail "build" "next build failed"
+        run: |
+          bash scripts/ci-notify.sh fail "build" "next build failed"
       - name: notify (Stage-1 code-quality passed)
         if: success() && github.event_name == 'pull_request'
-        run: bash scripts/ci-notify.sh ok "lint + unit + build" "Stage 1 code-quality gates all green \u2014 moving to T1 smoke"
+        run: |
+          bash scripts/ci-notify.sh ok "lint + unit + build" "Stage 1 code-quality gates all green — moving to T1 smoke"
 
   # ─────────────────────────────────────────────────────────────────
   # Stage 2: T1 CLI smoke (newman vs Postman collection)
@@ -150,10 +154,12 @@ jobs:
             --timeout-request 10000
       - name: notify (success)
         if: success()
-        run: bash scripts/ci-notify.sh ok "T1 newman smoke (Preview)" "Vercel Preview URL: ${{ steps.preview.outputs.url }}"
+        run: |
+          bash scripts/ci-notify.sh ok "T1 newman smoke (Preview)" "Vercel Preview URL: ${{ steps.preview.outputs.url }}"
       - name: notify (failure)
         if: failure()
-        run: bash scripts/ci-notify.sh fail "T1 newman smoke (Preview)" "newman assertions failed or Vercel Preview never came up"
+        run: |
+          bash scripts/ci-notify.sh fail "T1 newman smoke (Preview)" "newman assertions failed or Vercel Preview never came up"
 
   t1-smoke-prod:
     name: T1 — newman smoke (Prod)
@@ -182,10 +188,12 @@ jobs:
             --timeout-request 10000
       - name: notify (success)
         if: success()
-        run: bash scripts/ci-notify.sh ok "T1 newman smoke (Prod)" "Prod URL: ${{ env.PRODUCTION_URL }} \u2014 commit reflected"
+        run: |
+          bash scripts/ci-notify.sh ok "T1 newman smoke (Prod)" "Prod URL: ${{ env.PRODUCTION_URL }} — commit reflected"
       - name: notify (failure)
         if: failure()
-        run: bash scripts/ci-notify.sh fail "T1 newman smoke (Prod)" "Vercel never reflected commit, or newman assertions failed"
+        run: |
+          bash scripts/ci-notify.sh fail "T1 newman smoke (Prod)" "Vercel never reflected commit, or newman assertions failed"
 
   # ─────────────────────────────────────────────────────────────────
   # Stage 3: mabl cloud gate — gated on T1 newman green
@@ -229,10 +237,12 @@ jobs:
             --wait
       - name: notify (success)
         if: success()
-        run: bash scripts/ci-notify.sh ok "T2 mabl (CSH-SMOKE-PR, Preview)" "All 5 required PR checks green \u2014 merge unblocked."
+        run: |
+          bash scripts/ci-notify.sh ok "T2 mabl (CSH-SMOKE-PR, Preview)" "All 5 required PR checks green — merge unblocked."
       - name: notify (failure)
         if: failure()
-        run: bash scripts/ci-notify.sh fail "T2 mabl (CSH-SMOKE-PR, Preview)" "Merge blocked by branch protection until this is green."
+        run: |
+          bash scripts/ci-notify.sh fail "T2 mabl (CSH-SMOKE-PR, Preview)" "Merge blocked by branch protection until this is green."
 
   post-deploy-smoke:
     name: mabl — CSH-SMOKE-POSTDEPLOY (Prod)
@@ -259,10 +269,12 @@ jobs:
             --wait
       - name: notify (success — shipped)
         if: success()
-        run: bash scripts/ci-notify.sh ok "T3 post-deploy shipped" ":rocket: Live on <${{ env.PRODUCTION_URL }}|cheap-shot-hockey.vercel.app> \u2014 commit verified in prod."
+        run: |
+          bash scripts/ci-notify.sh ok "T3 post-deploy shipped" ":rocket: Live on <${{ env.PRODUCTION_URL }}|cheap-shot-hockey.vercel.app> — commit verified in prod."
       - name: notify (failure)
         if: failure()
-        run: bash scripts/ci-notify.sh fail "T3 post-deploy" "Prod post-deploy smoke failed \u2014 investigate immediately."
+        run: |
+          bash scripts/ci-notify.sh fail "T3 post-deploy" "Prod post-deploy smoke failed — investigate immediately."
 
   # NOTE: the regression gate is intentionally not wired yet.
   # Re-add a `mabl-regression` job dispatching `type-rt,exec-nightly`
