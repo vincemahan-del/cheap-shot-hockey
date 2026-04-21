@@ -233,17 +233,22 @@ Mabl matches plans whose labels include **all** of the passed values.
 One durable plan handles three execution contexts — no duplicate plans.
 
 These exact label intersections are wired up in:
-- `Jenkinsfile` — stage 7 (`type-smk,exec-pr`), stage 11 post-deploy
-  (`type-smk,exec-postdeploy`)
-- `.github/workflows/mabl-sdlc.yml` — `mabl-api-smoke` job switches
-  between `type-smk,exec-pr` (on PR) and `type-smk,exec-postdeploy`
-  (on main push); `post-deploy-smoke` job uses
-  `type-smk,exec-postdeploy`
+- `Jenkinsfile` — stage 7 (`type-smk,exec-pr`, PR only), stage 9 post-
+  deploy smoke (`type-smk,exec-postdeploy`, main only)
+- `.github/workflows/mabl-sdlc.yml` — `mabl-smoke` job (PR only,
+  `type-smk,exec-pr`) and `post-deploy-smoke` job (main only,
+  `type-smk,exec-postdeploy`)
 
-UI gates use `type-e2e,exec-pr`; full regression uses
-`type-rt,exec-nightly`. When the E2E test gets added to CSH-SMOKE-API,
-all three triggers pick it up automatically — no pipeline change
-needed.
+**One mabl dispatch per trigger.** The CSH-SMOKE plan carries both
+`type-smk` and `type-ui` labels plus Stage 1 (API) gating Stage 2
+(UI), so one dispatch covers both layers. Extra dispatches just
+duplicate plan runs without adding coverage — this was observed in
+early CI iterations and collapsed after commit fac792f.
+
+Full regression (`type-rt,exec-nightly`) is intentionally unwired
+until the CSH-REGRESSION plan exists. Adding that plan later doesn't
+require CI changes — just add a matching `mabl-regression` job when
+ready.
 
 ---
 

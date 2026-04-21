@@ -1,7 +1,15 @@
 name: mabl SDLC gate
 
-# Full SDLC pipeline: lint → unit tests + coverage → build →
-# mabl API smoke → mabl UI PR gate → mabl regression → post-deploy smoke.
+# Slim full-SDLC pipeline. One mabl dispatch per trigger (was 4):
+#
+#   PR push    → lint → unit → build → mabl-smoke (Preview)
+#   Main push  → lint → unit → build → post-deploy-smoke (Prod, after Vercel reflect)
+#
+# Why just one dispatch per trigger: the CSH-SMOKE plan has both
+# type-smk and type-ui labels plus API + UI stages, so one dispatch
+# fires Stage 1 (API) and Stage 2 (UI) on both Preview and Prod.
+# Extra dispatches create duplicate plan runs without extra coverage.
+#
 # Required secrets: MABL_API_TOKEN, MABL_WORKSPACE_ID, MABL_APPLICATION_ID,
 # MABL_ENV_PREVIEW_ID, MABL_ENV_PROD_ID.
 
@@ -60,84 +68,34 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-  mabl-api-smoke:
-    name: mabl — API smoke (shift-left)
-    needs: build
-    runs-on: ubuntu-latest
-    env:
-      MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
-      MABL_WORKSPACE_ID: ${{ secrets.MABL_WORKSPACE_ID }}
-      MABL_APPLICATION_ID: ${{ secrets.MABL_APPLICATION_ID }}
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y jq
-      - name: trigger mabl API smoke
-        run: |
-          env_id="${{ github.event_name == 'pull_request' && secrets.MABL_ENV_PREVIEW_ID || secrets.MABL_ENV_PROD_ID }}"
-          url="${{ github.event_name == 'pull_request' && format('https://cheap-shot-hockey-git-{0}.vercel.app', github.head_ref) || env.PRODUCTION_URL }}"
-          chmod +x scripts/mabl-deployment.sh
-          # PR runs pick up type-smk + exec-pr; main push picks up type-smk + exec-postdeploy.
-          label_intersection="${{ github.event_name == 'pull_request' && 'type-smk,exec-pr' || 'type-smk,exec-postdeploy' }}"
-          ./scripts/mabl-deployment.sh \
-            --environment "$env_id" \
-            --application "$MABL_APPLICATION_ID" \
-            --labels "$label_intersection" \
-            --url "$url" \
-            --commit "${{ github.sha }}" \
-            --branch "${{ github.head_ref || github.ref_name }}" \
-            --wait
-
-  mabl-ui-pr-gate:
-    name: mabl — UI PR gate
+  mabl-smoke:
+    name: mabl — smoke (Preview)
     needs: build
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     env:
       MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
+      MABL_WORKSPACE_ID: ${{ secrets.MABL_WORKSPACE_ID }}
       MABL_APPLICATION_ID: ${{ secrets.MABL_APPLICATION_ID }}
       MABL_ENV_PREVIEW_ID: ${{ secrets.MABL_ENV_PREVIEW_ID }}
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y jq
-      - name: trigger mabl UI PR gate
+      - name: trigger CSH-SMOKE against Preview
         run: |
           chmod +x scripts/mabl-deployment.sh
           ./scripts/mabl-deployment.sh \
             --environment "$MABL_ENV_PREVIEW_ID" \
             --application "$MABL_APPLICATION_ID" \
-            --labels type-ui,exec-pr \
+            --labels type-smk,exec-pr \
             --url "https://cheap-shot-hockey-git-${{ github.head_ref }}.vercel.app" \
             --commit "${{ github.sha }}" \
             --branch "${{ github.head_ref }}" \
             --wait
 
-  mabl-regression:
-    name: mabl — full regression (main)
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    env:
-      MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
-      MABL_APPLICATION_ID: ${{ secrets.MABL_APPLICATION_ID }}
-      MABL_ENV_PROD_ID: ${{ secrets.MABL_ENV_PROD_ID }}
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y jq
-      - name: trigger mabl regression
-        run: |
-          chmod +x scripts/mabl-deployment.sh
-          ./scripts/mabl-deployment.sh \
-            --environment "$MABL_ENV_PROD_ID" \
-            --application "$MABL_APPLICATION_ID" \
-            --labels type-rt,exec-nightly \
-            --url "${{ env.PRODUCTION_URL }}" \
-            --commit "${{ github.sha }}" \
-            --branch main \
-            --wait
-
   post-deploy-smoke:
-    name: post-deploy smoke (main)
-    needs: mabl-regression
+    name: post-deploy smoke (Prod)
+    needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
@@ -157,7 +115,7 @@ jobs:
           done
           echo "deploy never reflected new commit"; exit 1
       - run: sudo apt-get install -y jq
-      - name: mabl post-deploy smoke
+      - name: trigger CSH-SMOKE against Prod
         run: |
           chmod +x scripts/mabl-deployment.sh
           ./scripts/mabl-deployment.sh \
@@ -168,3 +126,9 @@ jobs:
             --commit "${{ github.sha }}" \
             --branch main \
             --wait
+
+  # NOTE: the regression gate is intentionally not wired yet.
+  # Re-add a `mabl-regression` job dispatching `type-rt,exec-nightly`
+  # against Prod once the CSH-REGRESSION plan exists in mabl. Until
+  # then, dispatching that label set wastes ~60s per main push with
+  # zero matching plans.
