@@ -14,6 +14,44 @@ script in this repo, or a concrete organizational decision.
 
 ---
 
+## Mabl is one quality tool in a stack — not the whole stack
+
+Customers should hear this up front. A real pipeline has several
+quality gates before mabl runs and a few after. Mabl owns the **UI**
+and **API journey** layer. Everything else is still in play.
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                     Full quality pipeline                        │
+├──────────────────────────────────────────────────────────────────┤
+│  Lint (eslint)                        — correctness + style      │
+│  Unit tests + coverage (vitest)       — small, deterministic     │
+│  Build (Next.js)                      — compiles, type-checks    │
+│  ─── deploy preview ───                                          │
+│  mabl — API smoke                     — happy-path API journeys  │
+│  mabl — UI PR gate                    — critical UI journeys     │
+│  mabl — full regression (main only)   — everything, parallel     │
+│  ─── promote ───                                                 │
+│  mabl — post-deploy smoke             — prod validation          │
+│  mabl — scheduled runs                — continuous prod monitor  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+Each row runs as a stage in `Jenkinsfile` and as a job in
+`.github/workflows/mabl-sdlc.yml`. **Mabl lives right where it adds
+the most value — end-to-end journeys across real browsers** — and the
+fast deterministic gates (lint, unit, build) run first so a broken
+commit is caught in seconds rather than minutes of cloud test time.
+
+Customers often ask "but why run mabl if you already have unit
+tests?" — the pipeline is the answer. The unit layer catches pure
+logic breakage. The mabl layer catches the stuff unit tests are bad
+at: selector regressions, cross-browser behavior, real API contract,
+auth flows, cookie state, third-party service integration. They're
+complementary.
+
+---
+
 ## The four phases (customer mental model)
 
 1. **In-Sprint Development** — dev pulls a ticket, makes the change
@@ -286,10 +324,14 @@ For a workshop or deeper follow-up:
 
 ## Reference files in this repo
 
-- `Jenkinsfile` — the CI pipeline that dispatches mabl deployment events
-- `.github/workflows/mabl-sdlc.yml` — GHA mirror
+- `Jenkinsfile` — the CI pipeline (lint → unit → build → mabl gates)
+- `.github/workflows/mabl-sdlc.yml` — GHA mirror of the same pipeline
 - `.github/workflows/claude.yml` — the Claude Code Action responding to
   `@claude` mentions
+- `vitest.config.ts` — unit test + coverage config (thresholds enforced
+  in CI)
+- `src/lib/*.test.ts` — 73 unit tests covering the library layer
+  (98% coverage)
 - `scripts/mabl-deployment.sh` — mabl REST event + poll loop
 - `scripts/mabl-analyze-last-failure.sh` — the primitive the triage
   agent wraps

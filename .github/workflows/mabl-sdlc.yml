@@ -1,6 +1,7 @@
 name: mabl SDLC gate
 
-# Mirrors Jenkinsfile for orgs that prefer GitHub Actions.
+# Full SDLC pipeline: lint → unit tests + coverage → build →
+# mabl API smoke → mabl UI PR gate → mabl regression → post-deploy smoke.
 # Required secrets: MABL_API_TOKEN, MABL_WORKSPACE_ID, MABL_APPLICATION_ID,
 # MABL_ENV_PREVIEW_ID, MABL_ENV_PROD_ID.
 
@@ -14,8 +15,8 @@ env:
   PRODUCTION_URL: https://cheap-shot-hockey.vercel.app
 
 jobs:
-  build:
-    name: build + lint
+  lint:
+    name: lint (eslint)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +26,38 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+
+  unit:
+    name: unit tests + coverage
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run test:coverage
+      - name: upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+  build:
+    name: build (next)
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
       - run: npm run build
 
   mabl-api-smoke:

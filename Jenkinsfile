@@ -1,23 +1,21 @@
-// Cheap Shot Hockey — mabl full-SDLC demo pipeline
+// Cheap Shot Hockey — full SDLC quality pipeline
 //
-// This pipeline is the on-stage script for demoing mabl at every stage of
-// the SDLC. It mirrors what a real-world customer might run in Jenkins
-// today and shows how mabl plugs in at the quality gates.
+// Shows mabl as one of several quality tools in a real pipeline:
+//   lint → unit tests + coverage → build → preview deploy →
+//   mabl api-smoke → mabl pr-gate → mabl regression → promote →
+//   mabl post-deploy smoke
 //
 // Required Jenkins credentials:
 //   mabl-api-token       String     — mabl REST API token (Settings → APIs)
-//   vercel-token         String     — (optional) Vercel CLI token for preview deploys
-//   github-token         String     — for commenting on the PR
 //
-// Required environment variables (set in Jenkins global config or via
-// withEnv blocks downstream):
+// Required environment variables (set in Jenkins global config):
 //   MABL_WORKSPACE_ID    — mabl workspace UUID
-//   MABL_APPLICATION_ID  — mabl application UUID for cheap-shot-hockey
+//   MABL_APPLICATION_ID  — mabl application UUID
 //   MABL_ENV_PREVIEW_ID  — mabl environment UUID for preview deploys
 //   MABL_ENV_PROD_ID     — mabl environment UUID for production
 //   PRODUCTION_URL       — e.g. https://cheap-shot-hockey.vercel.app
 //
-// How to demo it: see docs/SDLC-DEMO.md
+// How to demo it: see docs/DEMO-TICKET-TO-PROD.md
 
 pipeline {
   agent any
@@ -29,16 +27,11 @@ pipeline {
   }
 
   triggers {
-    // Poll GitHub every minute for new commits on main. Fastest path
-    // without a webhook; fine for a demo laptop.
     pollSCM('* * * * *')
   }
 
   environment {
     MABL_API_TOKEN = credentials('mabl-api-token')
-    // Ensure Homebrew-installed node/npm/jq are on PATH for Jenkins (macOS local).
-    // Don't set NODE_ENV=production — it makes `npm ci` skip devDeps the
-    // Next.js build needs (e.g. @tailwindcss/postcss).
     PATH           = "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:${env.PATH}"
   }
 
@@ -61,50 +54,57 @@ pipeline {
       }
     }
 
-    stage('2. Install + Build') {
+    stage('2. Install') {
       steps {
         sh 'node --version'
         sh 'npm ci'
+      }
+    }
+
+    stage('3. Lint (eslint)') {
+      steps {
+        sh 'npm run lint'
+      }
+    }
+
+    stage('4. Unit tests + coverage') {
+      steps {
+        sh 'npm run test:coverage'
+      }
+      post {
+        always {
+          // Publish the coverage HTML report so Jenkins links to it.
+          archiveArtifacts artifacts: 'coverage/**', allowEmptyArchive: true, fingerprint: true
+        }
+      }
+    }
+
+    stage('5. Build (Next.js)') {
+      steps {
         sh 'npm run build'
       }
     }
 
-    stage('3. Deploy preview') {
+    stage('6. Deploy preview (placeholder)') {
       when { not { branch 'main' } }
       steps {
         script {
-          // Your org likely has a preferred preview-deploy flow. This block
-          // shows three common options — uncomment the one you use.
-
-          // Option A: Vercel CLI (what this repo uses)
-          // withCredentials([string(credentialsId: 'vercel-token', variable: 'VERCEL_TOKEN')]) {
-          //   env.PREVIEW_URL = sh(
-          //     script: "npx vercel --token $VERCEL_TOKEN --confirm --prebuilt",
-          //     returnStdout: true,
-          //   ).trim()
-          // }
-
-          // Option B: your in-house PaaS
-          // env.PREVIEW_URL = sh(script: "./infra/deploy-preview.sh", returnStdout: true).trim()
-
-          // Option C: ephemeral namespace on k8s
-          // env.PREVIEW_URL = sh(script: "./infra/k8s-preview.sh", returnStdout: true).trim()
-
-          // Placeholder for the demo: point at the real prod URL
+          // Vercel auto-deploys branch pushes; this stage captures the URL.
+          // Swap in `vercel --token $VERCEL_TOKEN --prebuilt` for real deploys.
           env.PREVIEW_URL = env.PRODUCTION_URL ?: "https://cheap-shot-hockey.vercel.app"
           echo "Preview URL: ${env.PREVIEW_URL}"
         }
       }
     }
 
-    stage('4. mabl — API smoke (shift-left)') {
+    stage('7. mabl — API smoke (shift-left)') {
       steps {
         sh """
           ./scripts/mabl-deployment.sh \\
             --environment $MABL_ENV_PREVIEW_ID \\
             --application $MABL_APPLICATION_ID \\
             --labels api-smoke \\
-            --url "$PREVIEW_URL" \\
+            --url "${env.PREVIEW_URL ?: env.PRODUCTION_URL}" \\
             --commit "$GIT_COMMIT_SHORT" \\
             --branch "$GIT_BRANCH_NAME" \\
             --wait
@@ -112,11 +112,9 @@ pipeline {
       }
     }
 
-    stage('5. mabl — UI tests on PR surface') {
+    stage('8. mabl — UI PR gate') {
       when { not { branch 'main' } }
       steps {
-        // AI-driven test selection would live here. For the demo we use
-        // plan_labels="pr-gate" to scope to the smallest meaningful set.
         sh """
           ./scripts/mabl-deployment.sh \\
             --environment $MABL_ENV_PREVIEW_ID \\
@@ -130,7 +128,7 @@ pipeline {
       }
     }
 
-    stage('6. mabl — full regression (main only)') {
+    stage('9. mabl — full regression (main only)') {
       when { branch 'main' }
       steps {
         sh """
@@ -146,7 +144,7 @@ pipeline {
       }
     }
 
-    stage('7. Promote to production') {
+    stage('10. Promote to production') {
       when {
         allOf {
           branch 'main'
@@ -154,19 +152,15 @@ pipeline {
         }
       }
       steps {
-        // Vercel auto-deploys from main on push, so this stage is advisory.
-        // In non-Vercel orgs, this is where `kubectl apply`, `aws ecs update-service`,
-        // or `helm upgrade` would run — gated on the mabl runs above.
         echo "Production promotion: Vercel is auto-deploying commit ${env.GIT_COMMIT_SHORT}."
       }
     }
 
-    stage('8. Post-deploy smoke') {
+    stage('11. Post-deploy smoke') {
       when { branch 'main' }
       steps {
         script {
           def url = env.PRODUCTION_URL ?: "https://cheap-shot-hockey.vercel.app"
-          // Wait for the deploy to reflect the new commit, then smoke.
           sh """
             set -e
             for i in \$(seq 1 30); do
@@ -198,10 +192,8 @@ pipeline {
   post {
     failure {
       script {
-        // On red, trigger the mabl failure-analysis flow.
-        // Your incident tooling of choice would be called here (PagerDuty,
-        // Slack, etc.). For the demo we just write a log line.
-        echo "❌ Pipeline failed at stage ${env.STAGE_NAME}. Running mabl failure analysis…"
+        echo "❌ Pipeline failed at stage ${env.STAGE_NAME}."
+        echo "If it was a mabl stage, the triage agent kicks in next:"
         sh './scripts/mabl-analyze-last-failure.sh || true'
       }
     }
