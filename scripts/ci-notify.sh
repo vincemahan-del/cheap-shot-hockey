@@ -18,6 +18,9 @@
 #   JIRA_BASE_URL         (default: https://mabl.atlassian.net)
 #   JIRA_USER_EMAIL       (optional; skips Jira if empty)
 #   JIRA_API_TOKEN        (optional; skips Jira if empty)
+#   JIRA_TRANSITION       (optional; name of a Jira transition to apply after
+#                          the comment lands, e.g. "In Progress" or "Done".
+#                          No-op if the ticket is already in that status.)
 #   GITHUB_REPOSITORY     (auto, e.g. owner/repo)
 #   GITHUB_SHA            (auto)
 #   GITHUB_REF_NAME       (auto, branch name)
@@ -43,11 +46,36 @@ if [ -n "$pr_num" ]; then
   pr_link="${GITHUB_SERVER_URL:-https://github.com}/${repo}/pull/${pr_num}"
 fi
 
-# Extract Jira ticket key from branch name or PR title. Regex matches
-# the standard Jira pattern at the start of the branch (e.g. TAMD-82).
+# Extract Jira ticket key — try multiple sources so both PR events
+# (branch name) and main-push events (commit subject / body) land the
+# comment on the right ticket.
 ticket_key=""
+key_source=""
+
+# Try 1: branch name (works on PR events and feature-branch pushes)
 if [[ "$branch" =~ ([A-Z][A-Z0-9]+-[0-9]+) ]]; then
   ticket_key="${BASH_REMATCH[1]}"
+  key_source="branch"
+fi
+
+# Try 2: commit subject (works on main-push merge commits like
+# "Merge pull request #7 from owner/TAMD-82/...")
+if [ -z "$ticket_key" ]; then
+  subject=$(git log -1 --pretty=%s 2>/dev/null || echo "")
+  if [[ "$subject" =~ ([A-Z][A-Z0-9]+-[0-9]+) ]]; then
+    ticket_key="${BASH_REMATCH[1]}"
+    key_source="commit-subject"
+  fi
+fi
+
+# Try 3: commit body (covers squash-merges where the subject may be
+# rewritten but the body preserves the original branch reference)
+if [ -z "$ticket_key" ]; then
+  body=$(git log -1 --pretty=%B 2>/dev/null || echo "")
+  if [[ "$body" =~ ([A-Z][A-Z0-9]+-[0-9]+) ]]; then
+    ticket_key="${BASH_REMATCH[1]}"
+    key_source="commit-body"
+  fi
 fi
 
 # Compose emoji + prefix per outcome.
@@ -99,6 +127,38 @@ if [ -n "$ticket_key" ] && [ -n "${JIRA_USER_EMAIL:-}" ] && [ -n "${JIRA_API_TOK
     --data "$payload" \
     "${JIRA_BASE_URL}/rest/api/2/issue/${ticket_key}/comment" >/dev/null \
     || echo "jira comment failed (non-fatal)" >&2
+
+  # ────────────────────────────────────────────────────────────
+  # Optional: transition the ticket to the named status.
+  # ────────────────────────────────────────────────────────────
+  if [ -n "${JIRA_TRANSITION:-}" ]; then
+    # Look up the transition ID by name.
+    transitions=$(curl -fsS -u "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" \
+      "${JIRA_BASE_URL}/rest/api/2/issue/${ticket_key}/transitions" 2>/dev/null || echo '{}')
+    transition_id=$(echo "$transitions" \
+      | jq -r --arg name "$JIRA_TRANSITION" '.transitions[]? | select(.name==$name) | .id' \
+      | head -1)
+
+    # Check current status — skip if already there.
+    current_status=$(curl -fsS -u "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" \
+      "${JIRA_BASE_URL}/rest/api/2/issue/${ticket_key}?fields=status" 2>/dev/null \
+      | jq -r '.fields.status.name' 2>/dev/null || echo "")
+
+    if [ "$current_status" = "$JIRA_TRANSITION" ]; then
+      echo "jira: ${ticket_key} already in status '${JIRA_TRANSITION}', skipping transition"
+    elif [ -z "$transition_id" ] || [ "$transition_id" = "null" ]; then
+      echo "jira: transition '${JIRA_TRANSITION}' not available for ${ticket_key} (current: ${current_status:-unknown}) — skipping" >&2
+    else
+      payload=$(jq -n --arg id "$transition_id" '{transition:{id:$id}}')
+      curl -fsS -u "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" \
+        -X POST \
+        -H 'Content-type: application/json' \
+        --data "$payload" \
+        "${JIRA_BASE_URL}/rest/api/2/issue/${ticket_key}/transitions" >/dev/null \
+        && echo "jira: ${ticket_key} transitioned '${current_status}' → '${JIRA_TRANSITION}'" \
+        || echo "jira transition failed (non-fatal)" >&2
+    fi
+  fi
 fi
 
-echo "ci-notify: outcome=${outcome} stage=\"${stage}\" ticket=\"${ticket_key:-none}\" done"
+echo "ci-notify: outcome=${outcome} stage=\"${stage}\" ticket=\"${ticket_key:-none}\" (source=${key_source:-n/a}) transition=\"${JIRA_TRANSITION:-none}\" done"
