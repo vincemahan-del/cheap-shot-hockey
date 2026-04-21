@@ -104,8 +104,10 @@ jobs:
           bash scripts/ci-notify.sh fail "build" "next build failed"
       - name: notify (Stage-1 code-quality passed)
         if: success() && github.event_name == 'pull_request'
+        env:
+          JIRA_TRANSITION: In Progress
         run: |
-          bash scripts/ci-notify.sh ok "lint + unit + build" "Stage 1 code-quality gates all green — moving to T1 smoke"
+          bash scripts/ci-notify.sh ok "lint + unit + build" "Stage 1 code-quality gates all green — moving to T1 smoke. Ticket transitioning to **In Progress**."
 
   # ─────────────────────────────────────────────────────────────────
   # Stage 2: T1 CLI smoke (newman vs Postman collection)
@@ -269,8 +271,10 @@ jobs:
             --wait
       - name: notify (success — shipped)
         if: success()
+        env:
+          JIRA_TRANSITION: Done
         run: |
-          bash scripts/ci-notify.sh ok "T3 post-deploy shipped" ":rocket: Live on <${{ env.PRODUCTION_URL }}|cheap-shot-hockey.vercel.app> — commit verified in prod."
+          bash scripts/ci-notify.sh ok "T3 post-deploy shipped" ":rocket: Live on <${{ env.PRODUCTION_URL }}|cheap-shot-hockey.vercel.app> — commit verified in prod. Ticket transitioning to **Done**."
       - name: notify (failure)
         if: failure()
         run: |
