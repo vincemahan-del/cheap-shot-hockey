@@ -36,7 +36,7 @@ export default function Home() {
         <div className="relative mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-14 md:grid-cols-[1.2fr_1fr] md:py-20">
           <div>
             <span className="inline-block rounded-full bg-[color:var(--primary)]/20 px-3 py-1 text-xs font-black uppercase tracking-wider text-[color:var(--primary)]">
-              🏒 Slapshot Special · Up to 60% off
+              🏒 Slapshot Special · Up to 65% off
             </span>
             <h1 className="font-display mt-4 text-5xl leading-[0.95] text-white md:text-7xl">
               DROP THE GLOVES.
