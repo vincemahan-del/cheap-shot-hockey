@@ -98,12 +98,14 @@ pipeline {
     }
 
     stage('7. mabl — API smoke (shift-left)') {
+      // Governance labels: type-smk + type-api + exec-pr (per naming framework v2.0).
+      // Same plan (CSH-SMOKE-API), many triggers — pr / postdeploy / nightly all match.
       steps {
         sh """
           ./scripts/mabl-deployment.sh \\
             --environment $MABL_ENV_PREVIEW_ID \\
             --application $MABL_APPLICATION_ID \\
-            --labels api-smoke \\
+            --labels type-smk,exec-pr \\
             --url "${env.PREVIEW_URL ?: env.PRODUCTION_URL}" \\
             --commit "$GIT_COMMIT_SHORT" \\
             --branch "$GIT_BRANCH_NAME" \\
@@ -119,7 +121,7 @@ pipeline {
           ./scripts/mabl-deployment.sh \\
             --environment $MABL_ENV_PREVIEW_ID \\
             --application $MABL_APPLICATION_ID \\
-            --labels pr-gate \\
+            --labels type-e2e,exec-pr \\
             --url "$PREVIEW_URL" \\
             --commit "$GIT_COMMIT_SHORT" \\
             --branch "$GIT_BRANCH_NAME" \\
@@ -135,7 +137,7 @@ pipeline {
           ./scripts/mabl-deployment.sh \\
             --environment $MABL_ENV_PROD_ID \\
             --application $MABL_APPLICATION_ID \\
-            --labels regression \\
+            --labels type-rt,exec-nightly \\
             --url "$PRODUCTION_URL" \\
             --commit "$GIT_COMMIT_SHORT" \\
             --branch "$GIT_BRANCH_NAME" \\
@@ -178,7 +180,7 @@ pipeline {
             ./scripts/mabl-deployment.sh \\
               --environment $MABL_ENV_PROD_ID \\
               --application $MABL_APPLICATION_ID \\
-              --labels post-deploy-smoke \\
+              --labels type-smk,exec-postdeploy \\
               --url "$url" \\
               --commit "$GIT_COMMIT_SHORT" \\
               --branch "main" \\

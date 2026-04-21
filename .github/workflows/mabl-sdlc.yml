@@ -76,10 +76,12 @@ jobs:
           env_id="${{ github.event_name == 'pull_request' && secrets.MABL_ENV_PREVIEW_ID || secrets.MABL_ENV_PROD_ID }}"
           url="${{ github.event_name == 'pull_request' && format('https://cheap-shot-hockey-git-{0}.vercel.app', github.head_ref) || env.PRODUCTION_URL }}"
           chmod +x scripts/mabl-deployment.sh
+          # PR runs pick up type-smk + exec-pr; main push picks up type-smk + exec-postdeploy.
+          label_intersection="${{ github.event_name == 'pull_request' && 'type-smk,exec-pr' || 'type-smk,exec-postdeploy' }}"
           ./scripts/mabl-deployment.sh \
             --environment "$env_id" \
             --application "$MABL_APPLICATION_ID" \
-            --labels api-smoke \
+            --labels "$label_intersection" \
             --url "$url" \
             --commit "${{ github.sha }}" \
             --branch "${{ github.head_ref || github.ref_name }}" \
@@ -103,7 +105,7 @@ jobs:
           ./scripts/mabl-deployment.sh \
             --environment "$MABL_ENV_PREVIEW_ID" \
             --application "$MABL_APPLICATION_ID" \
-            --labels pr-gate \
+            --labels type-e2e,exec-pr \
             --url "https://cheap-shot-hockey-git-${{ github.head_ref }}.vercel.app" \
             --commit "${{ github.sha }}" \
             --branch "${{ github.head_ref }}" \
@@ -127,7 +129,7 @@ jobs:
           ./scripts/mabl-deployment.sh \
             --environment "$MABL_ENV_PROD_ID" \
             --application "$MABL_APPLICATION_ID" \
-            --labels regression \
+            --labels type-rt,exec-nightly \
             --url "${{ env.PRODUCTION_URL }}" \
             --commit "${{ github.sha }}" \
             --branch main \
@@ -161,7 +163,7 @@ jobs:
           ./scripts/mabl-deployment.sh \
             --environment "$MABL_ENV_PROD_ID" \
             --application "$MABL_APPLICATION_ID" \
-            --labels post-deploy-smoke \
+            --labels type-smk,exec-postdeploy \
             --url "${{ env.PRODUCTION_URL }}" \
             --commit "${{ github.sha }}" \
             --branch main \
