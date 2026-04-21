@@ -37,16 +37,21 @@ All names follow the framework template: `<APP>-<TYPE>-<MODULE>-<PLATFORM?>-<Out
 
 **Request**
 ```
-GET {{@app.url}}/api/health
+GET /health
 ```
+(Relative path — mabl joins it onto the env's API URL at runtime. Same
+test runs against Local / Preview / Production by selecting the env.)
 
 **Assertions**
 - HTTP status == `200`
 - Header `Content-Type` starts with `application/json`
-- Body `.status` == `"ok"`
-- Body `.service` == `"cheap-shot-hockey"`
+- Body `$.status` == `"ok"`
+- Body `$.service` == `"cheap-shot-hockey"`
+- Body `$.time` matches regex `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$`
 
 **Labels:** `type-smk, type-api, priority-p0, feat-infra, exec-pr, exec-postdeploy, exec-nightly, team-platform`
+
+**Verified:** Authored in mabl, runs green on the Local env.
 
 ---
 
@@ -56,14 +61,14 @@ GET {{@app.url}}/api/health
 
 **Request**
 ```
-GET {{@app.url}}/api/build-info
+GET /build-info
 ```
 
 **Assertions**
 - HTTP status == `200`
-- Body `.commit` matches `^[0-9a-f]{7,40}$` OR equals `"dev"`
-- Body `.environment` is one of `["production", "preview", "development"]`
-- Body `.name` == `"cheap-shot-hockey"`
+- Body `$.name` == `"cheap-shot-hockey"`
+- Body `$.commit` matches regex `^([0-9a-f]{7,40}|dev)$`
+- Body `$.environment` matches regex `^(production|preview|development)$`
 
 **Labels:** `type-smk, type-api, priority-p1, feat-infra, exec-postdeploy, exec-nightly, team-platform`
 
@@ -75,7 +80,7 @@ GET {{@app.url}}/api/build-info
 
 **Request**
 ```
-GET {{@app.url}}/api/products
+GET /products
 ```
 
 **Assertions**
@@ -95,7 +100,7 @@ GET {{@app.url}}/api/products
 
 **Request**
 ```
-GET {{@app.url}}/api/products/apex-velocity-pro-stick
+GET /products/apex-velocity-pro-stick
 ```
 
 **Assertions**
@@ -116,7 +121,7 @@ GET {{@app.url}}/api/products/apex-velocity-pro-stick
 
 **Step A — Login**
 ```
-POST {{@app.url}}/api/auth/login
+POST /auth/login
 Content-Type: application/json
 
 { "email": "demo@cheapshot.test", "password": "demo1234" }
@@ -128,7 +133,7 @@ Assertions:
 
 **Step B — /me reflects the session**
 ```
-GET {{@app.url}}/api/auth/me
+GET /auth/me
 ```
 Assertions:
 - HTTP status == `200`
@@ -147,7 +152,7 @@ Assertions:
 
 **Step A — Add puck to cart**
 ```
-POST {{@app.url}}/api/cart
+POST /cart
 Content-Type: application/json
 
 { "productId": "p-pck-001", "quantity": 2, "mode": "add" }
@@ -159,7 +164,7 @@ Assertions:
 
 **Step B — Re-read cart (validates cookie persistence)**
 ```
-GET {{@app.url}}/api/cart
+GET /cart
 ```
 Assertions:
 - HTTP status == `200`
@@ -224,9 +229,11 @@ One durable plan handles three execution contexts — no duplicate plans.
    Author the tests from the bare form, add steps manually in the
    Trainer.
 2. **Pick Application + Environment first** — the URL field auto-populates.
-3. **Parameterize the host** with `{{@app.url}}` — lets the same test
-   run against Preview, Production, and Local by selecting the env at
-   runtime.
+3. **Use relative paths in step URLs** — e.g. `/health`, not
+   `https://cheap-shot-hockey.vercel.app/api/health`. Mabl prepends the
+   env's configured API URL at run time, so the same test runs against
+   Local / Preview / Production by selecting the env. Variable syntax
+   like `{{app.url}}` passes through as a literal — don't use it.
 4. **For multi-step tests (#5, #6)**, use the "Add step" button in the
    Trainer. Each step inherits the cookie jar from the previous —
    that's how we validate session/cookie persistence without manual
