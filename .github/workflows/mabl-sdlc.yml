@@ -1,14 +1,19 @@
 name: mabl SDLC gate
 
-# Slim full-SDLC pipeline. One mabl dispatch per trigger (was 4):
+# Slim full-SDLC pipeline. One mabl dispatch per trigger, each
+# targeting a dedicated plan (no cross-env fan-out):
 #
-#   PR push    → lint → unit → build → mabl-smoke (Preview)
-#   Main push  → lint → unit → build → post-deploy-smoke (Prod, after Vercel reflect)
+#   PR push    → lint → unit → build → mabl-smoke (CSH-SMOKE-PR, Preview)
+#   Main push  → lint → unit → build → post-deploy-smoke
+#                (CSH-SMOKE-POSTDEPLOY, Prod, after Vercel reflect)
 #
-# Why just one dispatch per trigger: the CSH-SMOKE plan has both
-# type-smk and type-ui labels plus API + UI stages, so one dispatch
-# fires Stage 1 (API) and Stage 2 (UI) on both Preview and Prod.
-# Extra dispatches create duplicate plan runs without extra coverage.
+# Plan architecture (mabl workspace):
+#   - CSH-SMOKE-PR           : labels type-smk,exec-pr,...   env=Preview only
+#   - CSH-SMOKE-POSTDEPLOY   : labels type-smk,exec-postdeploy,...  env=Prod only
+#
+# Split avoids the fan-out the previous single CSH-SMOKE plan did
+# (ran across every attached env per dispatch). Each plan now attaches
+# exactly one env, so a dispatch can only fire one plan run.
 #
 # Required secrets: MABL_API_TOKEN, MABL_WORKSPACE_ID, MABL_APPLICATION_ID,
 # MABL_ENV_PREVIEW_ID, MABL_ENV_PROD_ID.
@@ -69,7 +74,7 @@ jobs:
       - run: npm run build
 
   mabl-smoke:
-    name: mabl — smoke (Preview)
+    name: mabl — CSH-SMOKE-PR (Preview)
     needs: build
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -81,7 +86,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y jq
-      - name: trigger CSH-SMOKE against Preview
+      - name: trigger CSH-SMOKE-PR against Preview
         run: |
           chmod +x scripts/mabl-deployment.sh
           ./scripts/mabl-deployment.sh \
@@ -94,7 +99,7 @@ jobs:
             --wait
 
   post-deploy-smoke:
-    name: post-deploy smoke (Prod)
+    name: mabl — CSH-SMOKE-POSTDEPLOY (Prod)
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -115,7 +120,7 @@ jobs:
           done
           echo "deploy never reflected new commit"; exit 1
       - run: sudo apt-get install -y jq
-      - name: trigger CSH-SMOKE against Prod
+      - name: trigger CSH-SMOKE-POSTDEPLOY against Prod
         run: |
           chmod +x scripts/mabl-deployment.sh
           ./scripts/mabl-deployment.sh \
