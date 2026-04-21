@@ -74,104 +74,113 @@ GET /build-info
 
 ---
 
-### 3. `CSH-SMK-CATALOG-API-ListReturnsProducts`
+### 3. `CSH-CHP-CHECKOUT-API-CustomerPlacesOrderEndToEnd`
 
-**Why:** Catches a broken data layer or stripped seed data.
+**Why:** One critical-happy-path (CHP) test that validates the full
+money journey — catalog → auth → cart → order placement → order read.
+Replaces the narrower per-endpoint smoke tests that were originally
+planned for this layer (CATALOG list/by-slug, LOGIN, CART).
 
-**Request**
+**Rationale for the consolidation:** for a demo + early-stage workspace,
+a single chained CHP test is higher signal per minute of authoring
+effort. It proves the business-critical path works rather than probing
+individual endpoints. Narrow per-endpoint smokes still belong — they
+just move to the `CSH-REGRESSION-API` plan (see "What's NOT in this
+layer" below) where diagnosis granularity matters more than demo
+impact.
+
+**Multi-step (9 chained steps; cookie jar + variable extraction
+carry state across steps)**
+
+#### Step 1 — Catalog: list products
 ```
 GET /products
 ```
+- Assert status == `200`
+- Assert `$.count` is greater than `19`
 
-**Assertions**
-- HTTP status == `200`
-- Body `.count >= 20`
-- Body `.items[0].id` exists (non-empty string)
-- Body `.items[0].name` exists (non-empty string)
-- Body `.items[0].category` is one of the known categories
-
-**Labels:** `type-smk, type-api, priority-p0, feat-catalog, exec-pr, exec-postdeploy, exec-nightly, team-platform`
-
----
-
-### 4. `CSH-SMK-CATALOG-API-BySlugReturnsProduct`
-
-**Why:** Catches a broken dynamic route or a missing specific product; validates deep-link stability.
-
-**Request**
+#### Step 2 — Catalog: deep-link to a specific product
 ```
 GET /products/apex-velocity-pro-stick
 ```
+- Assert status == `200`
+- Assert `$.id` == `"p-stk-001"`
+- Assert `$.salePriceCents` == `19999`
 
-**Assertions**
-- HTTP status == `200`
-- Body `.name` == `"Apex Velocity Pro Stick"`
-- Body `.salePriceCents` == `19999`
-- Body `.stock >= 1`
-
-**Labels:** `type-smk, type-api, priority-p1, feat-catalog, exec-pr, exec-postdeploy, team-platform`
-
----
-
-### 5. `CSH-SMK-LOGIN-API-CustomerCanAuthenticate`
-
-**Why:** Catches broken sessions, missing HMAC secret, cookie-handling regressions.
-
-**Multi-step (cookie jar persists across steps)**
-
-**Step A — Login**
+#### Step 3 — Auth: login as demo customer
 ```
 POST /auth/login
 Content-Type: application/json
 
 { "email": "demo@cheapshot.test", "password": "demo1234" }
 ```
-Assertions:
-- HTTP status == `200`
-- Body `.email` == `"demo@cheapshot.test"`
-- Body `.role` == `"customer"`
+- Assert status == `200`
+- Assert `$.id` == `"u-001"`
+- Assert `$.role` == `"customer"`
 
-**Step B — /me reflects the session**
+#### Step 4 — Auth: session cookie persists
 ```
 GET /auth/me
 ```
-Assertions:
-- HTTP status == `200`
-- Body `.id` == `"u-001"`
-- Body `.role` == `"customer"`
+- Assert status == `200`
+- Assert `$.id` == `"u-001"`
 
-**Labels:** `type-smk, type-api, priority-p0, feat-login, exec-pr, exec-postdeploy, exec-nightly, team-platform`
-
----
-
-### 6. `CSH-SMK-CART-API-AddAndReadPersists`
-
-**Why:** Catches broken cart-cookie persistence (the serverless regression from commit `e080e6e`). Anonymous session — no auth.
-
-**Multi-step (anonymous session)**
-
-**Step A — Add puck to cart**
+#### Step 5 — Cart: add the stick
 ```
 POST /cart
 Content-Type: application/json
 
-{ "productId": "p-pck-001", "quantity": 2, "mode": "add" }
+{ "productId": "p-stk-001", "quantity": 1, "mode": "add" }
 ```
-Assertions:
-- HTTP status == `200`
-- Body `.lines[0].productId` == `"p-pck-001"`
-- Body `.lines[0].quantity` == `2`
+- Assert status == `200`
+- Assert `$.lines[0].productId` == `"p-stk-001"`
+- Assert `$.lines[0].quantity` == `1`
 
-**Step B — Re-read cart (validates cookie persistence)**
+#### Step 6 — Cart: read persists across request
 ```
 GET /cart
 ```
-Assertions:
-- HTTP status == `200`
-- Body `.lines[0].quantity` == `2`
-- Body `.subtotalCents` == `2598` (2 × $12.99)
+- Assert status == `200`
+- Assert `$.lines[0].quantity` == `1`
+- Assert `$.subtotalCents` == `19999` (one Apex Velocity sale price)
 
-**Labels:** `type-smk, type-api, priority-p0, feat-cart, exec-pr, exec-postdeploy, exec-nightly, team-platform`
+#### Step 7 — Checkout: place the order
+```
+POST /orders
+Content-Type: application/json
+
+{
+  "shippingAddress": {
+    "name": "Demo Customer",
+    "street": "1 Rink Road",
+    "city": "Minneapolis",
+    "state": "MN",
+    "postalCode": "55401",
+    "country": "US"
+  }
+}
+```
+- Assert status == `201`
+- Assert `$.status` == `"paid"`
+- Assert `$.userId` == `"u-001"`
+- **Extract `$.id` into a variable** named `orderId` for step 9
+
+#### Step 8 — Cart was cleared after ordering
+```
+GET /cart
+```
+- Assert status == `200`
+- Assert `$.lines` is empty (or `$.subtotalCents` == `0`)
+
+#### Step 9 — Order retrievable by id
+```
+GET /orders/{{orderId}}
+```
+- Assert status == `200`
+- Assert `$.status` == `"paid"`
+- Assert `$.totalCents` is greater than `19999`
+
+**Labels:** `type-chp, type-api, priority-p0, feat-checkout, feat-cart, feat-login, feat-catalog, exec-pr, exec-postdeploy, exec-nightly, team-platform`
 
 ---
 
@@ -180,8 +189,8 @@ Assertions:
 **Name:** `CSH-SMOKE-API`
 
 **Description:** Fast API-layer smoke suite. Catches deploy-breaking
-regressions across health, build reflection, catalog reads, auth
-sessions, and cart persistence. Target: complete in under 60s parallel.
+regressions across infrastructure (health, build-info) + the full
+customer-places-order happy path. Target: complete in under 60s.
 
 **Plan labels (the CI dispatch surface):**
 
@@ -196,7 +205,10 @@ sessions, and cart persistence. Target: complete in under 60s parallel.
 
 **Environments attached:** Preview, Production, Local
 
-**Tests included:** all 6 above, one parallel stage.
+**Tests included (3 total, one parallel stage):**
+1. `CSH-SMK-HEALTH-API-ReturnsOkStatus`
+2. `CSH-SMK-BUILD-API-BuildInfoReflectsCommit`
+3. `CSH-CHP-CHECKOUT-API-CustomerPlacesOrderEndToEnd`
 
 ---
 
