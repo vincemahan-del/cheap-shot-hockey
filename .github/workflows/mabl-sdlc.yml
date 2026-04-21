@@ -1,8 +1,8 @@
 name: mabl SDLC gate
 
-# Strict sequential gates. Each stage's `needs:` gates the next — any
-# failure skips all downstream stages, so a red PR gate blocks merge
-# (via branch protection) and a red main-push stage skips prod smoke.
+# Strict sequential gates + unified Slack + Jira notifications.
+# Each stage's `needs:` gates the next; any failure skips downstream
+# and emits a red Slack/Jira notification.
 #
 #   PR push   → lint → unit → build → t1-smoke-preview (newman CLI)
 #               → mabl-smoke (CSH-SMOKE-PR, Preview)
@@ -10,18 +10,21 @@ name: mabl SDLC gate
 #   Main push → lint → unit → build → t1-smoke-prod (newman CLI)
 #               → post-deploy-smoke (CSH-SMOKE-POSTDEPLOY, Prod)
 #
-# T1 smokes are CLI (newman vs Postman collection) — fast, pre-dates
-# mabl cloud spin-up, catches basic API failures before burning cloud
-# minutes. T1 runs both as a pre-push hook (developer's laptop) AND
-# here in CI so the check status is visible on the PR and required by
-# branch protection.
-#
 # Plan architecture (mabl workspace):
-#   - CSH-SMOKE-PR           : labels type-smk,exec-pr,...  env=Preview only
+#   - CSH-SMOKE-PR           : labels type-smk,exec-pr,...   env=Preview only
 #   - CSH-SMOKE-POSTDEPLOY   : labels type-smk,exec-postdeploy,...  env=Prod only
 #
-# Required secrets: MABL_API_TOKEN, MABL_WORKSPACE_ID, MABL_APPLICATION_ID,
-# MABL_ENV_PREVIEW_ID, MABL_ENV_PROD_ID.
+# Notifications (scripts/ci-notify.sh at each gate, both success & failure):
+#   - Slack: rich message to $SLACK_WEBHOOK_URL (if set)
+#   - Jira:  comment on the ticket referenced by branch name (e.g. TAMD-82/...)
+#
+# Required secrets:
+#   - MABL_API_TOKEN, MABL_WORKSPACE_ID, MABL_APPLICATION_ID,
+#     MABL_ENV_PREVIEW_ID, MABL_ENV_PROD_ID
+# Optional secrets (notifications skip silently if unset):
+#   - SLACK_WEBHOOK_URL
+#   - JIRA_USER_EMAIL
+#   - JIRA_API_TOKEN
 
 on:
   pull_request:
@@ -31,6 +34,12 @@ on:
 
 env:
   PRODUCTION_URL: https://cheap-shot-hockey.vercel.app
+  # Notification env — read by scripts/ci-notify.sh
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  JIRA_BASE_URL: https://mabl.atlassian.net
+  JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+  JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+  PR_NUMBER: ${{ github.event.pull_request.number }}
 
 jobs:
   # ─────────────────────────────────────────────────────────────────
@@ -48,6 +57,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - name: notify (failure)
+        if: failure()
+        run: |
+          bash scripts/ci-notify.sh fail "lint" "eslint rules failed"
 
   unit:
     name: unit tests + coverage
@@ -68,6 +81,10 @@ jobs:
           name: coverage-report
           path: coverage/
           retention-days: 7
+      - name: notify (failure)
+        if: failure()
+        run: |
+          bash scripts/ci-notify.sh fail "unit tests" "vitest assertions failed"
 
   build:
     name: build (next)
@@ -81,11 +98,17 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: notify (failure)
+        if: failure()
+        run: |
+          bash scripts/ci-notify.sh fail "build" "next build failed"
+      - name: notify (Stage-1 code-quality passed)
+        if: success() && github.event_name == 'pull_request'
+        run: |
+          bash scripts/ci-notify.sh ok "lint + unit + build" "Stage 1 code-quality gates all green — moving to T1 smoke"
 
   # ─────────────────────────────────────────────────────────────────
   # Stage 2: T1 CLI smoke (newman vs Postman collection)
-  #   - PR:   hits Vercel Preview URL
-  #   - Main: hits Vercel Prod URL (after Vercel reflects the commit)
   # ─────────────────────────────────────────────────────────────────
 
   t1-smoke-preview:
@@ -100,10 +123,6 @@ jobs:
       - name: wait for Vercel Preview deployment + capture URL
         id: preview
         run: |
-          # Vercel computes long-branch URLs with a hash + scope suffix that
-          # can't be predicted from the branch name alone. Query GitHub's
-          # Deployments API — Vercel posts environment_url there once the
-          # preview is live.
           repo="${GITHUB_REPOSITORY}"
           sha="${{ github.event.pull_request.head.sha }}"
           echo "Waiting for Vercel Preview deployment on sha $sha ..."
@@ -114,7 +133,6 @@ jobs:
               env_url=$(gh api "$url" \
                 --jq '[.[] | select(.state=="success")] | .[0].environment_url' 2>/dev/null)
               if [ -n "$env_url" ] && [ "$env_url" != "null" ]; then
-                # Confirm it's actually reachable before declaring victory.
                 if curl -fsS -m 5 "$env_url/api/health" >/dev/null 2>&1; then
                   echo "Preview ready: $env_url"
                   echo "url=$env_url" >> "$GITHUB_OUTPUT"
@@ -134,6 +152,14 @@ jobs:
             --reporters cli \
             --color on \
             --timeout-request 10000
+      - name: notify (success)
+        if: success()
+        run: |
+          bash scripts/ci-notify.sh ok "T1 newman smoke (Preview)" "Vercel Preview URL: ${{ steps.preview.outputs.url }}"
+      - name: notify (failure)
+        if: failure()
+        run: |
+          bash scripts/ci-notify.sh fail "T1 newman smoke (Preview)" "newman assertions failed or Vercel Preview never came up"
 
   t1-smoke-prod:
     name: T1 — newman smoke (Prod)
@@ -160,11 +186,17 @@ jobs:
             --reporters cli \
             --color on \
             --timeout-request 10000
+      - name: notify (success)
+        if: success()
+        run: |
+          bash scripts/ci-notify.sh ok "T1 newman smoke (Prod)" "Prod URL: ${{ env.PRODUCTION_URL }} — commit reflected"
+      - name: notify (failure)
+        if: failure()
+        run: |
+          bash scripts/ci-notify.sh fail "T1 newman smoke (Prod)" "Vercel never reflected commit, or newman assertions failed"
 
   # ─────────────────────────────────────────────────────────────────
   # Stage 3: mabl cloud gate — gated on T1 newman green
-  #   - PR:   CSH-SMOKE-PR against Preview
-  #   - Main: CSH-SMOKE-POSTDEPLOY against Prod
   # ─────────────────────────────────────────────────────────────────
 
   mabl-smoke:
@@ -203,6 +235,14 @@ jobs:
             --commit "${{ github.sha }}" \
             --branch "${{ github.head_ref }}" \
             --wait
+      - name: notify (success)
+        if: success()
+        run: |
+          bash scripts/ci-notify.sh ok "T2 mabl (CSH-SMOKE-PR, Preview)" "All 5 required PR checks green — merge unblocked."
+      - name: notify (failure)
+        if: failure()
+        run: |
+          bash scripts/ci-notify.sh fail "T2 mabl (CSH-SMOKE-PR, Preview)" "Merge blocked by branch protection until this is green."
 
   post-deploy-smoke:
     name: mabl — CSH-SMOKE-POSTDEPLOY (Prod)
@@ -227,9 +267,15 @@ jobs:
             --commit "${{ github.sha }}" \
             --branch main \
             --wait
+      - name: notify (success — shipped)
+        if: success()
+        run: |
+          bash scripts/ci-notify.sh ok "T3 post-deploy shipped" ":rocket: Live on <${{ env.PRODUCTION_URL }}|cheap-shot-hockey.vercel.app> — commit verified in prod."
+      - name: notify (failure)
+        if: failure()
+        run: |
+          bash scripts/ci-notify.sh fail "T3 post-deploy" "Prod post-deploy smoke failed — investigate immediately."
 
   # NOTE: the regression gate is intentionally not wired yet.
   # Re-add a `mabl-regression` job dispatching `type-rt,exec-nightly`
-  # against Prod once the CSH-REGRESSION plan exists in mabl. Until
-  # then, dispatching that label set wastes ~60s per main push with
-  # zero matching plans.
+  # against Prod once the CSH-REGRESSION plan exists in mabl.
