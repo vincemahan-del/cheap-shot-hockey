@@ -1,19 +1,24 @@
 name: mabl SDLC gate
 
-# Slim full-SDLC pipeline. One mabl dispatch per trigger, each
-# targeting a dedicated plan (no cross-env fan-out):
+# Strict sequential gates. Each stage's `needs:` gates the next — any
+# failure skips all downstream stages, so a red PR gate blocks merge
+# (via branch protection) and a red main-push stage skips prod smoke.
 #
-#   PR push    → lint → unit → build → mabl-smoke (CSH-SMOKE-PR, Preview)
-#   Main push  → lint → unit → build → post-deploy-smoke
-#                (CSH-SMOKE-POSTDEPLOY, Prod, after Vercel reflect)
+#   PR push   → lint → unit → build → t1-smoke-preview (newman CLI)
+#               → mabl-smoke (CSH-SMOKE-PR, Preview)
+#
+#   Main push → lint → unit → build → t1-smoke-prod (newman CLI)
+#               → post-deploy-smoke (CSH-SMOKE-POSTDEPLOY, Prod)
+#
+# T1 smokes are CLI (newman vs Postman collection) — fast, pre-dates
+# mabl cloud spin-up, catches basic API failures before burning cloud
+# minutes. T1 runs both as a pre-push hook (developer's laptop) AND
+# here in CI so the check status is visible on the PR and required by
+# branch protection.
 #
 # Plan architecture (mabl workspace):
-#   - CSH-SMOKE-PR           : labels type-smk,exec-pr,...   env=Preview only
+#   - CSH-SMOKE-PR           : labels type-smk,exec-pr,...  env=Preview only
 #   - CSH-SMOKE-POSTDEPLOY   : labels type-smk,exec-postdeploy,...  env=Prod only
-#
-# Split avoids the fan-out the previous single CSH-SMOKE plan did
-# (ran across every attached env per dispatch). Each plan now attaches
-# exactly one env, so a dispatch can only fire one plan run.
 #
 # Required secrets: MABL_API_TOKEN, MABL_WORKSPACE_ID, MABL_APPLICATION_ID,
 # MABL_ENV_PREVIEW_ID, MABL_ENV_PROD_ID.
@@ -28,6 +33,10 @@ env:
   PRODUCTION_URL: https://cheap-shot-hockey.vercel.app
 
 jobs:
+  # ─────────────────────────────────────────────────────────────────
+  # Stage 1: code quality (lint → unit → build)
+  # ─────────────────────────────────────────────────────────────────
+
   lint:
     name: lint (eslint)
     runs-on: ubuntu-latest
@@ -73,9 +82,76 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  # ─────────────────────────────────────────────────────────────────
+  # Stage 2: T1 CLI smoke (newman vs Postman collection)
+  #   - PR:   hits Vercel Preview URL
+  #   - Main: hits Vercel Prod URL (after Vercel reflects the commit)
+  # ─────────────────────────────────────────────────────────────────
+
+  t1-smoke-preview:
+    name: T1 — newman smoke (Preview)
+    needs: build
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: wait for Vercel Preview to be ready
+        run: |
+          url="https://cheap-shot-hockey-git-${{ github.head_ref }}.vercel.app"
+          echo "Polling $url/api/health ..."
+          for i in $(seq 1 30); do
+            if curl -fsS -m 5 "$url/api/health" >/dev/null 2>&1; then
+              echo "Preview ready at $url"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Preview never came up at $url" >&2
+          exit 1
+      - name: run newman T1 smoke
+        run: |
+          url="https://cheap-shot-hockey-git-${{ github.head_ref }}.vercel.app/api"
+          npx --yes newman run mabl/postman/csh-api-smoke.postman_collection.json \
+            --env-var "baseUrl=$url" \
+            --reporters cli \
+            --color on \
+            --timeout-request 10000
+
+  t1-smoke-prod:
+    name: T1 — newman smoke (Prod)
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: wait for Vercel Prod to reflect new commit
+        run: |
+          short="${GITHUB_SHA:0:7}"
+          for i in $(seq 1 30); do
+            live=$(curl -fsS "${{ env.PRODUCTION_URL }}/api/build-info" | jq -r '.commit' | cut -c1-7)
+            echo "live=$live expected=$short"
+            [ "$live" = "$short" ] && exit 0
+            sleep 10
+          done
+          echo "Prod never reflected new commit" >&2
+          exit 1
+      - name: run newman T1 smoke
+        run: |
+          npx --yes newman run mabl/postman/csh-api-smoke.postman_collection.json \
+            --env-var "baseUrl=${{ env.PRODUCTION_URL }}/api" \
+            --reporters cli \
+            --color on \
+            --timeout-request 10000
+
+  # ─────────────────────────────────────────────────────────────────
+  # Stage 3: mabl cloud gate — gated on T1 newman green
+  #   - PR:   CSH-SMOKE-PR against Preview
+  #   - Main: CSH-SMOKE-POSTDEPLOY against Prod
+  # ─────────────────────────────────────────────────────────────────
+
   mabl-smoke:
     name: mabl — CSH-SMOKE-PR (Preview)
-    needs: build
+    needs: t1-smoke-preview
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     env:
@@ -100,7 +176,7 @@ jobs:
 
   post-deploy-smoke:
     name: mabl — CSH-SMOKE-POSTDEPLOY (Prod)
-    needs: build
+    needs: t1-smoke-prod
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
@@ -109,16 +185,6 @@ jobs:
       MABL_ENV_PROD_ID: ${{ secrets.MABL_ENV_PROD_ID }}
     steps:
       - uses: actions/checkout@v4
-      - name: wait for Vercel to reflect new commit
-        run: |
-          short="${GITHUB_SHA:0:7}"
-          for i in $(seq 1 30); do
-            live=$(curl -fsS ${{ env.PRODUCTION_URL }}/api/build-info | jq -r '.commit' | cut -c1-7)
-            echo "live=$live expected=$short"
-            [ "$live" = "$short" ] && exit 0
-            sleep 10
-          done
-          echo "deploy never reflected new commit"; exit 1
       - run: sudo apt-get install -y jq
       - name: trigger CSH-SMOKE-POSTDEPLOY against Prod
         run: |
