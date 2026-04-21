@@ -268,6 +268,26 @@ needed.
 6. **The mabl MCP `create_mabl_test_cloud` tool with `isApiTest: true`
    produces browser tests, not API tests** (reproduced 3×). Until
    fixed by mabl eng, all API tests must be authored via the UI.
+7. **Postman import has a partial-port caveat.** The E2E test
+   (`CSH-CHP-CHECKOUT-API-CustomerPlacesOrderEndToEnd`) ships as
+   `mabl/postman/csh-e2e-order-journey.postman_collection.json` and
+   imports via **New API test → Import from Postman collection**.
+   Assertions port cleanly. `pm.collectionVariables.set(...)` does
+   **not** port — mabl doesn't currently honor the Postman script API
+   for variable extraction. After import, manually add a response
+   variable on step 7: **name** `orderId`, **source** Response body,
+   **JSONPath** `$.id`, **scope** `@` (test-scope). Step 9's
+   `{{@orderId}}` path param then resolves correctly. Skipping this
+   step causes step 9 to GET `/orders/` (list endpoint) and return a
+   paged envelope instead of a single order, which fails the `status
+   is paid` + `totalCents is 21599` assertions.
+8. **Assertions are tiered: structural vs. business-logic.** The
+   E2E collection uses existence/type checks (`exist`, `not.empty`)
+   for IDs and shape, and equality checks for money math
+   (`totalCents === 21599`, `taxCents === 1600`,
+   `shippingCents === 0`). This keeps the test from breaking when seed
+   IDs shift while still catching real tax/shipping/price regressions
+   — the whole reason a CHP test exists in the first place.
 
 ---
 

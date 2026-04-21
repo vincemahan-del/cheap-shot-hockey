@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "CSH-CHP-CHECKOUT-API-CustomerPlacesOrderEndToEnd",
-    "description": "End-to-end API journey for Cheap Shot Hockey: catalog browse → authenticate → add to cart → place order → verify. 9 chained requests. Imports into mabl as an API test.\n\nBase URL is driven by the `baseUrl` collection variable. Set it to http://localhost:3000/api for Local, https://cheap-shot-hockey.vercel.app/api for Production, etc.",
+    "description": "End-to-end API journey for Cheap Shot Hockey: catalog browse → authenticate → add to cart → place order → verify. 9 chained requests. Imports into mabl as an API test.\n\nBase URL is driven by the `baseUrl` collection variable. Set it to http://localhost:3000/api for Local, https://cheap-shot-hockey.vercel.app/api for Production, etc.\n\nBrittleness policy: assertions are split into two tiers.\n- STRUCTURAL (existence/type): catches true outages. Should only fail on a real regression.\n- BUSINESS-LOGIC (exact values): catches price/tax/shipping math regressions. Intentionally strict — totalCents, taxCents, shippingCents use equality because their values are the whole point of the test.\n\nmabl Postman-import caveat: pm.collectionVariables.set() in step 7 does NOT currently port into a mabl variable setter on import. After importing, manually add a response variable extraction on step 7: name=`orderId`, JSONPath=`$.id`, scope=`@` (test-scope). See docs/MABL-API-TESTS.md for full instructions.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -24,7 +24,8 @@
             "exec": [
               "pm.test('status is 200', () => pm.response.to.have.status(200));",
               "const body = pm.response.json();",
-              "pm.test('count > 19', () => pm.expect(body.count).to.be.above(19));"
+              "pm.test('catalog returns products', () => pm.expect(body.count).to.be.above(0));",
+              "pm.test('items array shape', () => pm.expect(body.items).to.be.an('array').and.not.empty);"
             ]
           }
         }
@@ -49,8 +50,8 @@
             "exec": [
               "pm.test('status is 200', () => pm.response.to.have.status(200));",
               "const body = pm.response.json();",
-              "pm.test('id is p-stk-001', () => pm.expect(body.id).to.eql('p-stk-001'));",
-              "pm.test('salePriceCents is 19999', () => pm.expect(body.salePriceCents).to.eql(19999));"
+              "pm.test('product has an id', () => pm.expect(body.id).to.be.a('string').and.not.empty);",
+              "pm.test('salePriceCents is 19999 (business-logic: price change = real signal)', () => pm.expect(body.salePriceCents).to.eql(19999));"
             ]
           }
         }
@@ -81,7 +82,7 @@
             "exec": [
               "pm.test('status is 200', () => pm.response.to.have.status(200));",
               "const body = pm.response.json();",
-              "pm.test('id is u-001', () => pm.expect(body.id).to.eql('u-001'));",
+              "pm.test('user has an id', () => pm.expect(body.id).to.be.a('string').and.not.empty);",
               "pm.test('role is customer', () => pm.expect(body.role).to.eql('customer'));"
             ]
           }
@@ -107,7 +108,7 @@
             "exec": [
               "pm.test('status is 200', () => pm.response.to.have.status(200));",
               "const body = pm.response.json();",
-              "pm.test('id is u-001', () => pm.expect(body.id).to.eql('u-001'));"
+              "pm.test('session resolves a user', () => pm.expect(body.id).to.be.a('string').and.not.empty);"
             ]
           }
         }
@@ -138,7 +139,8 @@
             "exec": [
               "pm.test('status is 200', () => pm.response.to.have.status(200));",
               "const body = pm.response.json();",
-              "pm.test('line productId is p-stk-001', () => pm.expect(body.lines[0].productId).to.eql('p-stk-001'));",
+              "pm.test('cart has a line', () => pm.expect(body.lines).to.be.an('array').and.not.empty);",
+              "pm.test('line productId matches requested', () => pm.expect(body.lines[0].productId).to.eql('p-stk-001'));",
               "pm.test('line quantity is 1', () => pm.expect(body.lines[0].quantity).to.eql(1));"
             ]
           }
@@ -164,7 +166,7 @@
             "exec": [
               "pm.test('status is 200', () => pm.response.to.have.status(200));",
               "const body = pm.response.json();",
-              "pm.test('subtotalCents is 19999', () => pm.expect(body.subtotalCents).to.eql(19999));"
+              "pm.test('subtotalCents is 19999 (business-logic: sale price)', () => pm.expect(body.subtotalCents).to.eql(19999));"
             ]
           }
         }
@@ -196,11 +198,11 @@
               "pm.test('status is 201', () => pm.response.to.have.status(201));",
               "const body = pm.response.json();",
               "pm.test('status is paid', () => pm.expect(body.status).to.eql('paid'));",
-              "pm.test('userId is u-001', () => pm.expect(body.userId).to.eql('u-001'));",
-              "pm.test('shippingCents is 0 (free over $99)', () => pm.expect(body.shippingCents).to.eql(0));",
-              "pm.test('taxCents is 1600', () => pm.expect(body.taxCents).to.eql(1600));",
-              "pm.test('totalCents is 21599', () => pm.expect(body.totalCents).to.eql(21599));",
-              "// Extract order id for step 9",
+              "pm.test('order has a userId', () => pm.expect(body.userId).to.be.a('string').and.not.empty);",
+              "pm.test('shippingCents is 0 (business-logic: free over $99)', () => pm.expect(body.shippingCents).to.eql(0));",
+              "pm.test('taxCents is 1600 (business-logic: 8% of $199.99)', () => pm.expect(body.taxCents).to.eql(1600));",
+              "pm.test('totalCents is 21599 (business-logic: subtotal + tax + shipping)', () => pm.expect(body.totalCents).to.eql(21599));",
+              "// Extract order id for step 9 (Postman-only; mabl requires a separate native extraction — see collection description)",
               "pm.collectionVariables.set('orderId', body.id);"
             ]
           }
@@ -252,7 +254,7 @@
               "pm.test('status is 200', () => pm.response.to.have.status(200));",
               "const body = pm.response.json();",
               "pm.test('order is paid', () => pm.expect(body.status).to.eql('paid'));",
-              "pm.test('totalCents is 21599', () => pm.expect(body.totalCents).to.eql(21599));"
+              "pm.test('totalCents is 21599 (business-logic: end-to-end math consistent)', () => pm.expect(body.totalCents).to.eql(21599));"
             ]
           }
         }
@@ -268,7 +270,7 @@
     {
       "key": "orderId",
       "value": "",
-      "description": "Populated by step 7 response"
+      "description": "Populated by step 7 response. In Postman: via pm.collectionVariables.set. In mabl: add a native response extraction on step 7 (JSONPath $.id) — the pm.* setter does not port on import."
     }
   ]
 }
