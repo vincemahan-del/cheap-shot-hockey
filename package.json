@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:mabl:local": "./scripts/mabl-local-gate.sh",
-    "test:mabl:local:preview": "./scripts/mabl-local-gate.sh --base https://cheap-shot-hockey-git-main-vincemahan-1163s-projects.vercel.app/api"
+    "test:mabl:local:preview": "./scripts/mabl-local-gate.sh --base https://cheap-shot-hockey-git-main-vincemahan-1163s-projects.vercel.app/api",
+    "demo:preflight": "./scripts/demo-preflight.sh"
   },
   "dependencies": {
     "next": "16.2.4",

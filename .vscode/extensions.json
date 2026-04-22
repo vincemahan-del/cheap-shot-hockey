@@ -1,0 +1,13 @@
+{
+  // When a new contributor opens this repo in VS Code, the IDE prompts
+  // to install these. They're the demo cockpit — see docs/DEMO-SETUP-VSCODE.md.
+  "recommendations": [
+    "anthropic.claude-code",
+    "github.vscode-pull-request-github",
+    "atlassian.atlascode",
+    "eamodio.gitlens",
+    "github.vscode-github-actions",
+    "humao.rest-client"
+  ],
+  "unwantedRecommendations": []
+}

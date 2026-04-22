@@ -1,0 +1,45 @@
+{
+  // Workspace settings tuned for the demo. Per-user overrides stay in
+  // your personal VS Code settings — these are only the ones that
+  // make the demo look clean and consistent.
+
+  // Visible breadcrumbs + full file path in the tab bar — makes it
+  // obvious to the audience which file Claude is editing.
+  "breadcrumbs.enabled": true,
+  "window.title": "${rootName} ${separator} ${dirty}${activeEditorShort}${separator}Cheap Shot Hockey demo",
+
+  // Hide files that clutter the file tree during a demo (keep `.vscode/`
+  // visible so you can point at the recommended extensions + tasks).
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true,
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/coverage": true,
+    "**/tsconfig.tsbuildinfo": true
+  },
+
+  // Clean terminal — no welcome banner, large font for audience screens.
+  "terminal.integrated.fontSize": 14,
+
+  // GitHub Pull Requests extension: show PR checks inline on the branch
+  "githubPullRequests.fileListLayout": "tree",
+  "githubPullRequests.terminalLinksHandler": "github",
+  "githubPullRequests.pullRequestDescription": "Copilot",
+
+  // Atlassian (Jira) extension: default project for quick ticket create
+  "atlascode.jira.defaultProjects": [{"projectKey": "TAMD"}],
+
+  // Format on save = consistent diffs in the demo PR
+  "editor.formatOnSave": false,
+  "editor.tabSize": 2,
+
+  // TypeScript: use workspace version so demos match CI
+  "typescript.tsdk": "node_modules/typescript/lib",
+
+  // GitLens: show the per-line blame on hover only (keeps the editor clean)
+  "gitlens.currentLine.enabled": false,
+  "gitlens.codeLens.enabled": false,
+  "gitlens.hovers.enabled": true
+}
