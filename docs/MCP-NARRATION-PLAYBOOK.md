@@ -52,7 +52,7 @@ and branch). Sets the thread root.
 ```
 :hockey: *New work: <TICKET_KEY> — <short summary>*
 
-:ticket: Jira: <link|TICKET_KEY>
+:ticket: Jira: <JIRA_URL|TICKET_KEY>
 :package: Project: *<project-name>*
 :label: Labels: <labels list>
 
@@ -64,10 +64,41 @@ and branch). Sets the thread root.
 5. Live site verified
 
 I'll post every gate transition in this thread. This thread is the audit trail.
+
+:link: <PR_URL|PR #N> · <ACTIONS_URL|GitHub Actions> · <JIRA_URL|Jira TICKET-KEY> · <PROD_URL|Production>
 ```
+
+Use **always-available** URLs in the kickoff link row:
+- `PR_URL` — from the gh pr create response
+- `ACTIONS_URL` — `https://github.com/<repo>/actions?query=branch:<branch>` (valid the moment the workflow queues)
+- `JIRA_URL` — `https://mabl.atlassian.net/browse/<TICKET_KEY>`
+- `PROD_URL` — `https://cheap-shot-hockey.vercel.app` (constant)
+
+Don't include Preview / GHA-run / mabl-plan URLs at kickoff — those
+don't exist yet. Add them in subsequent messages as they become
+available.
 
 **Record the returned `message_ts` as `thread_ts`** for all subsequent
 posts on this ticket.
+
+## Link formatting — non-negotiable
+
+**Every link label in a `:link:` row MUST be wrapped in Slack
+mrkdwn** `<URL|Label>` syntax. A bare label is a bug.
+
+Correct:
+```
+:link: <https://github.com/.../pull/9|PR #9> · <https://mabl.atlassian.net/browse/TAMD-83|Jira TAMD-83>
+```
+
+WRONG (happens if a URL is missing from env):
+```
+:link: PR #9 · Preview site · Jira TAMD-83
+```
+
+If a URL isn't available for a label at message-compose time, **drop
+the label entirely** rather than leaving a bare-text pseudo-link.
+Silence on an unavailable link is better than fake link text.
 
 ## Gate transition messages (thread replies)
 
