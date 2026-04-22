@@ -1,0 +1,111 @@
+{
+  // One-click demo tasks. Run via Cmd+Shift+P → "Tasks: Run Task".
+  // Paired with the demo layout in docs/DEMO-SETUP-VSCODE.md.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "demo: start dev server",
+      "detail": "npm run dev — required for T1 pre-push hook to pass",
+      "type": "shell",
+      "command": "npm run dev",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "demo"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "demo: T1 local smoke (newman)",
+      "detail": "Run the Postman collection against localhost — same as pre-push",
+      "type": "shell",
+      "command": "npm run test:mabl:local",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "group": "demo"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "demo: open current PR in browser",
+      "detail": "Opens the GitHub PR for the current branch",
+      "type": "shell",
+      "command": "gh pr view --web",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "demo: watch PR checks (live)",
+      "detail": "Tail the PR check status — updates inline",
+      "type": "shell",
+      "command": "gh pr checks --watch",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "demo"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "demo: arm auto-merge on current PR",
+      "detail": "gh pr merge --auto --merge --delete-branch",
+      "type": "shell",
+      "command": "gh pr merge --auto --merge --delete-branch",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "demo: open mabl workspace",
+      "detail": "Open the mabl workspace in the browser",
+      "type": "shell",
+      "command": "open https://app.mabl.com/workspaces/pXXgThbNi4HfQOpiZptHfw-w",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "demo: open live prod site",
+      "detail": "Open cheap-shot-hockey.vercel.app",
+      "type": "shell",
+      "command": "open https://cheap-shot-hockey.vercel.app",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "demo: open Slack channel",
+      "detail": "Open #vince-agentic-workflow-demos",
+      "type": "shell",
+      "command": "open 'https://mablhq.slack.com/archives/C0A321B477Y'",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "demo: pre-flight check",
+      "detail": "Verify dev server, secrets, and recent git state before starting",
+      "type": "shell",
+      "command": "bash scripts/demo-preflight.sh",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "demo"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
