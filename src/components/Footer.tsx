@@ -59,7 +59,11 @@ export function Footer() {
               Help
             </h3>
             <ul className="space-y-1.5 text-sm text-[color:var(--muted)]">
-              <li>Shipping & returns</li>
+              <li>
+                <Link href="/shipping" className="hover:text-[color:var(--accent)]" data-testid="footer-shipping-link">
+                  Shipping &amp; returns
+                </Link>
+              </li>
               <li>Size guide</li>
               <li>Team orders</li>
               <li>Contact us</li>
