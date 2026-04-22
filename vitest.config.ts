@@ -19,11 +19,15 @@ export default defineConfig({
         "src/lib/order-cookie.ts",
         "src/lib/guest-orders.ts",
       ],
+      // Coverage gate — if any of these drop below threshold, the unit
+      // job fails and the PR is blocked by branch protection. Current
+      // coverage ~98% lines/stmts/funcs, ~96% branches — the 90% gate
+      // is a canary, not a stretch goal. Tune up later if drift tolerated.
       thresholds: {
-        lines: 80,
-        statements: 80,
-        functions: 80,
-        branches: 75,
+        lines: 90,
+        statements: 90,
+        functions: 90,
+        branches: 85,
       },
     },
   },
