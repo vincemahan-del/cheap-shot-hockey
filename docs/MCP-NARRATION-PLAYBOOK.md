@@ -18,6 +18,31 @@ the script would emit.**
 - Claude has access to Slack MCP (`slack_send_message`, `slack_read_channel`)
   and Jira MCP (`addCommentToJiraIssue`, `transitionJiraIssue`).
 
+## One-ticket-per-distinct-work (non-negotiable)
+
+**Every distinct piece of work gets its own Jira ticket.** This
+applies especially to follow-up bug fixes, polish passes, and
+retroactive corrections. Reusing a prior ticket — even one that's
+still in progress — muddies the Jira audit trail and the commit log.
+
+Correct pattern for a follow-up bug in TAMD-83's output:
+1. **Create a new ticket** — TAMD-84: "CI notification bugs in
+   TAMD-83 output: broken link mrkdwn + missing kickoff links"
+2. **Link it to the parent** in Jira via `createIssueLink` — type
+   `Defect` (TAMD-84 was created by TAMD-83), or `Relates` for
+   weaker associations
+3. **Branch name:** `TAMD-84/link-format-rules` (NOT
+   `TAMD-83/link-format-rules`)
+4. **Commit message:** `TAMD-84: ...` (NOT `TAMD-83: ...`)
+5. **Slack thread:** new kickoff in `#vince-agentic-workflow-demos`
+   at channel level, becomes the TAMD-84 thread root
+6. **PR title:** references TAMD-84, body links to TAMD-83 for context
+
+The anti-pattern: noticing a bug in TAMD-83's Done output, opening a
+branch `TAMD-83/...` because it's fresh in mind. The bug fix is
+*separate work* — it just happens to be about a previous ticket.
+Treat it as its own unit, or the audit trail lies.
+
 ## Channel + thread convention (non-negotiable)
 
 - **Channel:** `#vince-agentic-workflow-demos` (`C0A321B477Y`).
