@@ -112,6 +112,24 @@ MABL_ENV_LOCAL_ID    DmlIvADtF8jPDm9J7Bpshw-e
 Plan labels Jenkins dispatches against: `api-smoke`, `pr-gate`,
 `regression`, `post-deploy-smoke`.
 
+## Ticket-to-prod demo narration
+
+When the user is driving a ticket-to-prod demo and Claude should
+narrate CI events (because `SLACK_WEBHOOK_URL` isn't set), follow the
+canonical spec in `docs/MCP-NARRATION-PLAYBOOK.md`. Summary:
+
+- **Channel:** `#vince-agentic-workflow-demos` (`C0A321B477Y`)
+- **One thread per Jira ticket** — kickoff at channel, everything else
+  replies in the thread
+- **Gate messages** match the format `scripts/ci-notify.sh` would
+  post — so narration and autonomous messages are indistinguishable
+- **Forward mabl's native Slack posts** from channel root into the
+  relevant ticket thread (mabl's app posts at channel level, not in
+  threads)
+- **Comment on Jira** in parallel, with the same metrics + links
+- **Auto-transition tickets**: To Do → In Progress on first CI green,
+  In Progress → Done on post-deploy ship
+
 ## Deploy safety
 
 - The entire demo is ephemeral — no real customer data, no real

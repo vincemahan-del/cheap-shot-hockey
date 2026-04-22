@@ -40,6 +40,14 @@ env:
   JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
   JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
   PR_NUMBER: ${{ github.event.pull_request.number }}
+  PR_TITLE: ${{ github.event.pull_request.title }}
+  PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+  PROD_URL: https://cheap-shot-hockey.vercel.app
+  COVERAGE_THRESHOLD: "90"
+  # Optional Jenkins link if the workspace runs a parallel Jenkins build.
+  # Set JENKINS_JOB_URL as a repo secret if you want a traceability link
+  # in every Slack/Jira message. Leave unset to hide the Jenkins row.
+  JENKINS_JOB_URL: ${{ secrets.JENKINS_JOB_URL }}
 
 jobs:
   # ─────────────────────────────────────────────────────────────────
@@ -66,6 +74,12 @@ jobs:
     name: unit tests + coverage
     needs: lint
     runs-on: ubuntu-latest
+    outputs:
+      test_total: ${{ steps.metrics.outputs.test_total }}
+      test_passed: ${{ steps.metrics.outputs.test_passed }}
+      test_failed: ${{ steps.metrics.outputs.test_failed }}
+      coverage_lines: ${{ steps.metrics.outputs.coverage_lines }}
+      coverage_branches: ${{ steps.metrics.outputs.coverage_branches }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -73,7 +87,41 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - run: npm run test:coverage
+      # Vitest writes results JSON we can parse for counts; also produces
+      # coverage-summary.json via the coverage config. Pipe full output to
+      # a log so the metrics step can extract both.
+      - name: unit tests + coverage
+        id: tests
+        run: |
+          set +e
+          npx vitest run --coverage --reporter=default --reporter=json --outputFile=vitest-results.json 2>&1 | tee vitest-output.log
+          echo "unit_exit=$?" >> "$GITHUB_ENV"
+          exit ${PIPESTATUS[0]}
+      - name: extract test + coverage metrics
+        id: metrics
+        if: always()
+        run: |
+          # Test counts from the vitest JSON reporter
+          if [ -f vitest-results.json ]; then
+            total=$(jq '.numTotalTests // 0' vitest-results.json)
+            passed=$(jq '.numPassedTests // 0' vitest-results.json)
+            failed=$(jq '.numFailedTests // 0' vitest-results.json)
+          else
+            total=0; passed=0; failed=0
+          fi
+          # Coverage from v8's coverage-summary.json (.total.lines.pct, etc.)
+          if [ -f coverage/coverage-summary.json ]; then
+            cov_lines=$(jq -r '.total.lines.pct // "0"' coverage/coverage-summary.json)
+            cov_branches=$(jq -r '.total.branches.pct // "0"' coverage/coverage-summary.json)
+          else
+            cov_lines=0; cov_branches=0
+          fi
+          echo "test_total=$total" >> "$GITHUB_OUTPUT"
+          echo "test_passed=$passed" >> "$GITHUB_OUTPUT"
+          echo "test_failed=$failed" >> "$GITHUB_OUTPUT"
+          echo "coverage_lines=$cov_lines" >> "$GITHUB_OUTPUT"
+          echo "coverage_branches=$cov_branches" >> "$GITHUB_OUTPUT"
+          echo "unit: ${passed}/${total} passed · lines ${cov_lines}% · branches ${cov_branches}%"
       - name: upload coverage report
         uses: actions/upload-artifact@v4
         if: always()
@@ -83,31 +131,70 @@ jobs:
           retention-days: 7
       - name: notify (failure)
         if: failure()
+        env:
+          TEST_TOTAL: ${{ steps.metrics.outputs.test_total }}
+          TEST_PASSED: ${{ steps.metrics.outputs.test_passed }}
+          TEST_FAILED: ${{ steps.metrics.outputs.test_failed }}
+          COVERAGE_LINES: ${{ steps.metrics.outputs.coverage_lines }}
+          COVERAGE_BRANCHES: ${{ steps.metrics.outputs.coverage_branches }}
+          NEXT_GATE: "fix unit tests before re-running CI"
         run: |
-          bash scripts/ci-notify.sh fail "unit tests" "vitest assertions failed"
+          bash scripts/ci-notify.sh fail "Unit tests + coverage" "Fix failing tests or raise coverage before merge can be unblocked."
 
   build:
     name: build (next)
     needs: unit
     runs-on: ubuntu-latest
+    outputs:
+      diff_files: ${{ steps.diff.outputs.files }}
+      diff_add: ${{ steps.diff.outputs.additions }}
+      diff_del: ${{ steps.diff.outputs.deletions }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history for git diff against main
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: compute PR diff stats
+        id: diff
+        if: github.event_name == 'pull_request'
+        run: |
+          # Compare against the PR base (usually main) to get files changed
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          files=$(git diff --name-only "$base_sha" "$head_sha" | wc -l | tr -d ' ')
+          add_del=$(git diff --numstat "$base_sha" "$head_sha" \
+            | awk '{a+=$1; d+=$2} END{printf "%d %d", a, d}')
+          additions=$(echo "$add_del" | awk '{print $1}')
+          deletions=$(echo "$add_del" | awk '{print $2}')
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          echo "additions=$additions" >> "$GITHUB_OUTPUT"
+          echo "deletions=$deletions" >> "$GITHUB_OUTPUT"
+          echo "diff: $files files, +$additions/-$deletions"
       - name: notify (failure)
         if: failure()
         run: |
-          bash scripts/ci-notify.sh fail "build" "next build failed"
+          bash scripts/ci-notify.sh fail "Build (Next.js)" "Build compilation failed — TypeScript or Next route error likely."
       - name: notify (Stage-1 code-quality passed)
         if: success() && github.event_name == 'pull_request'
         env:
           JIRA_TRANSITION: In Progress
+          DIFF_FILES: ${{ steps.diff.outputs.files }}
+          DIFF_ADDITIONS: ${{ steps.diff.outputs.additions }}
+          DIFF_DELETIONS: ${{ steps.diff.outputs.deletions }}
+          TEST_TOTAL: ${{ needs.unit.outputs.test_total }}
+          TEST_PASSED: ${{ needs.unit.outputs.test_passed }}
+          TEST_FAILED: ${{ needs.unit.outputs.test_failed }}
+          COVERAGE_LINES: ${{ needs.unit.outputs.coverage_lines }}
+          COVERAGE_BRANCHES: ${{ needs.unit.outputs.coverage_branches }}
+          NEXT_GATE: "T1 — newman smoke (Preview)"
         run: |
-          bash scripts/ci-notify.sh ok "lint + unit + build" "Stage 1 code-quality gates all green — moving to T1 smoke. Ticket transitioning to **In Progress**."
+          bash scripts/ci-notify.sh ok "Stage 1 · code quality" "Lint ok, unit tests green, build succeeded. Ticket moving to **In Progress**."
 
   # ─────────────────────────────────────────────────────────────────
   # Stage 2: T1 CLI smoke (newman vs Postman collection)
@@ -147,21 +234,48 @@ jobs:
           echo "Vercel Preview never posted a success status for $sha" >&2
           exit 1
       - name: run newman T1 smoke
+        id: newman
         run: |
           url="${{ steps.preview.outputs.url }}/api"
           npx --yes newman run mabl/postman/csh-api-smoke.postman_collection.json \
             --env-var "baseUrl=$url" \
-            --reporters cli \
+            --reporters cli,json \
+            --reporter-json-export newman-results.json \
             --color on \
             --timeout-request 10000
+      - name: extract newman metrics
+        id: nm_metrics
+        if: always() && hashFiles('newman-results.json') != ''
+        run: |
+          req=$(jq '.run.stats.requests.total // 0' newman-results.json)
+          ass_total=$(jq '.run.stats.assertions.total // 0' newman-results.json)
+          ass_failed=$(jq '.run.stats.assertions.failed // 0' newman-results.json)
+          duration=$(jq '.run.timings.completed - .run.timings.started // 0' newman-results.json | awk '{printf "%d\n", $1}')
+          echo "requests=$req" >> "$GITHUB_OUTPUT"
+          echo "assertions=$ass_total" >> "$GITHUB_OUTPUT"
+          echo "failures=$ass_failed" >> "$GITHUB_OUTPUT"
+          echo "duration_ms=$duration" >> "$GITHUB_OUTPUT"
       - name: notify (success)
         if: success()
+        env:
+          NEWMAN_REQUESTS: ${{ steps.nm_metrics.outputs.requests }}
+          NEWMAN_ASSERTIONS: ${{ steps.nm_metrics.outputs.assertions }}
+          NEWMAN_FAILURES: ${{ steps.nm_metrics.outputs.failures }}
+          NEWMAN_DURATION_MS: ${{ steps.nm_metrics.outputs.duration_ms }}
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+          NEXT_GATE: "mabl cloud — CSH-SMOKE-PR (Preview)"
         run: |
-          bash scripts/ci-notify.sh ok "T1 newman smoke (Preview)" "Vercel Preview URL: ${{ steps.preview.outputs.url }}"
+          bash scripts/ci-notify.sh ok "T1 newman smoke (Preview)" "Preview API tests all green against the PR's Vercel URL."
       - name: notify (failure)
         if: failure()
+        env:
+          NEWMAN_REQUESTS: ${{ steps.nm_metrics.outputs.requests }}
+          NEWMAN_ASSERTIONS: ${{ steps.nm_metrics.outputs.assertions }}
+          NEWMAN_FAILURES: ${{ steps.nm_metrics.outputs.failures }}
+          NEWMAN_DURATION_MS: ${{ steps.nm_metrics.outputs.duration_ms }}
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
         run: |
-          bash scripts/ci-notify.sh fail "T1 newman smoke (Preview)" "newman assertions failed or Vercel Preview never came up"
+          bash scripts/ci-notify.sh fail "T1 newman smoke (Preview)" "API assertions failed against the Preview deploy — merge blocked until fixed."
 
   t1-smoke-prod:
     name: T1 — newman smoke (Prod)
@@ -182,20 +296,45 @@ jobs:
           echo "Prod never reflected new commit" >&2
           exit 1
       - name: run newman T1 smoke
+        id: newman
         run: |
           npx --yes newman run mabl/postman/csh-api-smoke.postman_collection.json \
             --env-var "baseUrl=${{ env.PRODUCTION_URL }}/api" \
-            --reporters cli \
+            --reporters cli,json \
+            --reporter-json-export newman-results.json \
             --color on \
             --timeout-request 10000
+      - name: extract newman metrics
+        id: nm_metrics
+        if: always() && hashFiles('newman-results.json') != ''
+        run: |
+          req=$(jq '.run.stats.requests.total // 0' newman-results.json)
+          ass_total=$(jq '.run.stats.assertions.total // 0' newman-results.json)
+          ass_failed=$(jq '.run.stats.assertions.failed // 0' newman-results.json)
+          duration=$(jq '.run.timings.completed - .run.timings.started // 0' newman-results.json | awk '{printf "%d\n", $1}')
+          echo "requests=$req" >> "$GITHUB_OUTPUT"
+          echo "assertions=$ass_total" >> "$GITHUB_OUTPUT"
+          echo "failures=$ass_failed" >> "$GITHUB_OUTPUT"
+          echo "duration_ms=$duration" >> "$GITHUB_OUTPUT"
       - name: notify (success)
         if: success()
+        env:
+          NEWMAN_REQUESTS: ${{ steps.nm_metrics.outputs.requests }}
+          NEWMAN_ASSERTIONS: ${{ steps.nm_metrics.outputs.assertions }}
+          NEWMAN_FAILURES: ${{ steps.nm_metrics.outputs.failures }}
+          NEWMAN_DURATION_MS: ${{ steps.nm_metrics.outputs.duration_ms }}
+          NEXT_GATE: "mabl cloud — CSH-SMOKE-POSTDEPLOY (Prod)"
         run: |
-          bash scripts/ci-notify.sh ok "T1 newman smoke (Prod)" "Prod URL: ${{ env.PRODUCTION_URL }} — commit reflected"
+          bash scripts/ci-notify.sh ok "T1 newman smoke (Prod)" "Prod API verified against live commit."
       - name: notify (failure)
         if: failure()
+        env:
+          NEWMAN_REQUESTS: ${{ steps.nm_metrics.outputs.requests }}
+          NEWMAN_ASSERTIONS: ${{ steps.nm_metrics.outputs.assertions }}
+          NEWMAN_FAILURES: ${{ steps.nm_metrics.outputs.failures }}
+          NEWMAN_DURATION_MS: ${{ steps.nm_metrics.outputs.duration_ms }}
         run: |
-          bash scripts/ci-notify.sh fail "T1 newman smoke (Prod)" "Vercel never reflected commit, or newman assertions failed"
+          bash scripts/ci-notify.sh fail "T1 newman smoke (Prod)" "Prod API assertions failed OR Vercel never reflected the new commit. Investigate immediately."
 
   # ─────────────────────────────────────────────────────────────────
   # Stage 3: mabl cloud gate — gated on T1 newman green
@@ -237,14 +376,25 @@ jobs:
             --commit "${{ github.sha }}" \
             --branch "${{ github.head_ref }}" \
             --wait
-      - name: notify (success)
+      # Note: mabl's native Slack integration (mabl Slack app, installed
+      # in the workspace) posts the plan-run results directly to Slack
+      # with screenshots, assertion details, and direct links to the
+      # plan run in app.mabl.com. Our ci-notify.sh here only posts the
+      # merge-gate decision (branch protection unblocked / blocked) so
+      # we don't duplicate what mabl's Slack app already covers.
+      - name: notify (success — merge unblocked)
         if: success()
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+          NEXT_GATE: "Merge allowed — branch protection unblocked. Merging triggers Prod deploy + T3."
         run: |
-          bash scripts/ci-notify.sh ok "T2 mabl (CSH-SMOKE-PR, Preview)" "All 5 required PR checks green — merge unblocked."
-      - name: notify (failure)
+          bash scripts/ci-notify.sh ok "Merge-ready" "All 5 required PR checks are green — merge button is live. mabl Slack app posted the plan-run result separately with screenshots + assertion details."
+      - name: notify (failure — merge blocked)
         if: failure()
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
         run: |
-          bash scripts/ci-notify.sh fail "T2 mabl (CSH-SMOKE-PR, Preview)" "Merge blocked by branch protection until this is green."
+          bash scripts/ci-notify.sh fail "Merge blocked by mabl" "Browser-layer tests failed on the Preview deploy. See mabl's Slack post in this channel for screenshots + which steps failed, and the plan run for the full detail."
 
   post-deploy-smoke:
     name: mabl — CSH-SMOKE-POSTDEPLOY (Prod)
@@ -269,16 +419,23 @@ jobs:
             --commit "${{ github.sha }}" \
             --branch main \
             --wait
+      # Same pattern as mabl-smoke: mabl's native Slack app posts the
+      # plan-run result with full detail. Our notifier here handles the
+      # "shipped / not shipped" ticket transition + summary.
       - name: notify (success — shipped)
         if: success()
         env:
           JIRA_TRANSITION: Done
+          PROD_URL: ${{ env.PRODUCTION_URL }}
+          NEXT_GATE: "Live. Ticket moved to Done."
         run: |
-          bash scripts/ci-notify.sh ok "T3 post-deploy shipped" ":rocket: Live on <${{ env.PRODUCTION_URL }}|cheap-shot-hockey.vercel.app> — commit verified in prod. Ticket transitioning to **Done**."
+          bash scripts/ci-notify.sh ok "Shipped to production" ":rocket: Change is live on <${{ env.PRODUCTION_URL }}|cheap-shot-hockey.vercel.app> and verified by mabl against real prod (see mabl's Slack post above for per-test detail). Ticket transitioning to *Done*."
       - name: notify (failure)
         if: failure()
+        env:
+          PROD_URL: ${{ env.PRODUCTION_URL }}
         run: |
-          bash scripts/ci-notify.sh fail "T3 post-deploy" "Prod post-deploy smoke failed — investigate immediately."
+          bash scripts/ci-notify.sh fail "Prod post-deploy failed" ":warning: Prod smoke failed after Vercel reflected the new commit. Prod may be broken right now. See mabl's Slack post for per-test failure detail and act."
 
   # NOTE: the regression gate is intentionally not wired yet.
   # Re-add a `mabl-regression` job dispatching `type-rt,exec-nightly`

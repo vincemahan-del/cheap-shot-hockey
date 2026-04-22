@@ -1,8 +1,14 @@
 # Slack + Jira notifications from CI
 
-The mabl SDLC gate workflow posts a Slack message and Jira comment at
-every gate transition. Gives non-technical stakeholders a live view
-of ticket-to-production progress.
+The mabl SDLC gate workflow posts a clean, human-readable Slack
+message and a structured Jira comment at every gate transition. Gives
+non-technical stakeholders a live view of ticket-to-production
+progress — and gives engineers the links they need to triage fast.
+
+Alongside this, mabl's **native Slack app** posts plan-run results
+directly with screenshots and assertion details. Our `ci-notify.sh`
+and mabl's Slack app complement each other — we handle the gate
+decision + ticket lifecycle, mabl handles the test-run detail.
 
 ## What gets notified
 
@@ -102,34 +108,90 @@ Prefix branches with the Jira ticket key:
 The first `[A-Z]+-[0-9]+` substring wins, so slashes, hyphens, etc.
 around the key are fine.
 
-## Example — what a successful T3 notification looks like
+## Example — what messages look like (new format)
 
-Slack post in `#vince-agentic-workflow-demos`:
+### Stage-1 passed (PR #8)
 
-```
-✅ T3 post-deploy shipped passed
-repo: `vincemahan-del/cheap-shot-hockey` · branch: `TAMD-82/hero-copy-70` · commit: `abc1234`
-jira: <https://mabl.atlassian.net/browse/TAMD-82|TAMD-82>
-pr: <https://github.com/.../pull/7|#7>
-workflow: <https://github.com/.../actions/runs/12345|run 12345>
-🚀 Live on <https://cheap-shot-hockey.vercel.app|cheap-shot-hockey.vercel.app> — commit verified in prod.
-```
-
-Jira comment on TAMD-82:
+Slack post:
 
 ```
-*T3 post-deploy shipped* passed
+✅ Passed: Stage 1 · code quality — PR #8 TAMD-83 …
 
-| Field         | Value                         |
-| ---           | ---                           |
-| repo          | vincemahan-del/cheap-shot-hockey |
-| branch        | TAMD-82/hero-copy-70          |
-| commit        | abc1234                       |
-| pr            | [#7|https://github.com/...]   |
-| workflow run  | [link|https://github.com/...] |
+by vincemahan on `a672f8a` (branch `TAMD-83/richer-ci-notifications`)
 
-🚀 Live on https://cheap-shot-hockey.vercel.app — commit verified in prod.
+📦 Code changes: 3 files, +68/-5 lines
+🧪 Unit tests: 73/73 passed
+📊 Coverage: 97.97% lines (gate 90% ✅)
+
+Lint ok, unit tests green, build succeeded. Ticket moving to **In Progress**.
+
+▶ Next up: T1 — newman smoke (Preview)
+
+🔗 PR #8 · GitHub Actions run · Jira TAMD-83 · Jenkins job
 ```
+
+### T1 newman passed
+
+```
+✅ Passed: T1 newman smoke (Preview) — PR #8 TAMD-83 …
+
+by vincemahan on `a672f8a` (branch `TAMD-83/richer-ci-notifications`)
+
+⚡ Newman: 11 requests, 37/37 assertions passed in 0.33s
+
+Preview API tests all green against the PR's Vercel URL.
+
+▶ Next up: mabl cloud — CSH-SMOKE-PR (Preview)
+
+🔗 PR #8 · GitHub Actions run · Jira TAMD-83 · Preview site
+```
+
+### Merge-ready (mabl cloud green)
+
+```
+✅ Passed: Merge-ready — PR #8 TAMD-83 …
+
+All 5 required PR checks are green — merge button is live.
+mabl Slack app posted the plan-run result separately with
+screenshots + assertion details.
+
+▶ Next up: Merge allowed — branch protection unblocked. Merging
+   triggers Prod deploy + T3.
+
+🔗 PR #8 · GitHub Actions run · Jira TAMD-83 · Preview site
+```
+
+### Shipped to prod
+
+```
+✅ Passed: Shipped to production — PR #8 TAMD-83 …
+
+🚀 Change is live on cheap-shot-hockey.vercel.app and verified by
+   mabl against real prod (see mabl's Slack post above for per-test
+   detail). Ticket transitioning to *Done*.
+
+▶ Next up: Live. Ticket moved to Done.
+
+🔗 PR #8 · GitHub Actions run · Jira TAMD-83 · Production
+```
+
+### Failure (coverage drop → unit job fails → everything skips)
+
+```
+🚨 BLOCKED: Unit tests + coverage — PR #9 …
+
+🧪 Unit tests: 68/73 passed, 5 failed ❌
+📊 Coverage: 87.2% lines (gate 90% ❌)
+
+Fix failing tests or raise coverage before merge can be unblocked.
+
+▶ Next up: fix unit tests before re-running CI
+
+🔗 PR #9 · GitHub Actions run · Jira TAMD-xx
+```
+
+The Jira comment mirrors the Slack format with the same metrics,
+stripped of Slack-specific mrkdwn.
 
 ## Troubleshooting
 
@@ -140,6 +202,47 @@ Jira comment on TAMD-82:
 | Jira 401 errors in workflow logs | Token expired or wrong email | Regenerate token, re-set secret |
 | Jira 404 errors | Ticket key doesn't exist or user can't see it | Verify ticket visibility |
 | Workflow fails because of notify step | Should never happen — script is wrapped with `|| echo …` | Open an issue with the failure log |
+
+## Mabl native Slack app
+
+In addition to `ci-notify.sh`, mabl's **official Slack app** posts
+plan-run results directly with native mabl-branded formatting,
+screenshots, and links into `app.mabl.com`. Our notifier handles the
+*gate decision + ticket lifecycle*; mabl's app handles the *test-run
+detail*.
+
+### Setup (one-time, admin may be required in some workspaces)
+
+1. In mabl UI → **Settings** → **Integrations** → **Slack** →
+   **Install**
+2. Slack prompts for channel permission → pick
+   `#vince-agentic-workflow-demos`
+3. In mabl → Integrations → Slack → configure which events to post
+   (plan passed / plan failed / test failure are the usual picks)
+
+Once configured, every cloud plan run (PR gate, post-deploy)
+automatically posts to Slack with:
+
+- Plan name
+- Environment (Preview / Production)
+- Pass/fail count
+- Duration
+- Direct link to the plan run in mabl
+- Screenshots on failure (for browser tests)
+
+### Why the two systems co-exist
+
+| Concern | Handled by |
+| --- | --- |
+| Lint/unit/build + T1 newman results | `ci-notify.sh` (we own the tooling) |
+| "Stage 1 passed — code quality green" | `ci-notify.sh` |
+| Mabl plan runs (cloud) | mabl native Slack app |
+| Jira ticket lifecycle (comment + transition) | `ci-notify.sh` |
+| Merge-ready / merge-blocked decision summary | `ci-notify.sh` |
+| Shipped-to-prod + Done transition | `ci-notify.sh` |
+
+The result: **one coherent Slack story per ticket**, with mabl's
+technical detail inline and our summary messages tying it together.
 
 ## Extending
 
