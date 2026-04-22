@@ -18,15 +18,31 @@ the script would emit.**
 - Claude has access to Slack MCP (`slack_send_message`, `slack_read_channel`)
   and Jira MCP (`addCommentToJiraIssue`, `transitionJiraIssue`).
 
-## Channel + thread convention
+## Channel + thread convention (non-negotiable)
 
 - **Channel:** `#vince-agentic-workflow-demos` (`C0A321B477Y`).
-- **One thread per Jira ticket.** Kickoff message is posted at channel
-  level (becomes the thread root); all subsequent narration for that
-  ticket — CI gate transitions, mabl forwards, shipped announcement —
-  posts as thread replies using `thread_ts`.
-- The kickoff message should be the ONLY channel-level post per
-  ticket from Claude. Everything else is threaded.
+- **One thread per Jira ticket. No exceptions.**
+  - Kickoff message at channel level → becomes the ticket thread root.
+  - Record the returned `message_ts`; every subsequent narration for
+    that ticket uses it as `thread_ts`.
+  - The kickoff is the ONLY channel-level message Claude posts per
+    ticket.
+- **New ticket = new thread.** If a PR references TAMD-83, it gets
+  its own thread — even if TAMD-82 was the most recent ticket and
+  its thread is still "active." Do NOT reuse an existing thread for
+  a new ticket.
+- **Checklist before every Slack post:**
+  1. What ticket is this message about?
+  2. Do I have that ticket's `thread_ts` recorded?
+  3. If no → this is a kickoff, post at channel level, record the ts.
+  4. If yes → post with that exact `thread_ts`.
+
+### Anti-pattern this rule exists to prevent
+
+Using the most-recent-ticket's thread out of habit when a new ticket
+starts. TAMD-83 narration ended up in the TAMD-82 thread for exactly
+this reason during initial demo iteration. The result is an unreadable
+mixed audit trail.
 
 ## Kickoff message (channel-level, once per ticket)
 
@@ -177,6 +193,32 @@ wiki-markup form:
 - Vercel Preview: <URL> (when applicable)
 - Production: <URL> (when applicable)
 ```
+
+## Auto-merge (default for every PR)
+
+The demo flow is *fully automated* unless something fails — no human
+click required to merge a green PR. The pattern:
+
+1. **Repo-level:** "Allow auto-merge" + "Automatically delete head
+   branches" are on (configured via `gh repo edit --enable-auto-merge`
+   and `gh api -X PATCH ... -f delete_branch_on_merge=true`).
+2. **Per-PR:** Claude (or whoever opens the PR) immediately arms
+   auto-merge with:
+   ```bash
+   gh pr merge <N> --auto --merge --delete-branch
+   ```
+3. **GitHub waits** for every required status check to pass (branch
+   protection = the 5 required checks). When they all go green, the PR
+   auto-merges with a merge commit, branch auto-deletes, main-push CI
+   fires, T3 chain runs.
+4. **If any check fails**, the PR sits blocked. No auto-merge, no
+   prod deploy. Human (or Claude) investigates, fixes, pushes — the
+   auto-merge remains armed and fires the moment the next CI goes
+   green.
+
+**The only manual step in the happy path is the initial PR creation.**
+Everything after that is event-driven: CI green → merge → prod deploy
+→ post-deploy smoke → Done transition.
 
 ## Jira status transitions
 
