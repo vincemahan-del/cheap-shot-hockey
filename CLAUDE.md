@@ -86,6 +86,32 @@ deploy, Vercel does; it only triggers mabl to gate.
 - **Don't require login for checkout.** Guest checkout is a demo
   feature.
 
+## Definition of done (agentic — non-negotiable)
+
+Before opening a PR or pushing a branch, Claude MUST run these steps in order:
+
+**1. Unit coverage gate**
+```bash
+npm run test:coverage
+```
+If coverage drops below 90% on any metric, write the missing unit tests and re-run until green. Do not open the PR until this passes. Coverage is scoped to `src/lib/**` — UI and API routes are covered by mabl/newman.
+
+**2. mabl test impact analysis**
+```bash
+git diff --name-only main | ./scripts/mabl-suggest-tests.sh
+```
+Review the output. If existing mabl tests match the changed files:
+- Note them explicitly in the PR description under a "Test impact" section
+- Add a Jira comment listing the affected tests so QA can verify
+
+**3. mabl coverage gap check**
+If the change adds new UI flows, pages, or API routes that have no existing mabl test coverage:
+- Use the mabl MCP: `plan_new_test` → `create_mabl_test_cloud` (applicationId=`OZqmshBkUfVSesWy49g1eQ-a`, env=Preview)
+- Cut a Jira ticket in TAMD to track the new test (link it to the feature ticket)
+- Note the gap and the new ticket in the PR description
+
+These three steps are what "done" means for this repo. The GHA `test-impact` job runs the same analysis automatically and posts results as a PR comment — Claude's pre-PR check and the CI job should agree.
+
 ## Common PR patterns the user will ask for
 
 1. **"Add a <new feature>"** — add the page/component, keep

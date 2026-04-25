@@ -46,5 +46,27 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          allowed_tools: "Bash,Edit,Read,Glob,Grep,WebFetch,WebSearch"
+          settings: ".claude/settings.json"
+          allowed_tools: "Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,mcp__mabl__get_mabl_tests,mcp__mabl__plan_new_test,mcp__mabl__create_mabl_test_cloud,mcp__mabl__get_cloud_test_gen_status,mcp__mabl__analyze_failure,mcp__mabl__get_latest_plan_runs,mcp__mabl__get_latest_test_runs,mcp__mabl__run_mabl_test_cloud,mcp__atlassian__read_jira_issue,mcp__atlassian__create_jira_issue,mcp__atlassian__add_jira_comment,mcp__atlassian__search_jira_issues,mcp__atlassian__get_my_unresolved_issues"
           trigger_phrase: "@claude"
+          mcp_config: |
+            {
+              "mcpServers": {
+                "mabl": {
+                  "command": "npx",
+                  "args": ["--yes", "@mabl/mcp"],
+                  "env": {
+                    "MABL_API_KEY": "${{ secrets.MABL_API_TOKEN }}"
+                  }
+                },
+                "atlassian": {
+                  "command": "npx",
+                  "args": ["--yes", "mcp-atlassian", "--transport", "stdio"],
+                  "env": {
+                    "JIRA_URL": "https://mabl.atlassian.net",
+                    "JIRA_USERNAME": "${{ secrets.JIRA_USER_EMAIL }}",
+                    "JIRA_API_TOKEN": "${{ secrets.JIRA_API_TOKEN }}"
+                  }
+                }
+              }
+            }

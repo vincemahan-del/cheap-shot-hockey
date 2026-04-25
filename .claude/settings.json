@@ -1,0 +1,86 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm ci)",
+      "Bash(npm install *)",
+      "Bash(npm list *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(curl *)",
+      "Bash(jq *)",
+      "Bash(chmod +x *)",
+      "Bash(bash scripts/*)",
+      "Bash(./scripts/*)",
+      "Bash(printenv)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(ls *)",
+      "WebSearch",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:help.mabl.com)",
+      "WebFetch(domain:app.mabl.com)",
+      "WebFetch(domain:api.mabl.com)",
+      "WebFetch(domain:mabl.atlassian.net)",
+      "mcp__mabl__get_workspaces",
+      "mcp__mabl__get_applications",
+      "mcp__mabl__get_environments",
+      "mcp__mabl__get_mabl_tests",
+      "mcp__mabl__get_mabl_test_details",
+      "mcp__mabl__get_latest_test_runs",
+      "mcp__mabl__get_latest_plan_runs",
+      "mcp__mabl__get_latest_authored_tests",
+      "mcp__mabl__get_plans",
+      "mcp__mabl__get_plan_run_result",
+      "mcp__mabl__plan_new_test",
+      "mcp__mabl__create_mabl_test_cloud",
+      "mcp__mabl__create_mabl_test_from_plan",
+      "mcp__mabl__run_mabl_test_local",
+      "mcp__mabl__run_mabl_test_cloud",
+      "mcp__mabl__get_cloud_test_gen_status",
+      "mcp__mabl__analyze_failure",
+      "mcp__mabl__get_mabl_deployment",
+      "mcp__mabl__get_credentials",
+      "mcp__mabl__get_xray_test_cases",
+      "mcp__mabl__export_to_playwright",
+      "mcp__mabl__switch_workspace",
+      "mcp__atlassian__get_jira_current_user",
+      "mcp__atlassian__get_my_unresolved_issues",
+      "mcp__atlassian__get_my_current_sprint_issues",
+      "mcp__atlassian__search_jira_issues",
+      "mcp__atlassian__read_jira_issue",
+      "mcp__atlassian__create_jira_issue",
+      "mcp__atlassian__add_jira_comment",
+      "mcp__atlassian__list_jira_projects",
+      "mcp__atlassian__get_jira_user",
+      "mcp__atlassian__list_agile_boards",
+      "mcp__atlassian__get_sprint_details",
+      "mcp__atlassian__list_sprints_for_board",
+      "mcp__atlassian__list_issues_by_user_role",
+      "mcp__atlassian__search_issues_by_user_involvement",
+      "mcp__atlassian__read_confluence_page",
+      "mcp__atlassian__search_confluence_pages",
+      "mcp__atlassian__create_confluence_page",
+      "mcp__atlassian__update_confluence_page",
+      "mcp__atlassian__add_confluence_comment",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Skill(fewer-permission-prompts)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'git diff --name-only HEAD 2>/dev/null | grep -q \"^src/lib/\" && echo \"⚙ src/lib changed — running coverage gate\" && npm run test:coverage 2>&1 | tail -12 || true'"
+          }
+        ]
+      }
+    ]
+  }
+}
