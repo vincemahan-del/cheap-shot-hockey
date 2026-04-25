@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# MCP server config (personal, not shared)
+.mcp.json
+
+# Claude Code local settings (personal overrides — do not commit)
+.claude/settings.local.json

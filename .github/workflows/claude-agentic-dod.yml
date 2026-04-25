@@ -1,0 +1,101 @@
+name: Claude — agentic definition of done
+
+# Fires automatically on every PR open or push. No @claude required.
+# Claude reads AGENTS.md, checks coverage, identifies mabl test gaps,
+# creates missing tests via MCP, and posts a findings comment.
+#
+# Runs in parallel with the main SDLC gate — informational on coverage
+# (vitest already blocks the merge if below 90%), blocking on mabl gaps
+# only when Claude determines a new flow has zero coverage.
+#
+# Required secrets (same as claude.yml):
+#   CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY
+#   MABL_API_TOKEN, MABL_WORKSPACE_ID, MABL_APPLICATION_ID
+#   JIRA_USER_EMAIL, JIRA_API_TOKEN
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  claude-dod:
+    name: Claude — definition of done
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run Claude definition-of-done check
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          settings: ".claude/settings.json"
+          allowed_tools: "Bash,Edit,Write,Read,Glob,Grep,WebFetch,mcp__mabl__get_mabl_tests,mcp__mabl__plan_new_test,mcp__mabl__create_mabl_test_cloud,mcp__mabl__get_cloud_test_gen_status,mcp__mabl__analyze_failure,mcp__atlassian__read_jira_issue,mcp__atlassian__create_jira_issue,mcp__atlassian__add_jira_comment"
+          mcp_config: |
+            {
+              "mcpServers": {
+                "mabl": {
+                  "command": "npx",
+                  "args": ["--yes", "@mabl/mcp"],
+                  "env": {
+                    "MABL_API_KEY": "${{ secrets.MABL_API_TOKEN }}"
+                  }
+                },
+                "atlassian": {
+                  "command": "npx",
+                  "args": ["--yes", "mcp-atlassian", "--transport", "stdio"],
+                  "env": {
+                    "JIRA_URL": "https://mabl.atlassian.net",
+                    "JIRA_USERNAME": "${{ secrets.JIRA_USER_EMAIL }}",
+                    "JIRA_API_TOKEN": "${{ secrets.JIRA_API_TOKEN }}"
+                  }
+                }
+              }
+            }
+          direct_prompt: |
+            You are running as part of the CI pipeline for the cheap-shot-hockey repo.
+            A PR was just opened or updated. Run the definition of done checks from AGENTS.md.
+
+            Steps to follow in order:
+
+            1. Run `npm run test:coverage` and capture the output. If any metric is below 90%,
+               identify which files are under-covered and write the missing unit tests.
+               Re-run until the gate passes. Do not proceed until coverage is green.
+
+            2. Run `git diff --name-only origin/main HEAD` to get changed files.
+               Pipe that list through `./scripts/mabl-suggest-tests.sh` to find existing
+               mabl tests that may be affected. Note any matches.
+
+            3. Check if the PR adds new UI pages, components, or API routes that have no
+               existing mabl test coverage. Use `mcp__mabl__get_mabl_tests` to query the
+               mabl workspace (workspace_id: pXXgThbNi4HfQOpiZptHfw-w,
+               application_id: OZqmshBkUfVSesWy49g1eQ-a) for relevant tests.
+               If gaps exist: use `mcp__mabl__plan_new_test` then
+               `mcp__mabl__create_mabl_test_cloud` to create coverage, and use
+               `mcp__atlassian__create_jira_issue` to cut a follow-up ticket in TAMD.
+
+            4. Post a single PR comment summarising:
+               - Coverage result (pass/fail, metrics)
+               - Any unit tests written (if needed)
+               - Existing mabl tests affected (from step 2)
+               - Any new mabl tests created and Jira tickets cut (from step 3)
+               - Overall DoD status: PASS or NEEDS ATTENTION
+
+            Be concise. Post one comment, not multiple. If everything is already green
+            and no gaps exist, say so clearly.

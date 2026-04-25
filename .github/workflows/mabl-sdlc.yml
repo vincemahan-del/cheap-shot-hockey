@@ -437,6 +437,97 @@ jobs:
         run: |
           bash scripts/ci-notify.sh fail "Prod post-deploy failed" ":warning: Prod smoke failed after Vercel reflected the new commit. Prod may be broken right now. See mabl's Slack post for per-test failure detail and act."
 
+  # ─────────────────────────────────────────────────────────────────
+  # Test impact analysis — runs parallel with T1 smoke, PR only.
+  # Advisory: posts a PR comment with coverage delta + relevant mabl
+  # tests. Never blocks the merge gate on its own.
+  # ─────────────────────────────────────────────────────────────────
+
+  test-impact:
+    name: test impact analysis
+    needs: [unit, build]
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    env:
+      MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
+      MABL_WORKSPACE_ID: ${{ secrets.MABL_WORKSPACE_ID }}
+      MABL_APPLICATION_ID: ${{ secrets.MABL_APPLICATION_ID }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: sudo apt-get update -qq && sudo apt-get install -y jq
+
+      - name: get changed files
+        id: diff
+        run: |
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          changed=$(git diff --name-only "$base_sha" "$head_sha")
+          echo "changed<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$changed" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: query mabl for relevant tests
+        id: mabl_tests
+        env:
+          CHANGED_FILES: ${{ steps.diff.outputs.changed }}
+        run: |
+          chmod +x scripts/mabl-suggest-tests.sh
+          suggestions=$(echo "$CHANGED_FILES" | ./scripts/mabl-suggest-tests.sh 2>/dev/null || true)
+          echo "suggestions<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$suggestions" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: post PR comment
+        env:
+          COV_LINES: ${{ needs.unit.outputs.coverage_lines }}
+          COV_BRANCHES: ${{ needs.unit.outputs.coverage_branches }}
+          TEST_TOTAL: ${{ needs.unit.outputs.test_total }}
+          TEST_PASSED: ${{ needs.unit.outputs.test_passed }}
+          DIFF_FILES: ${{ needs.build.outputs.diff_files }}
+          CHANGED_FILES: ${{ steps.diff.outputs.changed }}
+          SUGGESTIONS: ${{ steps.mabl_tests.outputs.suggestions }}
+        run: |
+          if awk "BEGIN{exit !(${COV_LINES:-0} >= 90 && ${COV_BRANCHES:-0} >= 90)}"; then
+            cov_icon="✅"; cov_note="above 90% threshold"
+          else
+            cov_icon="⚠️"; cov_note="**below 90% threshold — unit job blocks merge**"
+          fi
+
+          if [[ -z "${SUGGESTIONS:-}" || "$SUGGESTIONS" == *"No existing"* ]]; then
+            mabl_section="No existing mabl tests matched the changed files.
+          If this PR introduces new UI flows or API behaviour, create mabl tests before closing the ticket (see TAMD-88 for the process)."
+          else
+            mabl_section="$SUGGESTIONS"
+          fi
+
+          {
+            echo "<!-- test-impact-analysis -->"
+            echo "### 🔬 Test impact analysis"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|---|---|"
+            echo "| Unit coverage — lines | ${cov_icon} \`${COV_LINES}%\` |"
+            echo "| Unit coverage — branches | ${cov_icon} \`${COV_BRANCHES}%\` (${cov_note}) |"
+            echo "| Unit tests | ${TEST_PASSED}/${TEST_TOTAL} passed |"
+            echo "| Files changed | ${DIFF_FILES} |"
+            echo ""
+            echo "**Changed files:**"
+            echo "\`\`\`"
+            echo "$CHANGED_FILES"
+            echo "\`\`\`"
+            echo ""
+            echo "**Relevant mabl tests:**"
+            echo "$mabl_section"
+            echo ""
+            echo "---"
+            echo "_Run \`npm run test:mabl:local\` to run the mabl API gate locally. UI tests run in mabl cloud against the Preview deploy._"
+          } | gh pr comment "${{ github.event.pull_request.number }}" --body-file -
+
   # NOTE: the regression gate is intentionally not wired yet.
   # Re-add a `mabl-regression` job dispatching `type-rt,exec-nightly`
   # against Prod once the CSH-REGRESSION plan exists in mabl.
