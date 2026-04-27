@@ -137,16 +137,18 @@ esac
 # Compose Slack message (plain text with mrkdwn)
 # ──────────────────────────────────────────────────────────────────
 slack=""
-# Header line: emoji · headline · stage · PR title (if present)
-slack+="${headline_emoji} *${headline_label}: ${stage}*"
+# Header line: emoji · [TICKET-XX] · headline · stage · PR title (if present)
+# The [TICKET-XX] prefix is what makes channel-root posts groupable via
+# Cmd+F — every message body must start with the ticket key.
+ticket_prefix=""
+[ -n "$ticket_key" ] && ticket_prefix="[${ticket_key}] "
+slack+="${headline_emoji} *${ticket_prefix}${headline_label}: ${stage}*"
 if [ -n "$pr_url" ]; then
   if [ -n "$pr_title" ]; then
     slack+=" — <${pr_url}|PR #${pr_num} ${pr_title}>"
   else
     slack+=" — <${pr_url}|PR #${pr_num}>"
   fi
-elif [ -n "$ticket_key" ]; then
-  slack+=" — ${ticket_key}"
 fi
 slack+=$'\n'
 
