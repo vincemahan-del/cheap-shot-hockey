@@ -174,22 +174,24 @@ if [ -n "${DIFF_FILES:-}" ] && [ "${DIFF_FILES:-0}" != "0" ]; then
 fi
 
 # ── Section: Unit tests + coverage ────────────────────────────────
+# Note: Slack does NOT process emoji shortcodes inside ``` fences,
+# so we use Unicode glyphs (✅ / ❌) directly in the table rows.
 if [ -n "${TEST_TOTAL:-}" ]; then
   cov_threshold="${COVERAGE_THRESHOLD:-90}"
   slack+=$'\n'":test_tube: *Unit tests + coverage*  (gate ${cov_threshold}%)"$'\n'
   slack+='```'$'\n'
   if [ -n "${COVERAGE_LINES:-}" ]; then
-    indicator=":white_check_mark:"
+    indicator="✅"
     if [ "$(printf '%.0f' "$COVERAGE_LINES")" -lt "$cov_threshold" ] 2>/dev/null; then
-      indicator=":x:"
+      indicator="❌"
     fi
     printf -v line "Lines          %s%%   %s\n" "${COVERAGE_LINES}" "$indicator"
     slack+="$line"
   fi
   if [ -n "${COVERAGE_BRANCHES:-}" ]; then
-    indicator=":white_check_mark:"
+    indicator="✅"
     if [ "$(printf '%.0f' "$COVERAGE_BRANCHES")" -lt 85 ] 2>/dev/null; then
-      indicator=":x:"
+      indicator="❌"
     fi
     printf -v line "Branches       %s%%   %s\n" "${COVERAGE_BRANCHES}" "$indicator"
     slack+="$line"
@@ -197,9 +199,9 @@ if [ -n "${TEST_TOTAL:-}" ]; then
   pass_str="${TEST_PASSED:-${TEST_TOTAL}}"
   fail_str="${TEST_FAILED:-0}"
   if [ "$fail_str" -gt 0 ] 2>/dev/null; then
-    printf -v line "Tests          %s/%s passed   %s FAILED  :x:\n" "$pass_str" "$TEST_TOTAL" "$fail_str"
+    printf -v line "Tests          %s/%s passed   %s FAILED  ❌\n" "$pass_str" "$TEST_TOTAL" "$fail_str"
   else
-    printf -v line "Tests          %s/%s passed   :white_check_mark:\n" "$pass_str" "$TEST_TOTAL"
+    printf -v line "Tests          %s/%s passed   ✅\n" "$pass_str" "$TEST_TOTAL"
   fi
   slack+="$line"
   slack+='```'$'\n'
@@ -215,9 +217,9 @@ if [ -n "${NEWMAN_REQUESTS:-}" ]; then
   printf -v line "Requests       %s\n" "$NEWMAN_REQUESTS"
   slack+="$line"
   if [ "${NEWMAN_FAILURES:-0}" -gt 0 ] 2>/dev/null; then
-    printf -v line "Assertions     %s/%s passed   %s FAILED  :x:\n" "$newman_pass" "$NEWMAN_ASSERTIONS" "$NEWMAN_FAILURES"
+    printf -v line "Assertions     %s/%s passed   %s FAILED  ❌\n" "$newman_pass" "$NEWMAN_ASSERTIONS" "$NEWMAN_FAILURES"
   else
-    printf -v line "Assertions     %s/%s passed   :white_check_mark:\n" "$newman_pass" "$NEWMAN_ASSERTIONS"
+    printf -v line "Assertions     %s/%s passed   ✅\n" "$newman_pass" "$NEWMAN_ASSERTIONS"
   fi
   slack+="$line"
   if [ -n "$duration_sec" ]; then
@@ -235,9 +237,9 @@ if [ -n "${MABL_PLAN_NAME:-}" ]; then
   m_total="${MABL_TEST_TOTAL:-?}"
   m_fail="${MABL_TEST_FAILED:-0}"
   if [ "$m_fail" -gt 0 ] 2>/dev/null; then
-    printf -v line "Tests          %s/%s passed   %s FAILED  :x:\n" "$m_pass" "$m_total" "$m_fail"
+    printf -v line "Tests          %s/%s passed   %s FAILED  ❌\n" "$m_pass" "$m_total" "$m_fail"
   else
-    printf -v line "Tests          %s/%s passed   :white_check_mark:\n" "$m_pass" "$m_total"
+    printf -v line "Tests          %s/%s passed   ✅\n" "$m_pass" "$m_total"
   fi
   slack+="$line"
   slack+='```'$'\n'
@@ -247,11 +249,11 @@ fi
 if [ "$stage" = "Merge-ready" ] && [ "$outcome" = "ok" ]; then
   slack+=$'\n'":dart: *Required checks (5/5)*"$'\n'
   slack+='```'$'\n'
-  slack+="Stage 1 · code quality                :white_check_mark:"$'\n'
-  slack+="T1 newman (Preview)                   :white_check_mark:"$'\n'
-  slack+="mabl CSH-SMOKE-PR (Preview)           :white_check_mark:"$'\n'
-  slack+="Test impact analysis                  :white_check_mark:"$'\n'
-  slack+="Definition of done                    :white_check_mark:"$'\n'
+  slack+="Stage 1 · code quality                ✅"$'\n'
+  slack+="T1 newman (Preview)                   ✅"$'\n'
+  slack+="mabl CSH-SMOKE-PR (Preview)           ✅"$'\n'
+  slack+="Test impact analysis                  ✅"$'\n'
+  slack+="Definition of done                    ✅"$'\n'
   slack+='```'$'\n'
 fi
 
@@ -259,9 +261,9 @@ fi
 if [ "$stage" = "Shipped to production" ] && [ "$outcome" = "ok" ]; then
   slack+=$'\n'":stopwatch: *T3 chain*"$'\n'
   slack+='```'$'\n'
-  slack+="T1 newman (Prod)                      :white_check_mark:"$'\n'
-  slack+="mabl CSH-SMOKE-POSTDEPLOY (Prod)      :white_check_mark:"$'\n'
-  slack+="Vercel prod deploy                    :white_check_mark:"$'\n'
+  slack+="T1 newman (Prod)                      ✅"$'\n'
+  slack+="mabl CSH-SMOKE-POSTDEPLOY (Prod)      ✅"$'\n'
+  slack+="Vercel prod deploy                    ✅"$'\n'
   slack+='```'$'\n'
 fi
 
