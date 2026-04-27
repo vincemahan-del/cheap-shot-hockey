@@ -36,6 +36,8 @@ env:
   PRODUCTION_URL: https://cheap-shot-hockey.vercel.app
   # Notification env — read by scripts/ci-notify.sh
   SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+  SLACK_CHANNEL_ID: C0A321B477Y
   JIRA_BASE_URL: https://mabl.atlassian.net
   JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
   JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
