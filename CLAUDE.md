@@ -138,6 +138,18 @@ MABL_ENV_LOCAL_ID    DmlIvADtF8jPDm9J7Bpshw-e
 Plan labels Jenkins dispatches against: `api-smoke`, `pr-gate`,
 `regression`, `post-deploy-smoke`.
 
+## Custom Claude Code subagents
+
+Three repo-level subagents in `.claude/agents/` codify the orchestration
+patterns you'd otherwise re-prompt from scratch. Use the `Agent` tool to
+delegate:
+
+- **`demo-orchestrator`** — drives full ticket-to-prod for a small change
+- **`pr-reviewer`** — convention audit on a PR (read-only)
+- **`mabl-test-author`** — designs new mabl tests, tier-tagged
+
+See `docs/CLAUDE-AGENTS.md` for examples + invocation patterns.
+
 ## Ticket-to-prod demo narration
 
 When the user is driving a ticket-to-prod demo and Claude should
