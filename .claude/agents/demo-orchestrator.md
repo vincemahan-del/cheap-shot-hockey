@@ -19,16 +19,19 @@ breaks the audit trail, which is the primary value of this demo.
 1. **One Jira ticket per distinct piece of work.** Never reuse a Done
    ticket. Even bug fixes get their own ticket linked to the parent via
    `Defect` or `Relates`.
-2. **One Slack thread per Jira ticket.** Kickoff message at channel
-   level (`#vince-agentic-workflow-demos`, `C0A321B477Y`) becomes the
-   thread root. Every subsequent narration uses that exact `thread_ts`.
-3. **Branch name format:** `TICKET-KEY/short-slug` (e.g.
+2. **All Slack posts go to channel root** in
+   `#vince-agentic-workflow-demos` (`C0A321B477Y`) — never threaded.
+   The CI webhook can't thread, and MCP posts mirror that for visual
+   consistency.
+3. **Every Slack message body must start with `[TICKET-KEY]`** — this
+   is how readers `Cmd+F` a ticket's full audit trail.
+4. **Branch name format:** `TICKET-KEY/short-slug` (e.g.
    `TAMD-89/hero-copy-85`). The ticket key prefix lets ci-notify.sh
    auto-detect the ticket.
-4. **Commit message format:** `TAMD-XX: short imperative summary`.
-5. **Always arm auto-merge:** `gh pr merge <N> --auto --merge --delete-branch`.
-6. **Never include marketing-copy assertions** in any test you write.
-7. **Every `:link:` row in Slack** uses `<URL|label>` mrkdwn format. No
+5. **Commit message format:** `TAMD-XX: short imperative summary`.
+6. **Always arm auto-merge:** `gh pr merge <N> --auto --merge --delete-branch`.
+7. **Never include marketing-copy assertions** in any test you write.
+8. **Every `:link:` row in Slack** uses `<URL|label>` mrkdwn format. No
    bare-text labels.
 
 ## End-to-end flow
@@ -51,13 +54,14 @@ Optionally link to related prior tickets via
 `mcp__atlassian__create_issue_link` (type: `Defect` for follow-ups,
 `1-Relates` for general relation).
 
-### 2. Post Slack kickoff (channel level → thread root)
+### 2. Post Slack kickoff (channel root, prefixed `[TICKET-XX]`)
 
 Use `slack_send_message` with channel `C0A321B477Y` and **no
-`thread_ts`** (this is the thread root). Format:
+`thread_ts`** — every message on this ticket also goes to root.
+Format:
 
 ```
-:hockey: *New work: TICKET-XX — <short summary>*
+:hockey: *[TICKET-XX] New work — <short summary>*
 
 :ticket: Jira: <JIRA_URL|TICKET-XX>
 :package: Project: *Cheap Shot Hockey*
@@ -77,8 +81,7 @@ Use `slack_send_message` with channel `C0A321B477Y` and **no
 :link: <PR_URL|PR #N> · <ACTIONS_URL|GitHub Actions> · <JIRA_URL|Jira TICKET-XX> · <PROD_URL|Production>
 ```
 
-**Record the returned `message_ts`** as `thread_ts` for every
-subsequent narration on this ticket.
+The `message_ts` returned can be discarded — no threading.
 
 ### 3. Branch off main + make the code change
 
@@ -123,25 +126,22 @@ gh pr merge <N> --auto --merge --delete-branch
 
 ### 6. Narrate gates as CI runs
 
-Use the `Bash` tool's `Monitor` if needed to track GHA progress:
+If `SLACK_WEBHOOK_URL` is set in repo secrets (it is), `ci-notify.sh`
+auto-posts every gate transition with the right `[TICKET-XX]` prefix —
+you have nothing to do at this stage except watch. Verify with:
 
 ```bash
 gh run list --branch TICKET-XX/short-slug --limit 1
 gh run view <run-id> --json jobs
 ```
 
-Post a thread reply (`thread_ts` = the kickoff ts) as each gate
-completes. Match the format in `scripts/ci-notify.sh` exactly. The full
-templates are in `docs/MCP-NARRATION-PLAYBOOK.md`.
+If `SLACK_WEBHOOK_URL` is unset (manual fallback), post each gate
+transition yourself via `slack_send_message` (no `thread_ts`), matching
+the templates in `docs/MCP-NARRATION-PLAYBOOK.md`. Every body starts
+with `[TICKET-XX]`.
 
-When the mabl native Slack app posts at channel root, scoop those into
-the ticket thread:
-
-```
-:link: *mabl <plan-name> posts (channel → this thread)*
-• <permalink|Plan started (HH:MM)>
-• <permalink|Plan passing (HH:MM)>
-```
+mabl's native Slack app posts at channel root with rich blocks — those
+sit alongside our prefixed messages naturally; no forwarding needed.
 
 ### 7. Auto-merge fires → narrate the merge → watch T3
 
@@ -169,10 +169,14 @@ mcp__atlassian__read_jira_issue(issueIdOrKey: "TAMD-XX") → status.name should 
 
 If `ci-notify.sh` ran with `JIRA_TRANSITION=Done`, this is automatic.
 
-### 10. Post the final shipped narrative in the thread
+### 10. Post the final shipped narrative (channel root)
+
+Only if `SLACK_WEBHOOK_URL` is unset (otherwise `ci-notify.sh` already
+posted the equivalent shipped message). Same template as ci-notify's
+shipped block:
 
 ```
-:white_check_mark: *Passed: Shipped to production* — <PR_URL|PR #N TICKET-XX>
+:white_check_mark: *[TICKET-XX] Passed: Shipped to production* — <PR_URL|PR #N>
 
 :rocket: <description of change> is live on cheap-shot-hockey.vercel.app
 
@@ -200,15 +204,16 @@ If `ci-notify.sh` ran with `JIRA_TRANSITION=Done`, this is automatic.
 ## On failure
 
 If any gate fails:
-1. Post `:rotating_light: BLOCKED: <stage>` in the thread with the gate
-   metrics + a 1-line summary of what's broken.
+1. `ci-notify.sh` posts `:rotating_light: *[TICKET-XX] BLOCKED: <stage>*`
+   automatically when the webhook is set. Read the gate metrics from
+   the GHA run log.
 2. Fix the issue (additional commit, push again — pre-push fires again).
 3. Auto-merge re-arms automatically; merge fires when CI re-greens.
 4. Continue narration from the new attempt.
 
 ## Reference docs (read before complex orchestration)
 
-- `docs/MCP-NARRATION-PLAYBOOK.md` — full message templates + thread rules
+- `docs/MCP-NARRATION-PLAYBOOK.md` — full message templates + posting rules
 - `docs/SLACK-JIRA-NOTIFICATIONS.md` — `ci-notify.sh` format
 - `docs/MABL-API-TESTS.md` / `docs/MABL-UI-TESTS.md` — test conventions
 - `docs/MABL-AI-ASSERTION-PROMPT.md` — assertion policy
