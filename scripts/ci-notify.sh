@@ -134,99 +134,192 @@ case "$outcome" in
 esac
 
 # ──────────────────────────────────────────────────────────────────
-# Compose Slack message (plain text with mrkdwn)
+# Compose Slack message — section-headered, code-fence-tabled
 # ──────────────────────────────────────────────────────────────────
-slack=""
-# Header line: emoji · [TICKET-XX] · headline · stage · PR title (if present)
-# The [TICKET-XX] prefix is what makes channel-root posts groupable via
-# Cmd+F — every message body must start with the ticket key.
+# Conventions:
+#   - [TICKET-XX] prefix on every header (Cmd+F grouping w/o threading)
+#   - Section headers: emoji + bold label, one section per concern
+#   - Metrics: triple-backtick code fence for monospace alignment
+#   - Status/next: Slack blockquote (>) for visual chunking
+#   - Footer: italic context + comprehensive link row
+
 ticket_prefix=""
 [ -n "$ticket_key" ] && ticket_prefix="[${ticket_key}] "
+
+# URL helpers (computed once, conditionally rendered)
+commit_url=""
+[ -n "${GITHUB_SHA:-}" ] && commit_url="${server_url}/${repo}/commit/${GITHUB_SHA}"
+mabl_workspace_url="https://app.mabl.com/workspaces/pXXgThbNi4HfQOpiZptHfw-w/dashboard"
+
+slack=""
+# Legacy variable still referenced in the Jira-comment section below.
+# The new section-based Slack layout doesn't use a single metric_block,
+# so leave this empty — Jira keeps its PR/commit/event/links content.
+metric_block=""
+
+# ── Header ────────────────────────────────────────────────────────
 slack+="${headline_emoji} *${ticket_prefix}${headline_label}: ${stage}*"
 if [ -n "$pr_url" ]; then
-  if [ -n "$pr_title" ]; then
-    slack+=" — <${pr_url}|PR #${pr_num} ${pr_title}>"
-  else
-    slack+=" — <${pr_url}|PR #${pr_num}>"
-  fi
+  slack+=" · <${pr_url}|PR #${pr_num}>"
+elif [ -n "${GITHUB_SHA:-}" ]; then
+  slack+=" · \`${sha_short}\` on \`${branch}\`"
 fi
 slack+=$'\n'
 
-# Author + commit line (on PR context)
-author_line=""
-[ -n "$pr_author" ] && author_line+="by *${pr_author}* "
-author_line+="on \`${sha_short}\` (branch \`${branch}\`)"
-slack+=$'\n'"${author_line}"$'\n'
-
-# Metric block
-metric_block=""
-if [ -n "${DIFF_FILES:-}" ] || [ -n "${DIFF_ADDITIONS:-}" ]; then
-  metric_block+=$'\n'":package: *Code changes:* ${DIFF_FILES:-?} files, +${DIFF_ADDITIONS:-0}/-${DIFF_DELETIONS:-0} lines"
+# ── Section: Changes ──────────────────────────────────────────────
+if [ -n "${DIFF_FILES:-}" ] && [ "${DIFF_FILES:-0}" != "0" ]; then
+  slack+=$'\n'":clipboard: *Changes*"$'\n'
+  slack+='```'$'\n'
+  printf -v line "Files          %s\n" "${DIFF_FILES}"
+  slack+="$line"
+  printf -v line "Lines          +%s / -%s\n" "${DIFF_ADDITIONS:-0}" "${DIFF_DELETIONS:-0}"
+  slack+="$line"
+  slack+='```'$'\n'
 fi
+
+# ── Section: Unit tests + coverage ────────────────────────────────
+# Note: Slack does NOT process emoji shortcodes inside ``` fences,
+# so we use Unicode glyphs (✅ / ❌) directly in the table rows.
 if [ -n "${TEST_TOTAL:-}" ]; then
+  cov_threshold="${COVERAGE_THRESHOLD:-90}"
+  slack+=$'\n'":test_tube: *Unit tests + coverage*  (gate ${cov_threshold}%)"$'\n'
+  slack+='```'$'\n'
+  if [ -n "${COVERAGE_LINES:-}" ]; then
+    indicator="✅"
+    if [ "$(printf '%.0f' "$COVERAGE_LINES")" -lt "$cov_threshold" ] 2>/dev/null; then
+      indicator="❌"
+    fi
+    printf -v line "Lines          %s%%   %s\n" "${COVERAGE_LINES}" "$indicator"
+    slack+="$line"
+  fi
+  if [ -n "${COVERAGE_BRANCHES:-}" ]; then
+    indicator="✅"
+    if [ "$(printf '%.0f' "$COVERAGE_BRANCHES")" -lt 85 ] 2>/dev/null; then
+      indicator="❌"
+    fi
+    printf -v line "Branches       %s%%   %s\n" "${COVERAGE_BRANCHES}" "$indicator"
+    slack+="$line"
+  fi
   pass_str="${TEST_PASSED:-${TEST_TOTAL}}"
   fail_str="${TEST_FAILED:-0}"
   if [ "$fail_str" -gt 0 ] 2>/dev/null; then
-    metric_block+=$'\n'":test_tube: *Unit tests:* ${pass_str}/${TEST_TOTAL} passed, *${fail_str} failed* :x:"
+    printf -v line "Tests          %s/%s passed   %s FAILED  ❌\n" "$pass_str" "$TEST_TOTAL" "$fail_str"
   else
-    metric_block+=$'\n'":test_tube: *Unit tests:* ${pass_str}/${TEST_TOTAL} passed"
+    printf -v line "Tests          %s/%s passed   ✅\n" "$pass_str" "$TEST_TOTAL"
   fi
-  if [ -n "${COVERAGE_LINES:-}" ]; then
-    cov_threshold="${COVERAGE_THRESHOLD:-90}"
-    cov_indicator=":white_check_mark:"
-    if [ "$(printf '%.0f' "$COVERAGE_LINES")" -lt "$cov_threshold" ] 2>/dev/null; then
-      cov_indicator=":x:"
-    fi
-    metric_block+=$'\n'":bar_chart: *Coverage:* ${COVERAGE_LINES}% lines (gate ${cov_threshold}% ${cov_indicator})"
-  fi
+  slack+="$line"
+  slack+='```'$'\n'
 fi
+
+# ── Section: Newman results ───────────────────────────────────────
 if [ -n "${NEWMAN_REQUESTS:-}" ]; then
   newman_pass=$((${NEWMAN_ASSERTIONS:-0} - ${NEWMAN_FAILURES:-0}))
   duration_sec=""
   [ -n "${NEWMAN_DURATION_MS:-}" ] && duration_sec=$(awk -v ms="$NEWMAN_DURATION_MS" 'BEGIN{printf "%.2f", ms/1000}')
-  metric_block+=$'\n'":zap: *Newman:* ${NEWMAN_REQUESTS} requests, ${newman_pass}/${NEWMAN_ASSERTIONS:-?} assertions passed"
-  [ -n "$duration_sec" ] && metric_block+=" in ${duration_sec}s"
+  slack+=$'\n'":zap: *Newman results*"$'\n'
+  slack+='```'$'\n'
+  printf -v line "Requests       %s\n" "$NEWMAN_REQUESTS"
+  slack+="$line"
   if [ "${NEWMAN_FAILURES:-0}" -gt 0 ] 2>/dev/null; then
-    metric_block+=$'\n':x:" *${NEWMAN_FAILURES} assertion(s) failed — merge blocked*"
+    printf -v line "Assertions     %s/%s passed   %s FAILED  ❌\n" "$newman_pass" "$NEWMAN_ASSERTIONS" "$NEWMAN_FAILURES"
+  else
+    printf -v line "Assertions     %s/%s passed   ✅\n" "$newman_pass" "$NEWMAN_ASSERTIONS"
   fi
+  slack+="$line"
+  if [ -n "$duration_sec" ]; then
+    printf -v line "Duration       %ss\n" "$duration_sec"
+    slack+="$line"
+  fi
+  slack+='```'$'\n'
 fi
+
+# ── Section: mabl plan ────────────────────────────────────────────
 if [ -n "${MABL_PLAN_NAME:-}" ]; then
-  m_total="${MABL_TEST_TOTAL:-?}"
+  slack+=$'\n'":robot_face: *mabl plan*  ${MABL_PLAN_NAME}"$'\n'
+  slack+='```'$'\n'
   m_pass="${MABL_TEST_PASSED:-?}"
+  m_total="${MABL_TEST_TOTAL:-?}"
   m_fail="${MABL_TEST_FAILED:-0}"
-  metric_block+=$'\n'":robot_face: *mabl plan:* ${MABL_PLAN_NAME} — ${m_pass}/${m_total} tests passed"
   if [ "$m_fail" -gt 0 ] 2>/dev/null; then
-    metric_block+=" (:x: ${m_fail} failed)"
+    printf -v line "Tests          %s/%s passed   %s FAILED  ❌\n" "$m_pass" "$m_total" "$m_fail"
+  else
+    printf -v line "Tests          %s/%s passed   ✅\n" "$m_pass" "$m_total"
   fi
-fi
-[ -n "$metric_block" ] && slack+="${metric_block}"$'\n'
-
-# Extra (free-form context for the specific gate)
-if [ -n "$extra" ]; then
-  slack+=$'\n'"${extra}"$'\n'
+  slack+="$line"
+  slack+='```'$'\n'
 fi
 
-# Next-gate footer
-if [ -n "${NEXT_GATE:-}" ]; then
-  slack+=$'\n'":arrow_forward: *Next up:* ${NEXT_GATE}"$'\n'
+# ── Section: Required checks (merge-ready stage only) ─────────────
+if [ "$stage" = "Merge-ready" ] && [ "$outcome" = "ok" ]; then
+  slack+=$'\n'":dart: *Required checks (5/5)*"$'\n'
+  slack+='```'$'\n'
+  slack+="Stage 1 · code quality                ✅"$'\n'
+  slack+="T1 newman (Preview)                   ✅"$'\n'
+  slack+="mabl CSH-SMOKE-PR (Preview)           ✅"$'\n'
+  slack+="Test impact analysis                  ✅"$'\n'
+  slack+="Definition of done                    ✅"$'\n'
+  slack+='```'$'\n'
 fi
 
-# Links cluster
+# ── Section: T3 chain (shipped stage only) ────────────────────────
+if [ "$stage" = "Shipped to production" ] && [ "$outcome" = "ok" ]; then
+  slack+=$'\n'":stopwatch: *T3 chain*"$'\n'
+  slack+='```'$'\n'
+  slack+="T1 newman (Prod)                      ✅"$'\n'
+  slack+="mabl CSH-SMOKE-POSTDEPLOY (Prod)      ✅"$'\n'
+  slack+="Vercel prod deploy                    ✅"$'\n'
+  slack+='```'$'\n'
+fi
+
+# ── Status + next-gate (blockquote, visual chunk separator) ───────
+context_lines=()
+[ -n "$extra" ] && context_lines+=("${extra}")
+[ -n "${NEXT_GATE:-}" ] && context_lines+=(":arrow_forward: Next: ${NEXT_GATE}")
+if [ ${#context_lines[@]} -gt 0 ]; then
+  slack+=$'\n'
+  for line in "${context_lines[@]}"; do
+    slack+="> ${line}"$'\n'
+  done
+fi
+
+# ── Links cluster (comprehensive, fixes IFS bug) ──────────────────
+# bash IFS only honors single-char separators, so the previous
+# `IFS=' · '; echo "${links[*]}"` silently dropped the dot.
+# Build the joined string explicitly.
 links=()
 [ -n "$pr_url" ] && links+=("<${pr_url}|PR #${pr_num}>")
-links+=("<${run_url}|GitHub Actions run>")
+links+=("<${run_url}|Actions run>")
+[ -n "$commit_url" ] && links+=("<${commit_url}|Commit ${sha_short}>")
 [ -n "$ticket_key" ] && links+=("<${JIRA_BASE_URL}/browse/${ticket_key}|Jira ${ticket_key}>")
-[ -n "${MABL_PLAN_URL:-}" ] && links+=("<${MABL_PLAN_URL}|mabl plan run>")
-[ -n "${JENKINS_BUILD_URL:-}" ] && links+=("<${JENKINS_BUILD_URL}|Jenkins build>")
-if [ -z "${JENKINS_BUILD_URL:-}" ] && [ -n "${JENKINS_JOB_URL:-}" ]; then
-  links+=("<${JENKINS_JOB_URL}|Jenkins job>")
+if [ -n "${MABL_PLAN_URL:-}" ]; then
+  links+=("<${MABL_PLAN_URL}|mabl plan run>")
+elif [ -n "${MABL_PLAN_NAME:-}" ] || [ "$stage" = "Merge-ready" ] || [[ "$stage" == *"mabl"* ]]; then
+  links+=("<${mabl_workspace_url}|mabl workspace>")
 fi
-[ -n "${PREVIEW_URL:-}" ] && links+=("<${PREVIEW_URL}|Preview site>")
-[ -n "${PROD_URL:-}" ] && links+=("<${PROD_URL}|Production>")
+[ -n "${JENKINS_BUILD_URL:-}" ] && links+=("<${JENKINS_BUILD_URL}|Jenkins build>")
+[ -z "${JENKINS_BUILD_URL:-}" ] && [ -n "${JENKINS_JOB_URL:-}" ] && links+=("<${JENKINS_JOB_URL}|Jenkins job>")
+[ -n "${PREVIEW_URL:-}" ] && links+=("<${PREVIEW_URL}|Preview>")
+# Only include Production URL on terminal "shipped" / "T1 prod" gates
+# to avoid auto-unfurled preview cards on every intermediate gate post.
+if [ -n "${PROD_URL:-}" ] && \
+   { [ "$stage" = "Shipped to production" ] || [[ "$stage" == *"Prod"* ]]; }; then
+  links+=("<${PROD_URL}|Production>")
+fi
 
 if [ ${#links[@]} -gt 0 ]; then
-  slack+=$'\n'":link: $(IFS=' · '; echo "${links[*]}")"
+  joined=""
+  for i in "${!links[@]}"; do
+    [ "$i" -gt 0 ] && joined+=" · "
+    joined+="${links[$i]}"
+  done
+  slack+=$'\n'":link: ${joined}"
 fi
+
+# ── Footer: italic context (author, branch) ───────────────────────
+context_footer=""
+[ -n "$pr_author" ] && context_footer+="by ${pr_author} · "
+context_footer+="branch \`${branch}\`"
+slack+=$'\n'"_${context_footer}_"
 
 # ──────────────────────────────────────────────────────────────────
 # Slack POST

@@ -196,7 +196,7 @@ jobs:
           COVERAGE_BRANCHES: ${{ needs.unit.outputs.coverage_branches }}
           NEXT_GATE: "T1 — newman smoke (Preview)"
         run: |
-          bash scripts/ci-notify.sh ok "Stage 1 · code quality" "Lint ok, unit tests green, build succeeded. Ticket moving to **In Progress**."
+          bash scripts/ci-notify.sh ok "Stage 1 · code quality" "Lint ok, unit tests green, build succeeded. Ticket moving to *In Progress*."
 
   # ─────────────────────────────────────────────────────────────────
   # Stage 2: T1 CLI smoke (newman vs Postman collection)
