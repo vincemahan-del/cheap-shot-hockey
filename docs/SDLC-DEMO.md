@@ -179,3 +179,4 @@ coverage.
   latency dashboard.
 - **k6 load test** alongside mabl — "mabl proves correctness, k6 proves
   performance, together they gate the release."
+# TAMD-92 smoke test trigger
