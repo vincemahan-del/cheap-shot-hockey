@@ -228,8 +228,28 @@ fi
 
 # ──────────────────────────────────────────────────────────────────
 # Slack POST
+# Prefers SLACK_BOT_TOKEN + chat.postMessage (supports threading).
+# Falls back to SLACK_WEBHOOK_URL (Workflow Builder / Incoming Webhook).
+# Set SLACK_THREAD_TS to reply in a thread; leave unset to post at root.
+# Outputs "slack_ts=<ts>" to stdout so callers can capture the thread root.
 # ──────────────────────────────────────────────────────────────────
-if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+if [ -n "${SLACK_BOT_TOKEN:-}" ]; then
+  channel="${SLACK_CHANNEL_ID:-C0A321B477Y}"
+  payload=$(jq -n \
+    --arg ch  "$channel" \
+    --arg txt "$slack" \
+    --arg ts  "${SLACK_THREAD_TS:-}" \
+    'if $ts != "" then {channel:$ch, text:$txt, mrkdwn:true, thread_ts:$ts}
+     else {channel:$ch, text:$txt, mrkdwn:true} end')
+  response=$(curl -fsS -X POST https://slack.com/api/chat.postMessage \
+    -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+    -H 'Content-type: application/json' \
+    --data "$payload" 2>/dev/null || echo '{"ok":false}')
+  msg_ts=$(printf '%s' "$response" | jq -r '.ts // empty')
+  [ -n "$msg_ts" ] && echo "slack_ts=$msg_ts"
+  printf '%s' "$response" | jq -e '.ok' >/dev/null 2>&1 \
+    || echo "slack post failed (non-fatal): $(printf '%s' "$response" | jq -r '.error // "unknown"')" >&2
+elif [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
   curl -fsS -X POST \
     -H 'Content-type: application/json' \
     --data "$(jq -n --arg t "$slack" '{text:$t}')" \
