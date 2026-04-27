@@ -64,7 +64,11 @@ export function Footer() {
                   Shipping &amp; returns
                 </Link>
               </li>
-              <li>Size guide</li>
+              <li>
+                <Link href="/size-guide" className="hover:text-[color:var(--accent)]" data-testid="footer-size-guide-link">
+                  Size guide
+                </Link>
+              </li>
               <li>Team orders</li>
               <li>Contact us</li>
             </ul>
