@@ -1,10 +1,23 @@
 # MCP Narration Playbook — Claude-in-the-loop CI observability
 
 Canonical rules for how Claude should narrate ticket-to-prod CI events
-into Slack + Jira. The autonomous CI path is `scripts/ci-notify.sh`
-posting via Slack Workflow Builder webhook (`SLACK_WEBHOOK_URL`); the
-manual path is Claude posting via Slack MCP. Both produce the same
-messages so transcripts are indistinguishable.
+into Slack + Jira.
+
+**There is one canonical event format. There are two transports.**
+
+- **Autonomous transport** — `scripts/ci-notify.sh` running in GHA,
+  posting to `SLACK_WEBHOOK_URL` (Slack Workflow Builder webhook, no
+  admin needed). Fires at every CI gate without human involvement.
+- **Live-commentary transport** — Claude posting via the Slack MCP
+  (`slack_send_message`) during a demo, supplementing the autonomous
+  posts with kickoff messages, mid-flight context, or human-readable
+  summaries.
+
+The two transports are *not* peers, and they do *not* produce
+byte-identical messages. The autonomous path is what runs in
+production. The MCP path is live commentary while a human is driving.
+Don't try to make them visually indistinguishable — the goal is
+*structurally consistent*, not pixel-identical.
 
 **Posting model: every message goes to channel root, prefixed `[TAMD-XX]`.**
 Webhook triggers don't support threading, so we don't use threads at
@@ -12,10 +25,34 @@ all — even from MCP. Per-ticket grouping is preserved by the
 `[TAMD-XX]` prefix in every message body (`Cmd+F TAMD-XX` in Slack
 gives the same audit view a thread would).
 
+## Markdown dialect — non-obvious gotcha
+
+The two transports require different markdown syntax. Posting Slack
+mrkdwn through the MCP path makes headers render italic instead of
+bold (verified during the TAMD-99 dry-run).
+
+| Format | Autonomous (`ci-notify.sh` → webhook) | MCP (`slack_send_message`) |
+| --- | --- | --- |
+| Bold | `*bold*` (Slack mrkdwn) | `**bold**` (standard markdown) |
+| Italic | `_italic_` | `_italic_` (same) |
+| Inline code | `` `code` `` | `` `code` `` (same) |
+| Link | `<URL\|label>` (Slack mrkdwn) | `[label](URL)` (standard markdown) |
+| Emoji | shortcodes (`:white_check_mark:`) | shortcodes (same) |
+
+**Rule of thumb:** the templates below are written in **Slack mrkdwn**
+because that's what `ci-notify.sh` emits and what the autonomous path
+puts in front of the customer 95% of the time. When narrating live via
+the MCP path, translate to standard markdown — or accept that headers
+will render italic and call out the dialect difference openly during
+the demo rather than chasing a fix in front of the customer.
+
 ## When this playbook applies
 
-- Any time a CI event fires (autonomous, via the webhook script) OR
-  the user asks Claude to narrate a demo in real time (via Slack MCP).
+- Any time a CI event fires (autonomous, via the webhook script) — the
+  format below is exactly what `ci-notify.sh` produces.
+- The user asks Claude to narrate a demo in real time (kickoff message,
+  mid-flight context, post-Done summary) — translate to standard
+  markdown for the MCP transport.
 - Claude has access to Slack MCP (`slack_send_message`,
   `slack_read_channel`) and Jira MCP (`addCommentToJiraIssue`,
   `transitionJiraIssue`).
@@ -60,10 +97,10 @@ Treat it as its own unit, or the audit trail lies.
 ### Why no threading
 
 Slack Workflow Builder webhooks (the no-admin-required posting path
-this demo uses) don't support `thread_ts`. To keep autonomous CI posts
-and MCP-driven narration visually identical, MCP posts also go to root
-with the prefix. Trade-off accepted: per-ticket grouping happens via
-search, and Jira retains the canonical per-ticket audit trail.
+this demo uses) don't support `thread_ts`. Since the autonomous path
+can't thread, the MCP commentary path doesn't either — the per-ticket
+audit trail relies on the `[TAMD-XX]` prefix and `Cmd+F`, plus the
+canonical comment-by-comment timeline on the Jira ticket itself.
 
 ## Kickoff message (once per ticket)
 
@@ -120,8 +157,11 @@ Silence on an unavailable link is better than fake link text.
 
 ## Gate transition messages (channel-root, prefixed `[TICKET-XX]`)
 
-Match `scripts/ci-notify.sh` format exactly so autonomous webhook
-messages and MCP-driven narration are indistinguishable.
+These are the templates `scripts/ci-notify.sh` emits in Slack mrkdwn
+on the autonomous path. When narrating live via the MCP path, the
+*structure* matches but the *syntax* changes per the dialect table
+above. Don't try to byte-match — match the shape and let the dialects
+differ.
 
 ### Success — Stage 1 (code quality) passed
 

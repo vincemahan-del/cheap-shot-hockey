@@ -1,10 +1,79 @@
-# Cheap Shot Hockey — mabl full-SDLC demo runbook
+# Cheap Shot Hockey — mabl agentic-SDLC demo runbook
 
-A stage-by-stage script for demoing mabl's value across the entire software
-delivery lifecycle, built on top of this repo + the Jenkinsfile + mabl API.
+A stage-by-stage script for demoing mabl's value across an **agentic-by-default**
+software delivery lifecycle. The headline isn't "we have a CI pipeline" —
+it's that one prompt in Claude Code drives a Jira ticket all the way to
+production, with mabl gating at the right moments.
 
 Expected runtime: **20–30 minutes** for a full walkthrough. Each act is
 self-contained, so you can shorten to any subset.
+
+A real recent run for cycle-time reference: **TAMD-99** (size-guide page
+restore) shipped from PR-open to live + verified in **~8 minutes**, fully
+autonomous past the initial prompt.
+
+---
+
+## Architecture in one screen
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  Claude Code (interactive)                                           │
+│   • CLAUDE.md project conventions                                    │
+│   • 3 subagents:  demo-orchestrator · pr-reviewer · mabl-test-author │
+│   • MCP servers:  mabl · Jira · Slack · GitHub (gh)                  │
+└──────────────────────────────────────────────────────────────────────┘
+                               │ creates Jira ticket, branch, PR
+                               ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  GitHub Actions  (.github/workflows/mabl-sdlc.yml — primary CI)      │
+│                                                                      │
+│   PR  →  lint → unit + 90% coverage gate → build                     │
+│        → T1 newman smoke (Preview, vs Vercel preview deploy)         │
+│        → mabl CSH-SMOKE-PR (Preview, labels: type-smk,exec-pr)       │
+│        → test-impact-analysis (advisory PR comment)                  │
+│        → claude-code-action DoD                                      │
+│                                                                      │
+│   Branch protection: 5 required checks · auto-merge armed per PR     │
+│                                                                      │
+│   main push (after auto-merge) →                                     │
+│        → Vercel prod deploy (auto)                                   │
+│        → T1 newman smoke (Prod)                                      │
+│        → mabl CSH-SMOKE-POSTDEPLOY (Prod, labels: type-smk,exec-postdeploy)│
+└──────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  Notification fan-out  (scripts/ci-notify.sh at every gate)          │
+│   • Slack: #vince-agentic-workflow-demos, channel root,              │
+│     prefixed [TAMD-XX] for Cmd+F audit trail                         │
+│   • Jira: gate-by-gate comment on the ticket                         │
+│   • Auto-transition: To Do → In Progress (Stage 1 green)             │
+│                      In Progress → Done (post-deploy green)          │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+Jenkins (`Jenkinsfile`) runs in parallel and mirrors the same gate
+sequence. It's optional; the canonical CI is GHA.
+
+## Narration surfaces
+
+The demo runs across visible screens. Tab-switching as each gate fires
+*is* the narration.
+
+| Screen | URL / app | What the customer sees |
+| --- | --- | --- |
+| **VS Code** | Claude Code terminal | Agent reasoning, MCP calls, Jira/Slack posts firing live |
+| **Slack** | `#vince-agentic-workflow-demos` | Gate-by-gate messages with metrics, links, mabl screenshots |
+| **GitHub PR** | `github.com/<repo>/pull/<N>` | DoD comment, status checks updating in real time, auto-merge label |
+| **Jira** | `mabl.atlassian.net/browse/TAMD-XX` | Comments auto-posting, ticket transitioning To Do → In Progress → Done |
+| **mabl** | `app.mabl.com` → plan run | Tests running live, smart locator healing, failure screenshots |
+
+Opening line for the customer:
+> "The engineer types one prompt in Claude Code. Watch what happens
+> across every system, with no further input."
+
+Then don't talk — let the agent run. Tab-switch as each gate fires.
 
 ---
 
@@ -14,25 +83,42 @@ self-contained, so you can shorten to any subset.
 
 1. **Workspace:** create or pick one. Capture the workspace UUID.
 2. **Application:** add "Cheap Shot Hockey". Capture the application UUID.
-3. **Environments:** create two — **preview** and **production**. Point
+3. **Environments:** create two — **Preview** and **Production**. Point
    them at `https://cheap-shot-hockey-git-<branch>.vercel.app` and
    `https://cheap-shot-hockey.vercel.app` respectively. Capture the UUIDs.
 4. **Credentials:** add `demo@cheapshot.test` / `demo1234` for both envs.
 5. **API token:** Settings → APIs → create a fresh token. Copy it.
-6. **Seed a suite:** either import the OpenAPI spec at
-   `https://cheap-shot-hockey.vercel.app/api/openapi`, or use the mabl MCP
-   to scaffold tests from Claude Code.
+6. **Plans (split by environment — non-negotiable):**
+   - **`CSH-SMOKE-PR`** — Preview env only. Labels: `type-smk,exec-pr`.
+     Gates the merge button on every PR.
+   - **`CSH-SMOKE-POSTDEPLOY`** — Prod env only. Labels: `type-smk,exec-postdeploy`.
+     Verifies the live site after Vercel deploys.
 
-Label the resulting plans with:
+   Don't unify them — the env split is what lets the same notifier code
+   run cleanly on both PR and main pushes.
 
-- `api-smoke` — fast API plans (<60s) that run on every commit
-- `pr-gate` — ~3 critical UI journeys (login, add-to-cart, checkout)
-- `regression` — full suite, runs on merge to main
-- `post-deploy-smoke` — 1 UI + 1 API, runs against prod after deploy
+### Provision GHA (primary CI)
 
-### Provision CI
+Set these as repo secrets:
 
-**Jenkins (primary):**
+| Secret | Source |
+| --- | --- |
+| `MABL_API_TOKEN` | mabl Settings → APIs |
+| `MABL_WORKSPACE_ID` · `MABL_APPLICATION_ID` · `MABL_ENV_PREVIEW_ID` · `MABL_ENV_PROD_ID` | from steps above |
+| `SLACK_WEBHOOK_URL` | Slack Workflow Builder webhook (no admin needed) — autonomous notifications |
+| `JIRA_USER_EMAIL` · `JIRA_API_TOKEN` | Atlassian account → Security → API tokens |
+
+Branch protection on `main`: require these 5 checks before merge:
+
+- `lint (eslint)`
+- `unit tests + coverage`
+- `build (next)`
+- `T1 — newman smoke (Preview)`
+- `mabl — CSH-SMOKE-PR (Preview)`
+
+Repo settings: enable "Allow auto-merge" + "Automatically delete head branches".
+
+### Provision Jenkins (optional, parallel)
 
 ```bash
 docker compose -f docker-compose.jenkins.yml up -d
@@ -42,82 +128,118 @@ open http://localhost:8080
 # New Item → Pipeline → "Pipeline script from SCM" → this repo URL
 ```
 
-Set these global env vars in **Manage Jenkins → System**:
+Set the same `MABL_*` and `PRODUCTION_URL` env vars under
+**Manage Jenkins → System**. The Jenkinsfile mirrors the GHA pipeline
+stage-for-stage.
 
-| Variable | Value |
-| --- | --- |
-| `MABL_WORKSPACE_ID` | your workspace UUID |
-| `MABL_APPLICATION_ID` | your application UUID |
-| `MABL_ENV_PREVIEW_ID` | preview env UUID |
-| `MABL_ENV_PROD_ID` | production env UUID |
-| `PRODUCTION_URL` | `https://cheap-shot-hockey.vercel.app` |
+### Pre-flight (before screen-share)
 
-**GitHub Actions (parallel path):** set the same values as repo secrets.
-The workflow at `.github/workflows/mabl-sdlc.yml` mirrors the Jenkins
-pipeline.
+1. `?demo=normal` — make sure prod isn't stuck in slow/flaky/broken from
+   a previous demo: `./scripts/demo-toggle.sh normal`
+2. Slack channel open and pinned in your tab bar
+3. mabl workspace open in another tab
+4. Jira project filtered to TAMD, ordered by Updated
+5. Claude Code in this repo with the 3 subagents available
+   (`.claude/agents/demo-orchestrator.md` etc.)
 
 ---
 
 ## Act 1 — Shift-left authoring (3 min)
 
-**Story:** "Developer is adding a new feature and wants to lock in
-coverage before they even push."
+**Story:** "An engineer is adding a feature and wants to lock in test
+coverage before they even push code."
 
 1. Open Claude Code in this repo.
-2. Prompt: *"I'm adding a wishlist feature at `/wishlist`. Use the mabl
-   MCP to draft a UI test that logs in, adds a product to the wishlist,
-   and verifies it persists after refresh."*
-3. Claude calls `mabl plan_new_test` → `create_mabl_test_cloud` →
-   `get_cloud_test_gen_status`.
-4. Open the mabl workspace — the new test is there, already wired to
-   the preview environment.
+2. Prompt: *"I'm adding a wishlist feature at `/wishlist`. Use the
+   mabl-test-author subagent to draft a UI test that logs in, adds a
+   product to the wishlist, and verifies it persists after refresh."*
+3. Claude delegates to the `mabl-test-author` subagent — it calls
+   `mabl plan_new_test` → `create_mabl_test_cloud` →
+   `get_cloud_test_gen_status` and tier-tags the test per
+   `docs/MABL-AI-ASSERTION-PROMPT.md` (structural assertions only — no
+   marketing-copy assertions).
+4. Tab-switch to mabl — the new test is there, already wired to Preview.
 
-**Mabl value shown:** AI-native authoring, MCP integration,
-shift-left QA investment.
-
----
-
-## Act 2 — PR gate (6 min)
-
-**Story:** "PR opens. Pipeline runs. If any mabl test fails, the PR is
-blocked."
-
-1. Create a branch + make a small change (e.g., rename a button).
-2. Open a PR.
-3. Jenkins/Actions trigger automatically.
-4. **Watch the pipeline:** checkout → build → deploy preview →
-   `mabl deployment` with labels `api-smoke` + `pr-gate`.
-5. Open the mabl run link from the pipeline log — show the UI run in
-   flight.
-6. **Intentional break:** change the login button's text, remove its
-   `data-testid`. Push. Show mabl auto-healing — test still passes
-   because mabl re-anchored on the visible label.
-7. **Intentional full break:** remove the button entirely. Pipeline
-   fails. Show the `on failure` step → `mabl-analyze-last-failure.sh`
-   output. Show the Claude triage comment (via mabl MCP `analyze_failure`).
-8. Fix the PR → pipeline re-runs → green.
-
-**Mabl value shown:** auto-healing under change, intelligent failure
-attribution, PR quality gate.
+**mabl value shown:** AI-native authoring, MCP integration, shift-left
+QA investment, tier-tagged assertion policy.
 
 ---
 
-## Act 3 — Main pipeline → production (5 min)
+## Act 2 — Agentic ticket-to-prod (8–10 min)
 
-**Story:** "PR is approved and merged. The pipeline runs the full
-regression and promotes to prod."
+**Story:** "One prompt. The agent creates the ticket, opens the PR, and
+gates the merge through the full pipeline."
 
-1. Merge the PR.
-2. Jenkins main-branch pipeline triggers.
-3. Stage 6: `mabl regression` with label `regression` — runs the full
-   plan set against the just-deployed prod URL.
-4. Stage 7: promotion happens (Vercel auto-deploys; for non-Vercel orgs
-   this is where `helm upgrade` or similar runs, gated on stage 6).
-5. Stage 8: `post-deploy smoke` — confirms the new commit is live via
-   `/api/build-info`, then runs a small mabl plan against prod.
+1. In Claude Code, prompt: *"Use demo-orchestrator to ship a small
+   change: add a 'Free shipping over $99' badge to the cart page."*
+2. The orchestrator subagent:
+   - Creates a Jira ticket in TAMD (e.g. TAMD-NN)
+   - Posts the kickoff message to `#vince-agentic-workflow-demos` at
+     channel root, prefixed `[TAMD-NN]`
+   - Branches `TAMD-NN/free-shipping-badge` off main
+   - Makes the code change with `data-testid` attributes consistent with
+     nearby conventions
+   - Runs the pre-PR DoD: `npm run test:coverage` (90% gate), then
+     `git diff --name-only main | ./scripts/mabl-suggest-tests.sh`
+   - Commits with message `TAMD-NN: ...`, pushes, opens the PR, and
+     arms auto-merge: `gh pr merge <N> --auto --merge --delete-branch`
 
-**Mabl value shown:** regression confidence, deploy gate, post-deploy
-assurance.
+3. **Tab-switch: GitHub PR.** Show the structured PR body, the
+   `test-impact-analysis` PR comment, and the 5 status checks queueing.
+
+4. **Tab-switch: Slack.** Watch `ci-notify.sh` post each gate transition
+   in real time:
+   - `:white_check_mark: [TAMD-NN] Passed: Stage 1 · code quality` —
+     coverage %, test counts, "ticket moving to *In Progress*"
+   - `:white_check_mark: [TAMD-NN] Passed: T1 newman smoke (Preview)` —
+     11 requests, 37 assertions, ~2s
+   - mabl's native Slack app posts the `CSH-SMOKE-PR` plan run with
+     screenshots and assertion details (sits alongside our `[TAMD-NN]`
+     posts naturally)
+   - `:white_check_mark: [TAMD-NN] Passed: Merge-ready` — all 5 required
+     checks green, merge button live
+
+5. **Auto-merge fires.** Branch deletes, prod deploy starts. Slack
+   posts:
+   - `:white_check_mark: [TAMD-NN] Passed: T1 newman smoke (Prod)`
+   - `:white_check_mark: [TAMD-NN] Passed: Shipped to production` —
+     ticket transitioning to *Done*
+
+6. **Tab-switch: Jira.** Show TAMD-NN status now Done, with the gate-by-gate
+   comments forming the audit trail.
+
+7. **Tab-switch: live site.** The change is on
+   `cheap-shot-hockey.vercel.app`.
+
+**mabl value shown:** browser-layer gate on PR, smart-locator stability,
+post-deploy verification, full audit trail across Jira + Slack + mabl.
+
+---
+
+## Act 3 — Auto-healing under change (4 min)
+
+**Story:** "The team renames a button. The mabl test would have broken
+in a brittle framework. Watch what happens here."
+
+1. **Intentional break:** in Claude Code, prompt *"Change the login
+   button text from 'Log in' to 'Sign in', and remove its `data-testid`."*
+2. The orchestrator opens a follow-up ticket + PR.
+3. **Tab-switch: mabl.** When `CSH-SMOKE-PR` runs, mabl's smart locators
+   re-anchor on the visible label — test still passes. Show the locator
+   view: "auto-healed at step 3, replaced selector with
+   `text=Sign in`."
+4. **Intentional full break:** prompt *"Now remove the login button
+   entirely."* The `CSH-SMOKE-PR` gate fails. PR is blocked — auto-merge
+   stays armed but won't fire. Show the Slack
+   `:rotating_light: [TAMD-NN] BLOCKED` post and the mabl screenshot.
+5. **Triage in-flight:** prompt *"Use mabl `analyze_failure` on the last
+   plan run for this PR and tell me what broke."* Claude reads the run
+   and posts a summary as a Jira comment. Push a fix → CI re-runs →
+   green → auto-merge fires.
+
+**mabl value shown:** auto-healing under cosmetic change, hard failure
+on actual regression, AI-driven failure attribution, intelligent merge
+gating.
 
 ---
 
@@ -125,34 +247,57 @@ assurance.
 
 **Story:** "Deploy landed. Now mabl watches production for you."
 
-1. In mabl, show the **scheduled deployment** running the
-   `post-deploy-smoke` label every 15 min against prod.
+1. In mabl, show the **scheduled run** of `CSH-SMOKE-POSTDEPLOY` on a
+   recurring schedule against Prod (e.g. every 15 min).
 2. Run `./scripts/demo-toggle.sh flaky` — production now intermittently
-   fails (25% of API calls stall, ~20% 503).
-3. Wait for the next scheduled run (or trigger one manually).
-4. Show mabl detecting flake, grouping the failures, and routing them
-   to whatever incident channel is wired up (Slack, PagerDuty, etc).
+   fails (~25% of API calls stall, ~20% return 503).
+3. Wait for the next scheduled run (or trigger one manually via
+   `./scripts/mabl-deployment.sh --labels type-smk,exec-postdeploy ...`).
+4. Show mabl detecting the flake, grouping the failures, and routing
+   them to Slack via mabl's native app.
 
-**Mabl value shown:** synthetic monitoring, flake detection, incident
-routing.
+**mabl value shown:** synthetic monitoring, flake detection, incident
+routing without instrumentation work.
 
 ---
 
-## Act 5 — Triage + fix (4 min)
+## Act 5 — Closed-loop triage + fix (4 min)
 
-**Story:** "mabl flagged an incident. Engineer opens Claude, triages,
-and ships a fix."
+**Story:** "mabl flagged an incident in prod. Engineer opens Claude,
+triages, and ships a fix — same agentic flow as Act 2."
 
 1. In Claude Code, prompt: *"There's a failing mabl run against prod.
-   Triage it and draft a fix PR."*
-2. Claude calls `mabl get_latest_plan_runs` → `analyze_failure` →
-   inspects the repo code → writes a PR with the fix.
-3. PR opens → back to **Act 2** flow → merges → **Act 3** runs → prod
-   fixed.
-4. Run `./scripts/demo-toggle.sh normal` to reset.
+   Use mabl `analyze_failure` to triage it, then use demo-orchestrator
+   to draft a fix PR."*
+2. Claude reads the failure, identifies the regression, opens a new
+   TAMD ticket linked `Defect` to whichever ticket caused it, and
+   drives the fix through Acts 2–3.
+3. Run `./scripts/demo-toggle.sh normal` to reset.
 
-**Mabl value shown:** closed-loop AI incident triage, complete SDLC
-coverage.
+**mabl value shown:** closed-loop AI incident triage, complete SDLC
+coverage in one tool chain.
+
+---
+
+## What's autonomous vs what needs Claude in the seat
+
+Important honesty for customer demos:
+
+| Surface | Autonomous? | Needs human? |
+| --- | --- | --- |
+| GHA workflow + branch protection + auto-merge | Yes | No |
+| `ci-notify.sh` Slack + Jira posts at every gate | Yes (when `SLACK_WEBHOOK_URL` is set) | No |
+| Jira lifecycle transitions (To Do → In Progress → Done) | Yes | No |
+| Vercel deploy on main push | Yes | No |
+| Initial prompt to Claude Code | No | Yes |
+| Subagent orchestration (creates ticket, branch, PR) | Yes (after the prompt) | No |
+| `pr-reviewer` convention audit | Yes (when invoked) | No |
+
+The Claude Code subagents run in an interactive session — they need
+Claude in the seat to drive. The CI pipeline they kick off is fully
+autonomous past that point. For a customer fork that wants headless
+end-to-end autonomy, the orchestrator subagent's logic ports to an
+Agent SDK `query()` call invoked from a webhook handler (Phase 2).
 
 ---
 
@@ -160,23 +305,29 @@ coverage.
 
 | What you want | Command |
 | --- | --- |
-| Flip production into a broken state | `./scripts/demo-toggle.sh broken` |
-| Flip back to normal | `./scripts/demo-toggle.sh normal` |
-| Kick off a mabl smoke manually | `./scripts/mabl-deployment.sh --labels api-smoke --environment $PROD --application $APP --wait` |
-| Pull the last failure | `./scripts/mabl-analyze-last-failure.sh` |
+| Flip production into a slow / flaky / broken state | `./scripts/demo-toggle.sh slow` (or `flaky` / `broken`) |
+| Reset prod to normal | `./scripts/demo-toggle.sh normal` |
+| Kick off a mabl smoke manually against Prod | `./scripts/mabl-deployment.sh --labels type-smk,exec-postdeploy --environment $MABL_ENV_PROD_ID --application $MABL_APPLICATION_ID --url https://cheap-shot-hockey.vercel.app --wait` |
+| Run mabl test impact analysis locally | `git diff --name-only main \| ./scripts/mabl-suggest-tests.sh` |
 | See the current prod build | `curl https://cheap-shot-hockey.vercel.app/api/build-info` |
 | Check API health | `curl https://cheap-shot-hockey.vercel.app/api/health` |
+| Install pre-push T1 hook | `./scripts/install-git-hooks.sh` |
 
 ---
 
-## Optional enhancements (nice to have, not required)
+## Optional enhancements (not required for the demo)
 
-- **Feature flags** — wire in a real flag provider so the demo can do
-  a dark-launch → `mabl` gates the flag flip.
-- **Slack bot** — post the `mabl-analyze-last-failure.sh` output to a
-  demo Slack channel instead of stdout.
-- **Datadog tie-in** — overlay mabl run pass rate on the Datadog
-  latency dashboard.
-- **k6 load test** alongside mabl — "mabl proves correctness, k6 proves
+- **Feature-flag wrap** — orchestrator wraps net-new UI in a flag and
+  ships at 0%, then a follow-up "ramp" PR moves to 100% after a soak
+  window. Operational maturity story.
+- **Cost + cycle-time receipt** — final Slack post per ticket:
+  `lead time · agent tokens · mabl minutes · GHA minutes`. Tells the
+  ROI story.
+- **Failure-recovery agent** — on post-deploy failure, an Agent SDK
+  `query()` agent reads logs, decides between [revert PR / forward-fix /
+  page human], and acts. Closes the "wait, AI just merges to prod?"
+  objection.
+- **Datadog / Grafana tie-in** — overlay mabl pass-rate on the latency
+  dashboard for one screen ("correctness × performance").
+- **k6 load test in parallel** — "mabl proves correctness, k6 proves
   performance, together they gate the release."
-# TAMD-92 smoke test trigger
