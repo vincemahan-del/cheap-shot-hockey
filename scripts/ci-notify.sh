@@ -152,6 +152,10 @@ commit_url=""
 mabl_workspace_url="https://app.mabl.com/workspaces/pXXgThbNi4HfQOpiZptHfw-w/dashboard"
 
 slack=""
+# Legacy variable still referenced in the Jira-comment section below.
+# The new section-based Slack layout doesn't use a single metric_block,
+# so leave this empty — Jira keeps its PR/commit/event/links content.
+metric_block=""
 
 # ── Header ────────────────────────────────────────────────────────
 slack+="${headline_emoji} *${ticket_prefix}${headline_label}: ${stage}*"
