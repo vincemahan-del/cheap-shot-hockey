@@ -252,10 +252,19 @@ orchestrator in Claude Code. The orchestrator only proceeds to commit
 
 This closes the *"AI just merges to prod?"* objection: high-risk
 changes pause for a human checkpoint by deterministic rule, not by
-prompt convention. Path-based v1; v2 (TAMD-108) extends to confidence
-signals (open-question count, breaking-change detection, scope
-assessment) — matching the pattern mabl uses internally for its 75-repo
-agentic system.
+prompt convention. Detection combines:
+
+- **Path-based** (high-risk surfaces): `src/lib/auth*`, API contract,
+  CI infra, agent prompts, shared data layer
+- **LOC threshold**: > 200 lines added+removed
+- **Breaking-change signals** (deterministic from diff): removed
+  exports in TS/TSX, scope > 5 files, new `package.json` dependencies
+- **Orchestrator-reported signals** (from `intent.json`): open
+  questions count, workaround flag, architectural review request
+
+The orchestrator writes `intent.json` (gitignored) before running the
+detector — it's the agent's self-assessment surface. The combined
+shape mirrors the mabl-published confidence-signal pattern.
 
 ## Failure-recovery agent (autonomous, narrow)
 

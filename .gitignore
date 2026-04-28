@@ -51,5 +51,8 @@ recovery-result.json
 # eval runner tmp output (created at runtime, not committed)
 /evals/recovery-agent/tmp/
 
+# orchestrator plan-mode intent.json (runtime metadata, not committed)
+/intent.json
+
 # Claude Code local settings (personal overrides — do not commit)
 .claude/settings.local.json
