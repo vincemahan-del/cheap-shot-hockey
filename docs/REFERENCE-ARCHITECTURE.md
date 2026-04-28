@@ -68,7 +68,14 @@ This pattern mirrors [mabl's published architecture](https://www.mabl.com/blog/h
 | **3. Implementation** | Code changes, pre-PR DoD (coverage gate, mabl impact analysis), commit, push, PR opened, auto-merge armed | Interactive Claude Code → GHA pipeline | No — gated by CI |
 | **4. Review** | 5 required CI checks (lint, security, unit, build, T1, mabl), AI code review, **mandatory human approval at merge** | GHA pipeline + branch protection + reviewer policy | **Yes at merge** |
 
-Plan-mode (Phase 2) is path-based in v1 — matches `src/lib/auth/**`, `src/app/api/openapi/**`, `.github/workflows/**`, agent system prompts, and the shared data layer. v2 will add confidence-signal detection (open-question count, breaking-change flags, scope assessment) per mabl's published pattern.
+Plan-mode (Phase 2) combines four signal sources:
+
+- **Path-based** — matches `src/lib/auth/**`, `src/app/api/openapi/**`, `.github/workflows/**`, agent system prompts, shared data layer
+- **LOC threshold** — > 200 lines added+removed
+- **Breaking-change signals** (deterministic from diff parsing) — removed exports in TS/TSX, scope > 5 files, new `package.json` dependencies
+- **Orchestrator-reported signals** (from `intent.json`) — open questions count, workaround flag, architectural review request
+
+Combined detection mirrors mabl's published confidence-signal pattern. The orchestrator writes `intent.json` (runtime metadata, gitignored) before running the detector — it's the agent's structured self-assessment surface, kept honest by the deterministic diff-parsing checks alongside it.
 
 ## Where workflows end and agents begin
 

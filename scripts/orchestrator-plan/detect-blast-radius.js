@@ -1,10 +1,25 @@
 #!/usr/bin/env node
 // detect-blast-radius.js — pure deterministic blast-radius detector for
-// orchestrator plan-mode. Reads `git diff --numstat <base>` and
-// categorizes the change by:
-//   1. Path patterns hitting high-risk surfaces (auth, API contract,
-//      CI infra, agent system prompts, shared data layer)
-//   2. Total LOC threshold (default 200 added/removed)
+// orchestrator plan-mode. Reads `git diff --numstat <base>` and a
+// (optional) orchestrator-supplied intent.json, then categorizes the
+// change by:
+//
+//   PATH-BASED SIGNALS (deterministic, from diff alone)
+//     1. High-risk path patterns (auth, API contract, CI infra, agent
+//        system prompts, shared data layer)
+//     2. Total LOC threshold (default 200 added/removed)
+//
+//   BREAKING-CHANGE SIGNALS (deterministic, from diff parsing)
+//     3. Removed exports in TS/TSX (potential breaking change for
+//        downstream consumers)
+//     4. Wide scope — > 5 distinct files modified
+//     5. New dependency added in package.json
+//
+//   ORCHESTRATOR-REPORTED SIGNALS (from intent.json)
+//     6. Open questions count > 0
+//     7. is_workaround === true
+//     8. adds_abstraction === true
+//     9. architectural_review_requested === true
 //
 // Outputs structured JSON to stdout. The orchestrator (interactive
 // Claude Code subagent) calls this before opening a PR; if blast_radius
@@ -12,13 +27,14 @@
 // post-plan.sh for human review.
 //
 // Usage:
-//   node scripts/orchestrator-plan/detect-blast-radius.js [--base main] [--loc-threshold 200]
+//   node scripts/orchestrator-plan/detect-blast-radius.js [--base main] [--loc-threshold 200] [--intent ./intent.json] [--scope-threshold 5]
 //
 // Exit codes:
 //   0 — detection ran (regardless of high vs low)
 //   1 — git diff failed (not a git repo, base ref invalid, etc.)
 
 import { execSync } from "node:child_process";
+import { readFileSync, existsSync } from "node:fs";
 
 function parseFlag(name, fallback) {
   const i = process.argv.indexOf(`--${name}`);
@@ -27,6 +43,8 @@ function parseFlag(name, fallback) {
 
 const BASE = parseFlag("base", "main");
 const LOC_THRESHOLD = parseInt(parseFlag("loc-threshold", "200"), 10);
+const SCOPE_THRESHOLD = parseInt(parseFlag("scope-threshold", "5"), 10);
+const INTENT_PATH = parseFlag("intent", "./intent.json");
 
 const HIGH_BLAST_PATTERNS = {
   auth: {
@@ -78,18 +96,19 @@ function categorize(path) {
   return "other";
 }
 
-let raw;
+// ── Diff numstat (file list + LOC counts) ────────────────────────
+let numstat;
 try {
-  raw = execSync(`git diff --numstat ${BASE}`, {
+  numstat = execSync(`git diff --numstat ${BASE}`, {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
 } catch (e) {
-  console.error(`detect-blast-radius: git diff failed: ${e.message}`);
+  console.error(`detect-blast-radius: git diff --numstat failed: ${e.message}`);
   process.exit(1);
 }
 
-const files = raw
+const files = numstat
   .trim()
   .split("\n")
   .filter(Boolean)
@@ -119,7 +138,102 @@ const totalLocDelta = files.reduce((acc, f) => acc + f.added + f.removed, 0);
 const linesAdded = files.reduce((acc, f) => acc + f.added, 0);
 const linesRemoved = files.reduce((acc, f) => acc + f.removed, 0);
 
+// ── Full diff (for breaking-change signal extraction) ────────────
+let fullDiff = "";
+try {
+  fullDiff = execSync(`git diff ${BASE}`, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    maxBuffer: 50 * 1024 * 1024,
+  });
+} catch (e) {
+  // Non-fatal: detector still works without full diff, just with less detail
+  console.error(`detect-blast-radius: git diff (full) failed; breaking-change detection skipped: ${e.message}`);
+}
+
+// ── Breaking-change signal: removed exports in TS/TSX ─────────────
+// Look for `-export <function|const|class|default|interface|type|enum>`
+// patterns in the diff. Only counts removals, not modifications, to
+// avoid false positives on signature tweaks (sig changes need AST
+// parsing — out of scope for v1).
+const REMOVED_EXPORT_RE = /^-export\s+(default\s+)?(async\s+)?(function|const|let|var|class|interface|type|enum)\s+\w+/m;
+
+let removedExportLines = 0;
+if (fullDiff) {
+  // Split by file headers ("diff --git a/... b/..."). Only scan TS/TSX files.
+  const fileBlocks = fullDiff.split(/^diff --git /m).slice(1);
+  for (const block of fileBlocks) {
+    const firstLine = block.split("\n")[0]; // "a/path b/path"
+    if (!/\.tsx?\s+b\//.test(firstLine)) continue;
+    for (const line of block.split("\n")) {
+      if (REMOVED_EXPORT_RE.test(line)) removedExportLines += 1;
+    }
+  }
+}
+
+// ── Breaking-change signal: new dependency in package.json ────────
+let newDependencyCount = 0;
+let newDependencyNames = [];
+if (fullDiff) {
+  // Extract just the package.json portion of the diff
+  const pkgBlockMatch = fullDiff.match(
+    /^diff --git a\/package\.json b\/package\.json[\s\S]*?(?=^diff --git |\Z)/m,
+  );
+  if (pkgBlockMatch) {
+    const pkgBlock = pkgBlockMatch[0];
+    let inDepsSection = false;
+    for (const line of pkgBlock.split("\n")) {
+      // Track section: "dependencies" / "devDependencies" / "peerDependencies"
+      const sectionMatch = line.match(/^[+\- ]\s*"(dependencies|devDependencies|peerDependencies|optionalDependencies)"\s*:/);
+      if (sectionMatch) {
+        inDepsSection = true;
+        continue;
+      }
+      // Section close: a "}" at the same indent level
+      if (inDepsSection && /^[+\- ]\s*\},?\s*$/.test(line)) {
+        inDepsSection = false;
+        continue;
+      }
+      // Added line in deps section: starts with "+" and matches "name": "version"
+      if (inDepsSection && /^\+\s*"([^"]+)":\s*"[^"]+"/.test(line)) {
+        const m = line.match(/^\+\s*"([^"]+)":/);
+        if (m) {
+          newDependencyCount += 1;
+          newDependencyNames.push(m[1]);
+        }
+      }
+    }
+  }
+}
+
+// ── Orchestrator-reported signals: intent.json ────────────────────
+let intent = null;
+let intentError = null;
+if (existsSync(INTENT_PATH)) {
+  try {
+    const raw = readFileSync(INTENT_PATH, "utf8");
+    intent = JSON.parse(raw);
+  } catch (e) {
+    intentError = `failed to parse ${INTENT_PATH}: ${e.message}`;
+  }
+}
+
+// Normalize intent fields with safe defaults
+const intentSummary = {
+  open_questions_count: Array.isArray(intent?.open_questions) ? intent.open_questions.length : 0,
+  is_workaround: intent?.is_workaround === true,
+  workaround_reason: intent?.workaround_reason || null,
+  adds_abstraction: intent?.adds_abstraction === true,
+  introduces_new_dependency: intent?.introduces_new_dependency === true,
+  architectural_review_requested: intent?.architectural_review_requested === true,
+  intent_file_path: existsSync(INTENT_PATH) ? INTENT_PATH : null,
+  parse_error: intentError,
+};
+
+// ── Compose all reasons ───────────────────────────────────────────
 const reasons = [];
+
+// Path-based
 for (const [cat, def] of Object.entries(HIGH_BLAST_PATTERNS)) {
   const hits = filesByCategory[cat];
   if (hits.length > 0) {
@@ -127,8 +241,47 @@ for (const [cat, def] of Object.entries(HIGH_BLAST_PATTERNS)) {
     reasons.push(`touches ${cat} (${fileLabel}) — ${def.description}`);
   }
 }
+
+// LOC threshold
 if (totalLocDelta > LOC_THRESHOLD) {
   reasons.push(`exceeds ${LOC_THRESHOLD}-LOC threshold (${totalLocDelta} lines added+removed)`);
+}
+
+// Wide scope
+if (files.length > SCOPE_THRESHOLD) {
+  reasons.push(`wide scope — ${files.length} distinct files modified (threshold: ${SCOPE_THRESHOLD})`);
+}
+
+// Removed exports
+if (removedExportLines > 0) {
+  const exportLabel = removedExportLines === 1 ? "1 export" : `${removedExportLines} exports`;
+  reasons.push(`${exportLabel} removed in TS/TSX — potential breaking change for downstream consumers`);
+}
+
+// New dependencies
+if (newDependencyCount > 0) {
+  const depLabel = newDependencyCount === 1 ? "1 new dependency" : `${newDependencyCount} new dependencies`;
+  const names = newDependencyNames.slice(0, 3).join(", ");
+  reasons.push(`${depLabel} added in package.json (${names}${newDependencyNames.length > 3 ? ", …" : ""})`);
+}
+
+// Orchestrator signals
+if (intentSummary.open_questions_count > 0) {
+  const qLabel = intentSummary.open_questions_count === 1 ? "1 open question" : `${intentSummary.open_questions_count} open questions`;
+  reasons.push(`${qLabel} flagged by orchestrator — needs human resolution before merge`);
+}
+if (intentSummary.is_workaround) {
+  const reason = intentSummary.workaround_reason ? ` (${intentSummary.workaround_reason})` : "";
+  reasons.push(`marked as workaround / defensive fix${reason} — proper fix should follow`);
+}
+if (intentSummary.adds_abstraction) {
+  reasons.push("adds new abstraction or refactors > 1 module — architectural review recommended");
+}
+if (intentSummary.architectural_review_requested) {
+  reasons.push("orchestrator self-flagged architectural review needed");
+}
+if (intentSummary.parse_error) {
+  reasons.push(`intent.json parse error — defaulting to high blast radius for safety: ${intentSummary.parse_error}`);
 }
 
 const blastRadius = reasons.length > 0 ? "high" : "low";
@@ -143,8 +296,16 @@ const result = {
     total_loc_delta: totalLocDelta,
     base_ref: BASE,
     loc_threshold: LOC_THRESHOLD,
+    scope_threshold: SCOPE_THRESHOLD,
   },
   files_by_category: filesByCategory,
+  breaking_change_signals: {
+    removed_exports: removedExportLines,
+    wide_scope: files.length > SCOPE_THRESHOLD,
+    new_dependencies: newDependencyCount,
+    new_dependency_names: newDependencyNames,
+  },
+  orchestrator_signals: intentSummary,
 };
 
 console.log(JSON.stringify(result, null, 2));
