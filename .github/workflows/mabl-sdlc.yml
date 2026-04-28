@@ -150,7 +150,7 @@ jobs:
           echo "coverage_branches=$cov_branches" >> "$GITHUB_OUTPUT"
           echo "unit: ${passed}/${total} passed · lines ${cov_lines}% · branches ${cov_branches}%"
       - name: upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-report
