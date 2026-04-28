@@ -57,6 +57,19 @@ Anthropic's published guidance on building agents.
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
+## The four-phase pipeline
+
+This pattern mirrors [mabl's published architecture](https://www.mabl.com/blog/how-we-built-a-system-for-ai-agents-to-ship-real-code-across-75-repos) for shipping AI-assisted code across 75+ repos. Same shape, packaged for customer adoption with two extensions (recovery agent + eval harness) that mabl's posts don't cover.
+
+| Phase | What happens | Surface | Human gate? |
+| --- | --- | --- | --- |
+| **1. Analysis** | Read ticket, scan `CLAUDE.md`, identify affected files, surface open questions | Interactive Claude Code (orchestrator subagent) | No — agent autonomous |
+| **2. Planning** | Detect blast radius (path-based + LOC); for high-risk changes, emit a structured plan to Jira and pause | Interactive Claude Code + `scripts/orchestrator-plan/` | **Yes for high-blast-radius changes** |
+| **3. Implementation** | Code changes, pre-PR DoD (coverage gate, mabl impact analysis), commit, push, PR opened, auto-merge armed | Interactive Claude Code → GHA pipeline | No — gated by CI |
+| **4. Review** | 5 required CI checks (lint, security, unit, build, T1, mabl), AI code review, **mandatory human approval at merge** | GHA pipeline + branch protection + reviewer policy | **Yes at merge** |
+
+Plan-mode (Phase 2) is path-based in v1 — matches `src/lib/auth/**`, `src/app/api/openapi/**`, `.github/workflows/**`, agent system prompts, and the shared data layer. v2 will add confidence-signal detection (open-question count, breaking-change flags, scope assessment) per mabl's published pattern.
+
 ## Where workflows end and agents begin
 
 | Surface | Type | Why this type |

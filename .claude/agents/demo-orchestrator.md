@@ -95,6 +95,48 @@ git checkout -b TICKET-XX/short-slug
 Use `Edit` and `Write` tools for code changes. Follow existing patterns
 in the codebase. Run `npm run dev` if needed to verify locally.
 
+### 3.5. Plan-mode gate — pause for human review on high-blast-radius changes
+
+After code changes are made but **before** commit/push, run the
+deterministic blast-radius detector:
+
+```bash
+node scripts/orchestrator-plan/detect-blast-radius.js --base main
+```
+
+The detector reads `git diff --numstat main` and emits structured JSON.
+Inspect `blast_radius`:
+
+- **`low`** → continue to step 4. No human checkpoint needed; the
+  CI gates are the review.
+- **`high`** → STOP. Build a plan and post it for review:
+
+  1. Compose a plan body in Jira wiki-markup (see template in
+     `scripts/orchestrator-plan/README.md` § "Plan structure"). At
+     minimum: Intent, Change summary, Blast-radius reasons (copy the
+     `reasons` array from the detector output verbatim), Risk areas,
+     Test coverage, Rollback plan.
+  2. Pipe it to `post-plan.sh`:
+     ```bash
+     echo "<plan body>" | scripts/orchestrator-plan/post-plan.sh TICKET-XX
+     ```
+  3. Tell the user *in Claude Code chat*: "Plan posted to Jira
+     TICKET-XX. Read it and reply **Approved** to proceed, or
+     **Reject: <reason>** if you want changes." Then **stop**.
+  4. When the user replies Approved, continue to step 4. If they
+     reject, revise the change, re-run the detector, and re-emit if
+     still high blast.
+
+This is the *"AI proposes, human disposes"* checkpoint. Path-based
+detection (auth, API contract, CI infra, agents, shared data layer,
+> 200 LOC) ensures the human gate fires for changes that genuinely
+warrant review, not for typo fixes.
+
+Mabl's internal agentic system uses a richer confidence-signal
+detection (open-question count, breaking-change flags, scope assessment).
+The path-based v1 here is the simpler equivalent; v2 (TAMD-108) extends
+to confidence signals.
+
 ### 4. Commit + push (T1 fires automatically)
 
 ```bash
