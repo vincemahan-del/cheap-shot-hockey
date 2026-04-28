@@ -463,13 +463,11 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
-      JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
-      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-      SLACK_CHANNEL_ID: C0A321B477Y
-      PROD_URL: ${{ env.PRODUCTION_URL }}
       FAILED_STAGE: post-deploy-smoke
+      # PROD_URL, SLACK_*, JIRA_*, SLACK_CHANNEL_ID inherit from the
+      # workflow-level env block at the top of this file. Job-level
+      # env cannot reference ${{ env.* }} from workflow-level (context
+      # not available here), so we rely on inheritance instead.
     steps:
       - uses: actions/checkout@v4
         with:
