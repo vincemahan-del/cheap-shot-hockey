@@ -440,6 +440,98 @@ jobs:
           bash scripts/ci-notify.sh fail "Prod post-deploy failed" ":warning: Prod smoke failed after Vercel reflected the new commit. Prod may be broken right now. See mabl's Slack post for per-test failure detail and act."
 
   # ─────────────────────────────────────────────────────────────────
+  # Failure-recovery agent — fires only when post-deploy-smoke fails
+  # on main. Runs the Agent SDK diagnosis loop with read-only tools
+  # (Read/Grep/Glob — no Bash, no Edit, no Write), emits structured
+  # JSON, and posts the recommendation to Slack + Jira via the
+  # deterministic recommend.sh wrapper. Takes no actions on shared
+  # infra: no PRs opened, no main commits, no Jira transitions.
+  # Skips gracefully if ANTHROPIC_API_KEY isn't set.
+  # ─────────────────────────────────────────────────────────────────
+
+  recovery-agent:
+    name: recovery agent — diagnose post-deploy failure
+    needs: post-deploy-smoke
+    if: always() && needs.post-deploy-smoke.result == 'failure' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
+      FAILED_STAGE: post-deploy-smoke
+      # PROD_URL, SLACK_*, JIRA_*, SLACK_CHANNEL_ID inherit from the
+      # workflow-level env block at the top of this file. Job-level
+      # env cannot reference ${{ env.* }} from workflow-level (context
+      # not available here), so we rely on inheritance instead.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 30
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: extract ticket key from merge commit
+        id: ticket
+        run: |
+          subject=$(git log -1 --pretty=%s)
+          body=$(git log -1 --pretty=%B)
+          key=""
+          if [[ "$subject" =~ (TAMD-[0-9]+) ]]; then
+            key="${BASH_REMATCH[1]}"
+          elif [[ "$body" =~ (TAMD-[0-9]+) ]]; then
+            key="${BASH_REMATCH[1]}"
+          fi
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "ticket key: $key"
+
+      - name: gather diagnostic context
+        run: |
+          mkdir -p logs
+          gh run view "${{ github.run_id }}" --log-failed > logs/gha-run.log 2>&1 \
+            || echo "(no failed log available from gh run view)" > logs/gha-run.log
+          git log --oneline -10 origin/main > logs/recent-commits.txt 2>/dev/null \
+            || git log --oneline -10 > logs/recent-commits.txt
+          git show --stat HEAD > logs/last-commit.txt 2>&1 || true
+          curl -fsS --max-time 5 "${{ env.PRODUCTION_URL }}/api/build-info" \
+            > logs/build-info.json 2>&1 \
+            || echo '{"error":"build-info fetch failed"}' > logs/build-info.json
+          curl -fsS --max-time 5 "${{ env.PRODUCTION_URL }}/api/health" \
+            > logs/health.json 2>&1 \
+            || echo '{"error":"health fetch failed (or 503 from broken demo toggle)"}' > logs/health.json
+          echo '{"note":"mabl plan-run id capture not yet wired into post-deploy-smoke; agent operates without it for now"}' > logs/mabl-plan-run.json
+          echo "--- logs dir ---"
+          ls -la logs/
+
+      - name: install recovery-agent deps
+        working-directory: scripts/recovery-agent
+        run: npm install --no-audit --no-fund
+
+      - name: run diagnosis agent
+        env:
+          TICKET_KEY: ${{ steps.ticket.outputs.key }}
+          RECOVERY_RESULT_FILE: ./recovery-result.json
+          LOGS_DIR: ./logs
+        run: |
+          node scripts/recovery-agent/index.js
+          echo "--- recovery-result.json ---"
+          cat ./recovery-result.json || echo "(no result file produced)"
+
+      - name: post recommendation to Slack + Jira
+        if: always()
+        env:
+          TICKET_KEY: ${{ steps.ticket.outputs.key }}
+        run: |
+          chmod +x scripts/recovery-agent/recommend.sh
+          bash scripts/recovery-agent/recommend.sh ./recovery-result.json
+
+  # ─────────────────────────────────────────────────────────────────
   # Test impact analysis — runs parallel with T1 smoke, PR only.
   # Advisory: posts a PR comment with coverage delta + relevant mabl
   # tests. Never blocks the merge gate on its own.
