@@ -142,6 +142,27 @@ calls invoked from a webhook handler. That's a separate piece of work.
   fail-safe `page-human` and exits 0. The architecture works without
   the key; only the live diagnosis loop is gated on it.
 
+## Cost-control: the `MABL_CLOUD_GATE` toggle
+
+mabl cloud runs cost money per PR + per main push. Customers will have different cost profiles, especially during dev iteration or feature build-out where per-PR browser verification isn't worth the bill.
+
+The architecture exposes a single repo variable, `MABL_CLOUD_GATE`:
+
+| Value | Behavior |
+| --- | --- |
+| `enabled` (or missing) | Default. mabl cloud runs fire on every PR + main push. |
+| `disabled` | mabl jobs skip the cloud trigger and exit success. ci-notify posts a clear "paused" message. T1 newman API smoke (local CLI) remains the always-on review surface. |
+
+```bash
+# pause cloud runs (cost-control mode)
+gh variable set MABL_CLOUD_GATE --body "disabled" --repo OWNER/REPO
+
+# reenable
+gh variable set MABL_CLOUD_GATE --body "enabled" --repo OWNER/REPO
+```
+
+The toggle is a **repo variable** (not a secret) so it surfaces in run logs and is auditable. No code changes required to flip it. Customers fork and inherit this toggle as part of the reference architecture; it's not specific to this demo.
+
 ## What's NOT in v1
 
 The reference architecture deliberately leaves these out for v1 to

@@ -170,6 +170,24 @@ Promoting any of these to required-check status is a branch-protection
 change (manual on the GitHub repo), not a workflow change. Document
 that decision and the date it lands in this file when it happens.
 
+## Cost-control: pausing mabl cloud runs
+
+Each PR fires 2 mabl cloud plan runs (`CSH-SMOKE-PR` Preview + `CSH-SMOKE-POSTDEPLOY` Prod). For dev iteration / build-out phases where cost matters more than per-PR UI verification, set the `MABL_CLOUD_GATE` repo variable to `disabled`:
+
+```bash
+gh variable set MABL_CLOUD_GATE --body "disabled" --repo OWNER/REPO
+```
+
+The mabl jobs still run (so branch protection stays satisfied) but skip the `mabl-deployment.sh` invocation. ci-notify posts a clear "mabl cloud gate paused" message instead of the usual mabl gate posts. T1 newman API smoke (local CLI, no mabl charge) remains the always-on review surface. Reenable:
+
+```bash
+gh variable set MABL_CLOUD_GATE --body "enabled" --repo OWNER/REPO
+```
+
+(Or unset entirely — default is `enabled` when missing.)
+
+When disabled, you lose: browser-layer UI verification on every PR, post-deploy mabl verification, and mabl's native Slack screenshots. Acceptable for build-out; reenable for release-candidate runs.
+
 ## Plan-mode for high-blast-radius changes
 
 Before opening a PR, the orchestrator subagent runs the deterministic
