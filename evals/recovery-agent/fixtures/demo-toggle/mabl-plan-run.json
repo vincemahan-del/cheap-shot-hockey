@@ -1,0 +1,27 @@
+{
+  "plan_run_id": "run-2k3l4m",
+  "plan_name": "CSH-SMOKE-POSTDEPLOY",
+  "environment": "Production",
+  "started_at": "2026-04-18T16:08:55.405Z",
+  "completed_at": "2026-04-18T16:10:14.601Z",
+  "status": "FAILED",
+  "tests_total": 2,
+  "tests_passed": 0,
+  "tests_failed": 2,
+  "failed_tests": [
+    {
+      "name": "csh-smoke-api-health",
+      "failure_reason": "Expected 200, got 503",
+      "response_body": {"status": "degraded", "mode": "broken"}
+    },
+    {
+      "name": "csh-smoke-api-products",
+      "failure_reason": "Expected 200, got 503",
+      "response_body": {"status": "degraded", "mode": "broken"}
+    }
+  ],
+  "previous_runs_same_plan": [
+    {"date": "2026-04-18T08:00:00Z", "status": "PASSED"},
+    {"date": "2026-04-17T20:00:00Z", "status": "PASSED"}
+  ]
+}

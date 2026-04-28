@@ -100,6 +100,8 @@ The pattern follows these published Anthropic principles:
 
 6. **MCP for tool exposure.** Slack, Jira, mabl, and GitHub are exposed as MCP servers — customers can swap in their own MCP servers without changing the agent code.
 
+7. **Eval the agents you ship.** The recovery agent has a frozen-fixture eval suite at `evals/recovery-agent/` covering five reasoning shapes (clean revert, demo-toggle detection, mabl flake, multi-commit ambiguity, forward-fix obvious). Runs on PRs that touch the agent or its fixtures, plus a nightly cron. Skips gracefully if `ANTHROPIC_API_KEY` isn't configured. Score is a number — "5/5 fixtures pass" — that customers can point to instead of vibes.
+
 ## What's autonomous vs what needs a human
 
 Honest split. Customers will press on this.

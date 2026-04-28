@@ -1,0 +1,13 @@
+2026-04-18T16:08:42.118Z mabl-deployment.sh: triggered plan with labels type-smk,exec-postdeploy
+2026-04-18T16:08:55.402Z mabl-deployment.sh: deployment_id=dep-3z9y8x plan_run_id=run-2k3l4m
+2026-04-18T16:08:55.405Z mabl-deployment.sh: polling for results...
+2026-04-18T16:09:38.819Z mabl-deployment.sh: still pending (43s elapsed)
+2026-04-18T16:10:14.601Z mabl-deployment.sh: completed
+2026-04-18T16:10:14.603Z mabl-deployment.sh: status=FAILED tests=2 passed=0 failed=2
+2026-04-18T16:10:14.605Z mabl-deployment.sh: failure summary:
+  Test 1 (csh-smoke-api-health): GET /api/health returned 503 (expected 200)
+    Response body: {"status":"degraded","mode":"broken"}
+  Test 2 (csh-smoke-api-products): GET /api/products returned 503 (expected 200)
+    Response body: {"status":"degraded","mode":"broken"}
+2026-04-18T16:10:14.610Z mabl-deployment.sh: exit code 1
+##[error]Process completed with exit code 1.

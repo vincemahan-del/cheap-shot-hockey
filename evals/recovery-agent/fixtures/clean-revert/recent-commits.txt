@@ -1,0 +1,10 @@
+a3f8c9d Merge pull request #142 from EVAL-1/restyle-product-cards
+1b2e4f7 EVAL-1: restyle product cards with new btn-cart-add class
+9e5d8a2 Merge pull request #141 from EVAL-99/copy-tweak
+8c7b3a1 EVAL-99: tighten hero copy
+7d6e5c4 Merge pull request #140 from EVAL-98/remove-stale-todo
+6a5b4c3 EVAL-98: remove TODO from src/lib/store.ts
+5d4c3b2 Merge pull request #139 from EVAL-97/seed-data-update
+4c3b2a1 EVAL-97: refresh seed product data
+3b2a190 Merge pull request #138 from EVAL-96/perf-tweak
+2a1908f EVAL-96: memoize ProductCard render

@@ -1,0 +1,12 @@
+commit 9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e
+Merge: 7b8c9d0 8c9d0e1
+Author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+Date:   2026-04-26 09:14:22 +0000
+
+    Merge pull request #182 from EVAL-5/configurable-mabl-timeout
+
+    EVAL-5: make mabl deployment timeout configurable via MABL_TIMEOUT_MS
+
+ mabl/postman/csh-api-smoke.postman_collection.json | 4 ++--
+ scripts/mabl-deployment.sh                         | 6 ++++++
+ 2 files changed, 8 insertions(+), 2 deletions(-)

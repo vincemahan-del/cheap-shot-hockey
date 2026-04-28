@@ -1,0 +1,14 @@
+2026-04-26T09:18:44.302Z newman: starting collection csh-api-smoke against https://cheap-shot-hockey.vercel.app/api
+2026-04-26T09:18:44.488Z newman: GET /health → 200 OK (87ms)
+2026-04-26T09:18:44.612Z newman: GET /products → 200 OK (124ms)
+2026-04-26T09:18:44.713Z newman: GET /products/apex-velocity-pro-stick → ERROR
+2026-04-26T09:18:44.715Z newman: assertion failed: response time should be below MABL_TIMEOUT_MS
+2026-04-26T09:18:44.716Z newman: error detail:
+  ReferenceError: MABL_TIMEOUT_MS is not defined in this scope.
+  pm.test("response time should be below MABL_TIMEOUT_MS", function() {
+                                                ^^^^^^^^^^^^^^^^^^
+  This variable was added in EVAL-5 (see commit message) but never added to
+  the postman collection's environment variables or to .github/workflows/
+  mabl-sdlc.yml as an env var.
+2026-04-26T09:18:44.722Z newman: 1 assertion failed of 37
+##[error]Process completed with exit code 1.

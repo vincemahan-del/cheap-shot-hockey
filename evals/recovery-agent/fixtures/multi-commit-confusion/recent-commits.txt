@@ -1,0 +1,10 @@
+f6a7b8c Merge pull request #178 from EVAL-4d/seed-data-cleanup
+ed5e6f7 EVAL-4d: trim seed product list, update demo creds for clarity
+dc4e5f6 Merge pull request #177 from EVAL-4c/auth-cookie-tweak
+cb3d4e5 EVAL-4c: bump session cookie maxAge from 1h to 8h
+ba2c3d4 Merge pull request #176 from EVAL-4b/store-refactor
+a91b2c3 EVAL-4b: extract product filter logic into helper
+89a0b1c Merge pull request #175 from EVAL-4a/middleware-update
+78909a0 EVAL-4a: middleware demo-mode header passing for /api/auth/*
+67889ab Merge pull request #174 from EVAL-83/typo-fix
+56778ba EVAL-83: typo in checkout copy
