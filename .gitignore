@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+scripts/*/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -42,6 +43,10 @@ next-env.d.ts
 
 # MCP server config (personal, not shared)
 .mcp.json
+
+# recovery-agent runtime output (created in CI, not committed)
+recovery-result.json
+/scripts/recovery-agent/logs/
 
 # Claude Code local settings (personal overrides — do not commit)
 .claude/settings.local.json

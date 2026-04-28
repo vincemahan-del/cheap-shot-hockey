@@ -261,21 +261,51 @@ routing without instrumentation work.
 
 ---
 
-## Act 5 — Closed-loop triage + fix (4 min)
+## Act 5 — Autonomous failure recovery + closed-loop fix (5 min)
 
-**Story:** "mabl flagged an incident in prod. Engineer opens Claude,
-triages, and ships a fix — same agentic flow as Act 2."
+**Story:** "Post-deploy mabl flagged a regression. The recovery agent
+diagnoses it without a human in the seat. An engineer reads the
+recommendation and acts."
 
-1. In Claude Code, prompt: *"There's a failing mabl run against prod.
-   Use mabl `analyze_failure` to triage it, then use demo-orchestrator
-   to draft a fix PR."*
-2. Claude reads the failure, identifies the regression, opens a new
-   TAMD ticket linked `Defect` to whichever ticket caused it, and
-   drives the fix through Acts 2–3.
-3. Run `./scripts/demo-toggle.sh normal` to reset.
+1. **Set up the failure.** Open a small benign-looking PR through the
+   normal flow (Act 2). Just before the merge fires, run
+   `./scripts/demo-toggle.sh broken` — prod will return 503 once the
+   merge deploys.
+2. **Watch the autonomous chain.** Merge fires → Vercel deploys →
+   `T1 newman (Prod)` fails → `mabl CSH-SMOKE-POSTDEPLOY (Prod)` fails →
+   the **recovery-agent job** triggers automatically.
+3. **Tab-switch: GHA logs.** Show the `recovery-agent` job running:
+   - Pre-fetches diagnostic context (`logs/gha-run.log`,
+     `logs/recent-commits.txt`, `logs/build-info.json`,
+     `logs/health.json`, `logs/mabl-plan-run.json`)
+   - Invokes the Agent SDK `query()` loop with **read-only tools**
+     (`Read`, `Grep`, `Glob` — no `Bash`, no `Edit`, no `Write`)
+   - Agent emits a structured JSON recommendation
+4. **Tab-switch: Slack.** The recovery agent's recommendation posts via
+   `scripts/recovery-agent/recommend.sh`:
+   ```
+   :robot_face: Recovery agent recommendation: page-human (confidence: high)
+   /api/health returns 503; the demo toggle is set to broken.
+   Hint: agent suspects the demo toggle is set on prod (?demo=broken).
+   Try ./scripts/demo-toggle.sh normal first.
+   ```
+   The agent **takes no autonomous action on shared infra** — no PR
+   opened, no Jira mutation, no merge. It diagnoses; humans act.
+5. **Closed-loop fix in Claude Code.** Prompt: *"Read the recovery
+   agent's last Slack post. Act on the recommendation."* Claude flips
+   the toggle (or opens the revert PR if the agent recommended one),
+   then drives the fix through Acts 2–3.
+6. Reset with `./scripts/demo-toggle.sh normal`.
 
-**mabl value shown:** closed-loop AI incident triage, complete SDLC
-coverage in one tool chain.
+**Why this matters for the customer:** the agent demonstrates that
+"agentic" can mean *narrow, sandboxed, advisory* — not *unrestricted
+autonomous action*. Tool restrictions are enforced at the SDK boundary
+(`allowedTools: ['Read', 'Grep', 'Glob']`), not by prompt convention.
+Customers asking "wait, does the AI just push to main?" get a concrete
+answer: "no, by tool sandbox — and here's the YAML that proves it."
+
+**mabl value shown:** closed-loop AI incident triage, autonomous
+diagnosis with hard sandbox boundaries, complete SDLC coverage.
 
 ---
 
@@ -292,6 +322,8 @@ Important honesty for customer demos:
 | Initial prompt to Claude Code | No | Yes |
 | Subagent orchestration (creates ticket, branch, PR) | Yes (after the prompt) | No |
 | `pr-reviewer` convention audit | Yes (when invoked) | No |
+| **Recovery agent** (post-deploy failure → diagnose → recommend) | **Yes** (Agent SDK `query()` with `Read`/`Grep`/`Glob` only) | No |
+| Acting on the recovery agent's recommendation (revert PR, fix, etc.) | No (deliberate sandbox) | Yes |
 
 The Claude Code subagents run in an interactive session — they need
 Claude in the seat to drive. The CI pipeline they kick off is fully
@@ -323,10 +355,12 @@ Agent SDK `query()` call invoked from a webhook handler (Phase 2).
 - **Cost + cycle-time receipt** — final Slack post per ticket:
   `lead time · agent tokens · mabl minutes · GHA minutes`. Tells the
   ROI story.
-- **Failure-recovery agent** — on post-deploy failure, an Agent SDK
-  `query()` agent reads logs, decides between [revert PR / forward-fix /
-  page human], and acts. Closes the "wait, AI just merges to prod?"
-  objection.
+- **Failure-recovery agent (v1 shipped, see Act 5)** — read-only
+  diagnosis agent that runs in CI on post-deploy failure and posts a
+  structured recommendation. Future v2: extract narrow custom MCP
+  tools (`open_revert_pr`, `comment_jira`) so the agent can act
+  directly on its own recommendation, with the action surface
+  enforced at the SDK boundary rather than via prompt convention.
 - **Datadog / Grafana tie-in** — overlay mabl pass-rate on the latency
   dashboard for one screen ("correctness × performance").
 - **k6 load test in parallel** — "mabl proves correctness, k6 proves

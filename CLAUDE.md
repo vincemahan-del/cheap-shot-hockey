@@ -150,6 +150,21 @@ delegate:
 
 See `docs/CLAUDE-AGENTS.md` for examples + invocation patterns.
 
+## Failure-recovery agent (autonomous, narrow)
+
+When `mabl CSH-SMOKE-POSTDEPLOY` fails on `main`, GHA triggers
+`scripts/recovery-agent/index.js` — an Agent SDK `query()` loop
+restricted to `Read`/`Grep`/`Glob` (no `Bash`, no `Edit`, no `Write`).
+The agent reads pre-fetched diagnostic context from `./logs/`, emits a
+structured JSON recommendation (revert / forward-fix / page-human), and
+`scripts/recovery-agent/recommend.sh` posts that recommendation to
+Slack + Jira via `ci-notify.sh`. The agent itself does not open PRs,
+push commits, or transition tickets. Acting on the recommendation is a
+human (or interactive Claude) job.
+
+Requires `ANTHROPIC_API_KEY` repo secret. Without it, the job emits a
+fail-safe `page-human` recommendation and exits.
+
 ## Ticket-to-prod demo narration
 
 When the user is driving a ticket-to-prod demo and Claude should
@@ -157,13 +172,12 @@ narrate CI events (because `SLACK_WEBHOOK_URL` isn't set), follow the
 canonical spec in `docs/MCP-NARRATION-PLAYBOOK.md`. Summary:
 
 - **Channel:** `#vince-agentic-workflow-demos` (`C0A321B477Y`)
-- **One thread per Jira ticket** — kickoff at channel, everything else
-  replies in the thread
+- **All messages at channel root, prefixed `[TAMD-XX]`** — Slack
+  Workflow Builder webhooks can't thread, so we don't use threads.
+  Per-ticket grouping uses the prefix + `Cmd+F`.
 - **Gate messages** match the format `scripts/ci-notify.sh` would
-  post — so narration and autonomous messages are indistinguishable
-- **Forward mabl's native Slack posts** from channel root into the
-  relevant ticket thread (mabl's app posts at channel level, not in
-  threads)
+  post — same canonical event format on both transports (autonomous
+  webhook + interactive MCP), though dialect differs (see playbook).
 - **Comment on Jira** in parallel, with the same metrics + links
 - **Auto-transition tickets**: To Do → In Progress on first CI green,
   In Progress → Done on post-deploy ship
