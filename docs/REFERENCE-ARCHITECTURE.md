@@ -142,6 +142,19 @@ calls invoked from a webhook handler. That's a separate piece of work.
   fail-safe `page-human` and exits 0. The architecture works without
   the key; only the live diagnosis loop is gated on it.
 
+## Cost + cycle-time receipt (per ticket)
+
+Every shipped ticket gets a final `:receipt:` Slack message at the end of the post-deploy chain. v1 metrics are deterministic and need no extra creds:
+
+- Lead time — PR open → merged
+- GHA minutes — total across all workflow runs for this ticket
+
+v2 (when respective creds are configured): agent tokens (Anthropic usage), mabl plan-run minutes (mabl API).
+
+The customer ROI story this answers: *"what does each ticket cost us, and how fast does it ship?"* Per-ticket numbers in the channel; trend tracking via Slack search. No dashboards required for v1, but the data is structured enough that a customer could pipe it to a real BI tool.
+
+`scripts/cycle-time-receipt.sh` is the implementation; it runs as the last step of `post-deploy-smoke` once production is verified.
+
 ## Cost-control: the `MABL_CLOUD_GATE` toggle
 
 mabl cloud runs cost money per PR + per main push. Customers will have different cost profiles, especially during dev iteration or feature build-out where per-PR browser verification isn't worth the bill.
