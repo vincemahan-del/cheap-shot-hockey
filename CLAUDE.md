@@ -170,6 +170,23 @@ Promoting any of these to required-check status is a branch-protection
 change (manual on the GitHub repo), not a workflow change. Document
 that decision and the date it lands in this file when it happens.
 
+## Cost + cycle-time receipt per ticket
+
+Every shipped ticket gets a final `:receipt:` Slack post computed by
+`scripts/cycle-time-receipt.sh`. v1 metrics:
+
+- **Lead time** — PR-open → merged, humanized (e.g. `8m`, `2h 14m`)
+- **GHA minutes** — sum of all workflow run durations across the PR's
+  CI runs + the main-push run
+
+v2 (gated on respective creds): agent tokens (Anthropic usage API),
+mabl plan-run minutes (mabl API). v1 is fully deterministic, no extra
+creds beyond `GITHUB_TOKEN`.
+
+Customer ROI story: per-ticket cost is **auditable** and **trends over
+time** with no special instrumentation. The receipt is a single Slack
+message at ship time — readable in the channel, parseable from history.
+
 ## Cost-control: pausing mabl cloud runs
 
 Each PR fires 2 mabl cloud plan runs (`CSH-SMOKE-PR` Preview + `CSH-SMOKE-POSTDEPLOY` Prod). For dev iteration / build-out phases where cost matters more than per-PR UI verification, set the `MABL_CLOUD_GATE` repo variable to `disabled`:

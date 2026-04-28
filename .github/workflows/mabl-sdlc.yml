@@ -508,6 +508,18 @@ jobs:
         run: |
           bash scripts/ci-notify.sh fail "Prod post-deploy failed" ":warning: Prod smoke failed after Vercel reflected the new commit. Prod may be broken right now. See mabl's Slack post for per-test failure detail and act."
 
+      # Cost + cycle-time receipt — runs after the shipped notify.
+      # Computes lead time (PR open → merged) and total GHA minutes via
+      # gh api. Posts a final ":receipt:" message via ci-notify.sh.
+      # Strictly deterministic; no LLM calls, no extra creds.
+      - name: post cost + cycle-time receipt
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MABL_CLOUD_GATE: ${{ vars.MABL_CLOUD_GATE || 'enabled' }}
+        run: |
+          bash scripts/cycle-time-receipt.sh
+
   # ─────────────────────────────────────────────────────────────────
   # Failure-recovery agent — fires only when post-deploy-smoke fails
   # on main. Runs the Agent SDK diagnosis loop with read-only tools
