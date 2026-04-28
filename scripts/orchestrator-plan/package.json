@@ -1,0 +1,10 @@
+{
+  "name": "@cheap-shot-hockey/orchestrator-plan",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pre-PR plan-mode gate for the orchestrator subagent. detect-blast-radius.js + post-plan.sh.",
+  "engines": {
+    "node": ">=22"
+  }
+}
