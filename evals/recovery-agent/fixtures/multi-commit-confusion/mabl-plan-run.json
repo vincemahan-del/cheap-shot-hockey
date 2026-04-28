@@ -1,0 +1,31 @@
+{
+  "plan_run_id": "run-4d5e6f",
+  "plan_name": "CSH-SMOKE-POSTDEPLOY",
+  "environment": "Production",
+  "started_at": "2026-04-25T11:32:28.414Z",
+  "completed_at": "2026-04-25T11:34:02.118Z",
+  "status": "FAILED",
+  "tests_total": 4,
+  "tests_passed": 2,
+  "tests_failed": 2,
+  "failed_tests": [
+    {
+      "name": "csh-login-flow",
+      "failed_step": 3,
+      "failed_step_label": "POST /api/auth/login with demo credentials",
+      "failure_reason": "API returned 500",
+      "response_body": {"error": "server_error"},
+      "notes": "Login flow could be affected by: seed data changes (EVAL-4d), session cookie config (EVAL-4c), middleware change for /api/auth/* (EVAL-4a). All merged within last 30 min. Cause is not isolatable from logs alone."
+    },
+    {
+      "name": "csh-checkout-end-to-end",
+      "failed_step": 4,
+      "failed_step_label": "login redirect",
+      "failure_reason": "Cascade failure — depends on login flow",
+      "notes": "Skipped further assertions after auth dependency failed."
+    }
+  ],
+  "previous_runs_same_plan": [
+    {"date": "2026-04-25T08:00:00Z", "status": "PASSED"}
+  ]
+}

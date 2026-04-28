@@ -48,5 +48,8 @@ next-env.d.ts
 recovery-result.json
 /scripts/recovery-agent/logs/
 
+# eval runner tmp output (created at runtime, not committed)
+/evals/recovery-agent/tmp/
+
 # Claude Code local settings (personal overrides — do not commit)
 .claude/settings.local.json

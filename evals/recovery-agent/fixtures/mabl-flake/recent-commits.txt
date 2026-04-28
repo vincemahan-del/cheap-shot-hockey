@@ -1,0 +1,10 @@
+c2d3e4f Merge pull request #168 from EVAL-3/dependabot-eslint-config
+9b8c7d6 EVAL-3: bump eslint-config-next 0.4.2 → 0.4.3 (patch)
+8a7b6c5 Merge pull request #167 from EVAL-89/typo-fix
+7e6d5c4 EVAL-89: fix typo in product description
+6f5e4d3 Merge pull request #166 from EVAL-88/license-update
+5d4c3b2 EVAL-88: bump LICENSE year
+4c3b2a1 Merge pull request #165 from EVAL-87/format-tweak
+3b2a190 EVAL-87: prettier sweep over docs/
+2a1908f Merge pull request #164 from EVAL-86/dependabot-types
+1908fe7 ci(deps-dev): bump @types/node from 22.4.1 to 22.4.2

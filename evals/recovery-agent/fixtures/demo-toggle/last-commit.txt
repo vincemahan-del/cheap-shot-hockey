@@ -1,0 +1,11 @@
+commit b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9
+Merge: a1b2c3d 4f3e2d1
+Author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+Date:   2026-04-18 16:05:18 +0000
+
+    Merge pull request #156 from EVAL-2/footer-link-fix
+
+    EVAL-2: fix footer Privacy link href
+
+ src/components/Footer.tsx | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)

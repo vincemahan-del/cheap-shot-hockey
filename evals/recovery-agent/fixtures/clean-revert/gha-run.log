@@ -1,0 +1,16 @@
+2026-04-15T10:42:18.123Z mabl-deployment.sh: triggered plan with labels type-smk,exec-postdeploy
+2026-04-15T10:42:32.847Z mabl-deployment.sh: deployment_id=dep-9k2j3h plan_run_id=run-7x8y9z
+2026-04-15T10:42:32.851Z mabl-deployment.sh: polling for results...
+2026-04-15T10:43:14.221Z mabl-deployment.sh: still pending (12s elapsed)
+2026-04-15T10:43:46.518Z mabl-deployment.sh: still pending (44s elapsed)
+2026-04-15T10:44:18.892Z mabl-deployment.sh: completed
+2026-04-15T10:44:18.894Z mabl-deployment.sh: status=FAILED tests=4 passed=3 failed=1
+2026-04-15T10:44:18.896Z mabl-deployment.sh: failed test: csh-checkout-add-to-cart-end-to-end
+2026-04-15T10:44:18.898Z mabl-deployment.sh: failed step: 5 of 11 — "click Add to Cart on first product card"
+2026-04-15T10:44:18.901Z mabl-deployment.sh: failure detail:
+  Selector "[data-testid='add-to-cart-button']" did not match any element on the page.
+  Smart locator attempted to heal — no candidate found within similarity threshold.
+  Screenshot: https://app.mabl.com/workspaces/.../runs/run-7x8y9z/step-5/screenshot
+  DOM snapshot at failure: button selectors found = [button.btn-cart-add, button.checkout-cta]
+2026-04-15T10:44:18.910Z mabl-deployment.sh: exit code 1
+##[error]Process completed with exit code 1.

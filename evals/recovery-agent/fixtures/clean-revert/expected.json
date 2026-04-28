@@ -1,0 +1,13 @@
+{
+  "scenario": "clean-revert",
+  "description": "Single recent merge introduced a CSS-class rename that broke mabl's selector. Smart-heal failed. Previous runs of the same test passed consistently. Mechanical revert is the right call.",
+  "rubric": {
+    "decision": "revert",
+    "confidence_acceptable": ["high", "medium"],
+    "looks_like_flake": false,
+    "looks_like_demo_toggle": false,
+    "suggested_revert_sha_required": true,
+    "suggested_revert_sha_must_match": "a3f8c9d4e8b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5",
+    "reasoning_must_mention_any_of": ["EVAL-1", "btn-cart-add", "selector", "data-testid", "ProductCard"]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "scenario": "forward-fix-obvious",
+  "description": "EVAL-5 added a MABL_TIMEOUT_MS reference to the postman collection but didn't define the env var (in workflow YAML or postman environment). The fix is mechanical — define the variable. Reverting would lose a useful feature; forward-fix is the right call.",
+  "rubric": {
+    "decision": "forward-fix",
+    "confidence_acceptable": ["medium", "high"],
+    "looks_like_flake": false,
+    "looks_like_demo_toggle": false,
+    "suggested_revert_sha_required": false,
+    "suggested_fix_summary_required": true,
+    "reasoning_must_mention_any_of": ["MABL_TIMEOUT_MS", "env var", "environment variable", "define", "EVAL-5"]
+  }
+}

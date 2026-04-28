@@ -1,0 +1,12 @@
+{
+  "scenario": "mabl-flake",
+  "description": "Test failed on a wait/timeout, but: (a) no deploy happened between the last green run and this one, (b) historical pass rate is 94%, (c) the immediately preceding run (15 min earlier) passed, (d) the only recent commit is a patch-level eslint-config bump that can't affect runtime. Strong flake signal.",
+  "rubric": {
+    "decision": "page-human",
+    "confidence_acceptable": ["medium", "high", "low"],
+    "looks_like_flake": true,
+    "looks_like_demo_toggle": false,
+    "suggested_revert_sha_required": false,
+    "reasoning_must_mention_any_of": ["flake", "intermittent", "timeout", "94%", "passed", "no deploy", "retry"]
+  }
+}

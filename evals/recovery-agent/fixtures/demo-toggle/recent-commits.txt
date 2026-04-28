@@ -1,0 +1,10 @@
+b8c7d6e Merge pull request #156 from EVAL-2/footer-link-fix
+4f3e2d1 EVAL-2: fix footer Privacy link href
+a1b2c3d Merge pull request #155 from EVAL-94/typo-fix
+9e8d7c6 EVAL-94: typo in welcome banner
+5d4c3b2 Merge pull request #154 from EVAL-93/dependabot-react
+4c3b2a1 ci(deps): bump @types/react from 19.0.0 to 19.0.1
+3b2a190 Merge pull request #153 from EVAL-92/seed-update
+2a1908f EVAL-92: add 3 new sample skates to seed
+1908fe7 Merge pull request #152 from EVAL-91/readme-tweak
+0907ed6 EVAL-91: clarify deploy section in README

@@ -1,0 +1,12 @@
+{
+  "scenario": "multi-commit-confusion",
+  "description": "5 commits merged in the last 30 min, three of which (EVAL-4a middleware, EVAL-4c cookie, EVAL-4d seed/creds) could plausibly cause an auth-flow 500. The mabl plan-run notes itself flag the ambiguity. Agent should refuse to guess and page a human.",
+  "rubric": {
+    "decision": "page-human",
+    "confidence_acceptable": ["low", "medium"],
+    "looks_like_flake": false,
+    "looks_like_demo_toggle": false,
+    "suggested_revert_sha_required": false,
+    "reasoning_must_mention_any_of": ["multiple", "isolat", "ambiguous", "EVAL-4", "auth", "uncertain", "cannot determine"]
+  }
+}
