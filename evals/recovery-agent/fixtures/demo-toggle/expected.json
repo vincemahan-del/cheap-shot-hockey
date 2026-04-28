@@ -1,0 +1,12 @@
+{
+  "scenario": "demo-toggle",
+  "description": "Prod returning 503 with mode='broken' — the demo toggle is set, NOT a real regression. The merge commit (footer link change) couldn't possibly cause a global 503. Agent should detect this and recommend page-human with the demo-toggle hint flag.",
+  "rubric": {
+    "decision": "page-human",
+    "confidence_acceptable": ["medium", "high"],
+    "looks_like_flake": false,
+    "looks_like_demo_toggle": true,
+    "suggested_revert_sha_required": false,
+    "reasoning_must_mention_any_of": ["demo", "toggle", "broken", "503", "mode"]
+  }
+}

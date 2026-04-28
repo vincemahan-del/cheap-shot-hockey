@@ -1,0 +1,67 @@
+# Recovery-agent evals — runs the frozen-fixture eval suite at
+# evals/recovery-agent/ to verify the recovery agent's diagnosis logic
+# stays correct.
+#
+# Triggers:
+#   - PR or push touching scripts/recovery-agent/** or evals/recovery-agent/**
+#   - nightly cron at 04:23 UTC (catches drift in model behavior or
+#     agent SDK changes between commits)
+#
+# Behavior without ANTHROPIC_API_KEY: the runner detects the missing
+# secret and exits 2 with a noop message. The job is marked "skipped"
+# in that path so it doesn't show as a failure on PRs from forks.
+
+name: recovery-agent evals
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/recovery-agent/**"
+      - "evals/recovery-agent/**"
+      - ".github/workflows/recovery-agent-evals.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/recovery-agent/**"
+      - "evals/recovery-agent/**"
+      - ".github/workflows/recovery-agent-evals.yml"
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  run-evals:
+    name: run recovery-agent evals
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: skip if ANTHROPIC_API_KEY not configured
+        id: precheck
+        run: |
+          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            echo "ANTHROPIC_API_KEY is not set in repo secrets."
+            echo "Skipping evals — they cannot run without invoking the real agent."
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skipped=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: install recovery-agent deps
+        if: steps.precheck.outputs.skipped == 'false'
+        working-directory: scripts/recovery-agent
+        run: npm install --no-audit --no-fund
+
+      - name: run eval suite
+        if: steps.precheck.outputs.skipped == 'false'
+        run: |
+          node evals/recovery-agent/run.js

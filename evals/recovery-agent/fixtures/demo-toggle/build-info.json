@@ -1,0 +1,10 @@
+{
+  "name": "cheap-shot-hockey",
+  "commit": "b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9",
+  "branch": "main",
+  "environment": "production",
+  "deployedAt": "2026-04-18T16:06:01.207Z",
+  "region": "iad1",
+  "apiVersion": "1.0.0",
+  "uiVersion": "1.0.0"
+}

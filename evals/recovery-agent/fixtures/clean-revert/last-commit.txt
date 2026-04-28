@@ -1,0 +1,12 @@
+commit a3f8c9d4e8b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5
+Merge: 9e5d8a2 1b2e4f7
+Author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+Date:   2026-04-15 10:38:42 +0000
+
+    Merge pull request #142 from EVAL-1/restyle-product-cards
+
+    EVAL-1: restyle product cards with new btn-cart-add class
+
+ src/components/ProductCard.tsx | 14 +++++++-------
+ src/components/ProductCard.module.css | 22 ++++++++++++++++------
+ 2 files changed, 23 insertions(+), 13 deletions(-)

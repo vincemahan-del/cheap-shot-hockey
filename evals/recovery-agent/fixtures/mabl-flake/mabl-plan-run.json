@@ -1,0 +1,31 @@
+{
+  "plan_run_id": "run-1a2b3c",
+  "plan_name": "CSH-SMOKE-POSTDEPLOY",
+  "environment": "Production",
+  "started_at": "2026-04-22T03:14:21.085Z",
+  "completed_at": "2026-04-22T03:15:48.224Z",
+  "status": "FAILED",
+  "tests_total": 4,
+  "tests_passed": 3,
+  "tests_failed": 1,
+  "failed_tests": [
+    {
+      "name": "csh-checkout-end-to-end",
+      "failed_step": 8,
+      "failed_step_label": "wait for order confirmation page",
+      "failure_reason": "Timeout waiting for selector",
+      "selector_attempted": "h1[data-testid='order-confirmation-heading']",
+      "smart_heal_attempted": true,
+      "smart_heal_succeeded": false,
+      "timeout_ms": 10000,
+      "notes": "Element exists in DOM in 'about to render' state. Likely network-stall or render-delay flake."
+    }
+  ],
+  "previous_runs_same_test": [
+    {"date": "2026-04-22T02:59:00Z", "status": "PASSED", "duration_ms": 8400},
+    {"date": "2026-04-22T02:44:00Z", "status": "PASSED", "duration_ms": 7900},
+    {"date": "2026-04-22T02:29:00Z", "status": "PASSED", "duration_ms": 8100}
+  ],
+  "historical_pass_rate_30d": "94.0%",
+  "deploys_since_last_pass": 0
+}

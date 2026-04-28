@@ -1,0 +1,29 @@
+{
+  "plan_run_id": "run-7x8y9z",
+  "plan_name": "CSH-SMOKE-POSTDEPLOY",
+  "environment": "Production",
+  "started_at": "2026-04-15T10:42:32.851Z",
+  "completed_at": "2026-04-15T10:44:18.892Z",
+  "status": "FAILED",
+  "tests_total": 4,
+  "tests_passed": 3,
+  "tests_failed": 1,
+  "failed_tests": [
+    {
+      "name": "csh-checkout-add-to-cart-end-to-end",
+      "failed_step": 5,
+      "failed_step_label": "click Add to Cart on first product card",
+      "failure_reason": "Selector did not match",
+      "selector_attempted": "[data-testid='add-to-cart-button']",
+      "smart_heal_attempted": true,
+      "smart_heal_succeeded": false,
+      "dom_snapshot_buttons": ["button.btn-cart-add", "button.checkout-cta"],
+      "screenshot_url": "https://app.mabl.com/workspaces/X/runs/run-7x8y9z/step-5/screenshot"
+    }
+  ],
+  "previous_runs_same_test": [
+    {"date": "2026-04-15T08:00:00Z", "status": "PASSED"},
+    {"date": "2026-04-14T20:00:00Z", "status": "PASSED"},
+    {"date": "2026-04-14T08:00:00Z", "status": "PASSED"}
+  ]
+}

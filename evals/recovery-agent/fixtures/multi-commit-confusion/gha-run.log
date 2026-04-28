@@ -1,0 +1,11 @@
+2026-04-25T11:32:14.087Z mabl-deployment.sh: triggered plan with labels type-smk,exec-postdeploy
+2026-04-25T11:32:28.412Z mabl-deployment.sh: deployment_id=dep-9q8r7s plan_run_id=run-4d5e6f
+2026-04-25T11:32:28.414Z mabl-deployment.sh: polling for results...
+2026-04-25T11:34:02.118Z mabl-deployment.sh: completed
+2026-04-25T11:34:02.120Z mabl-deployment.sh: status=FAILED tests=4 passed=2 failed=2
+2026-04-25T11:34:02.122Z mabl-deployment.sh: failures:
+  Test 1 (csh-login-flow): step 3 — POST /api/auth/login returned 500
+    Response: {"error":"server_error"}
+  Test 2 (csh-checkout-end-to-end): step 4 — login redirect failed (depends on test 1)
+2026-04-25T11:34:02.130Z mabl-deployment.sh: exit code 1
+##[error]Process completed with exit code 1.

@@ -1,0 +1,3 @@
+{
+  "note": "mabl plan was not reached — newman API smoke failed first, blocking the mabl gate. The post-deploy chain failed at T1 newman, not at mabl. Agent should infer this from gha-run.log."
+}
