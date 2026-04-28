@@ -60,7 +60,7 @@ jobs:
     name: lint (eslint)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -81,7 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -108,7 +108,7 @@ jobs:
       coverage_lines: ${{ steps.metrics.outputs.coverage_lines }}
       coverage_branches: ${{ steps.metrics.outputs.coverage_branches }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -177,7 +177,7 @@ jobs:
       diff_add: ${{ steps.diff.outputs.additions }}
       diff_del: ${{ steps.diff.outputs.deletions }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # Full history for git diff against main
           fetch-depth: 0
@@ -235,7 +235,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: wait for Vercel Preview deployment + capture URL
         id: preview
         run: |
@@ -310,7 +310,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: wait for Vercel Prod to reflect new commit
         run: |
           short="${GITHUB_SHA:0:7}"
@@ -379,7 +379,7 @@ jobs:
       MABL_ENV_PREVIEW_ID: ${{ secrets.MABL_ENV_PREVIEW_ID }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: sudo apt-get update && sudo apt-get install -y jq
       - name: lookup Vercel preview URL from GitHub Deployments
         id: preview
@@ -433,7 +433,7 @@ jobs:
       MABL_APPLICATION_ID: ${{ secrets.MABL_APPLICATION_ID }}
       MABL_ENV_PROD_ID: ${{ secrets.MABL_ENV_PROD_ID }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: sudo apt-get install -y jq
       - name: trigger CSH-SMOKE-POSTDEPLOY against Prod
         run: |
@@ -494,7 +494,7 @@ jobs:
       # env cannot reference ${{ env.* }} from workflow-level (context
       # not available here), so we rely on inheritance instead.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 30
       - uses: actions/setup-node@v4
@@ -575,7 +575,7 @@ jobs:
       MABL_APPLICATION_ID: ${{ secrets.MABL_APPLICATION_ID }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - run: sudo apt-get update -qq && sudo apt-get install -y jq
