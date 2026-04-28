@@ -1,0 +1,170 @@
+# auto-fix.yml — deterministic auto-fix for trivial PR lint failures.
+# v1 of mabl's "auto-fix agents handle only trivial issues with circuit
+# breakers" pattern. No LLM in v1 — runs `eslint --fix` and commits the
+# diff if (a) lint was failing, (b) the fix actually resolves it, and
+# (c) the circuit breaker hasn't tripped (max 2 consecutive auto-fix
+# commits authored by github-actions[bot] on the PR branch).
+#
+# v2 (TAMD-113) will add an LLM agent for non-formatter fixes (type
+# annotations, missing imports beyond eslint's auto-import scope, etc.)
+# layered on top of this v1 deterministic pass.
+#
+# Skipped:
+#   - Dependabot PRs (already messy with major bumps)
+#   - Cross-repo fork PRs (GITHUB_TOKEN can't push back; security)
+#   - PRs where the last 2 commits are already auto-fix commits
+
+name: auto-fix (deterministic — eslint --fix)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - ".eslintrc*"
+      - "eslint.config.*"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-fix:
+    name: auto-fix (eslint --fix)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: |
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      SLACK_CHANNEL_ID: C0A321B477Y
+      JIRA_BASE_URL: https://mabl.atlassian.net
+      JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 5  # need recent commits for circuit breaker
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: circuit breaker check
+        id: cb
+        run: |
+          consecutive=0
+          for sha in $(git log -10 --pretty=%H); do
+            author_email=$(git show -s --format=%ae "$sha")
+            subject=$(git show -s --format=%s "$sha")
+            if [[ "$author_email" == *"github-actions[bot]"* ]] && [[ "$subject" == *"auto-fix"* ]]; then
+              consecutive=$((consecutive + 1))
+            else
+              break
+            fi
+          done
+          echo "consecutive=$consecutive" >> "$GITHUB_OUTPUT"
+          echo "Consecutive auto-fix commits: $consecutive"
+          if [ "$consecutive" -ge 2 ]; then
+            echo "tripped=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Circuit breaker tripped: $consecutive consecutive auto-fix commits already on this PR. Skipping further attempts."
+          else
+            echo "tripped=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: notify (circuit breaker tripped)
+        if: steps.cb.outputs.tripped == 'true'
+        run: |
+          bash scripts/ci-notify.sh fail "Auto-fix circuit breaker" ":warning: *Circuit breaker tripped* — ${{ steps.cb.outputs.consecutive }} consecutive auto-fix commits already on this PR. Skipping further auto-fix attempts. *Human investigation needed*: the lint failure may not be auto-fixable, or there's a fix-fail loop."
+
+      - name: install deps
+        if: steps.cb.outputs.tripped != 'true'
+        run: npm ci
+
+      - name: check baseline lint
+        if: steps.cb.outputs.tripped != 'true'
+        id: baseline
+        continue-on-error: true
+        run: |
+          set +e
+          npm run lint --silent
+          exit_code=$?
+          if [ $exit_code -eq 0 ]; then
+            echo "needs_fix=false" >> "$GITHUB_OUTPUT"
+            echo "Baseline lint passes. No auto-fix needed."
+          else
+            echo "needs_fix=true" >> "$GITHUB_OUTPUT"
+            echo "Baseline lint fails (exit $exit_code). Will attempt eslint --fix."
+          fi
+
+      - name: run eslint --fix
+        if: steps.cb.outputs.tripped != 'true' && steps.baseline.outputs.needs_fix == 'true'
+        continue-on-error: true
+        run: npm run lint -- --fix
+
+      - name: check for diff + verify lint passes + commit
+        if: steps.cb.outputs.tripped != 'true' && steps.baseline.outputs.needs_fix == 'true'
+        id: fix
+        env:
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "fixed=false" >> "$GITHUB_OUTPUT"
+            echo "reason=no_changes" >> "$GITHUB_OUTPUT"
+            echo "eslint --fix produced no changes — issue is not auto-fixable."
+            exit 0
+          fi
+
+          # Verify lint passes after the fix attempt
+          set +e
+          npm run lint --silent
+          lint_exit=$?
+          set -e
+
+          if [ $lint_exit -ne 0 ]; then
+            echo "fixed=false" >> "$GITHUB_OUTPUT"
+            echo "reason=fix_incomplete" >> "$GITHUB_OUTPUT"
+            echo "eslint --fix made changes but lint still fails. Reverting changes."
+            git checkout -- .
+            exit 0
+          fi
+
+          files_changed=$(git status --porcelain | wc -l | tr -d ' ')
+          echo "files_changed=$files_changed" >> "$GITHUB_OUTPUT"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit \
+            -m "chore(auto-fix): apply eslint --fix — auto-fix-agent v1" \
+            -m "${files_changed} file(s) updated by eslint --fix. Baseline lint was failing on PR #${PR_NUMBER}; lint now passes after the fix." \
+            -m "Circuit breaker: workflow stops after 2 consecutive auto-fix commits on the same PR — see .github/workflows/auto-fix.yml."
+
+          git push origin "HEAD:${PR_HEAD_REF}"
+          echo "fixed=true" >> "$GITHUB_OUTPUT"
+
+      - name: notify (auto-fix applied)
+        if: steps.fix.outputs.fixed == 'true'
+        run: |
+          bash scripts/ci-notify.sh ok "Auto-fix applied" ":wrench: *Auto-fix-agent v1 applied* \`eslint --fix\` to *${{ steps.fix.outputs.files_changed }}* file(s). Lint now passes; CI re-running on the new commit. Circuit breaker fires after 2 consecutive auto-fix commits."
+
+      - name: notify (not auto-fixable)
+        if: steps.cb.outputs.tripped != 'true' && steps.baseline.outputs.needs_fix == 'true' && steps.fix.outputs.fixed != 'true'
+        run: |
+          reason="${{ steps.fix.outputs.reason }}"
+          if [ "$reason" = "no_changes" ]; then
+            msg="Lint failed on this PR, but \`eslint --fix\` produced no auto-fixable changes. Human review needed (or the issue requires the M9 v2 LLM agent — TAMD-113)."
+          elif [ "$reason" = "fix_incomplete" ]; then
+            msg="\`eslint --fix\` made changes but lint still fails — the issue isn't fully auto-fixable. Reverted the partial fix; the original commit stands. Human review needed."
+          else
+            msg="Auto-fix attempt did not produce a clean fix. Human review needed."
+          fi
+          bash scripts/ci-notify.sh info "Auto-fix attempted" ":information_source: $msg"

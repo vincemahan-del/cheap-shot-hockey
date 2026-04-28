@@ -144,6 +144,18 @@ calls invoked from a webhook handler. That's a separate piece of work.
   fail-safe `page-human` and exits 0. The architecture works without
   the key; only the live diagnosis loop is gated on it.
 
+## Auto-fix workflow (deterministic v1)
+
+On a PR with a fixable lint failure, `.github/workflows/auto-fix.yml` runs `eslint --fix`, verifies the issue is resolved, and commits the result back to the PR branch — which re-triggers the main CI workflow on the cleaned commit.
+
+**Circuit breaker:** the workflow counts consecutive commits authored by `github-actions[bot]` with `auto-fix` in the subject. After 2, it stops and posts to Slack — preventing fix-fail loops.
+
+**Sandbox:** only the PR's head branch (never main), only `eslint --fix` (single command), skips Dependabot + cross-repo forks. v1 is deterministic — no LLM, no API key required, customer-deployable as-is.
+
+v2 (TAMD-113) layers an Agent SDK loop on top for non-formatter fixes (type-annotation typos, missing imports beyond eslint's scope) — same circuit-breaker pattern, plus narrow `allowedTools` enforcement at the SDK boundary.
+
+Mirrors [mabl's published auto-fix-agent pattern](https://www.mabl.com/blog/how-we-built-a-system-for-ai-agents-to-ship-real-code-across-75-repos) with circuit breakers.
+
 ## Cost + cycle-time receipt (per ticket)
 
 Every shipped ticket gets a final `:receipt:` Slack message at the end of the post-deploy chain. v1 metrics are deterministic and need no extra creds:
