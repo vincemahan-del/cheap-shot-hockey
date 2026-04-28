@@ -170,6 +170,32 @@ Promoting any of these to required-check status is a branch-protection
 change (manual on the GitHub repo), not a workflow change. Document
 that decision and the date it lands in this file when it happens.
 
+## Auto-fix workflow (v1 — deterministic)
+
+When a PR's lint fails on a fixable issue (formatting, unused imports,
+etc.), `.github/workflows/auto-fix.yml` runs `eslint --fix` and commits
+the result on the PR branch — re-triggering CI on the cleaned commit.
+
+**Circuit breaker (non-negotiable):** the workflow counts consecutive
+commits authored by `github-actions[bot]` with `auto-fix` in the
+subject. If >= 2, it skips with a Slack notification ("circuit
+breaker tripped — human investigation needed"). This prevents fix-fail
+loops.
+
+**Sandbox:**
+- Only operates on the PR's head branch; never touches main
+- Skips Dependabot PRs (already messy with major bumps)
+- Skips cross-repo fork PRs (security; `GITHUB_TOKEN` can't push back anyway)
+- Single command: `npm run lint -- --fix`. No other shell.
+- Verifies lint actually passes after the fix; reverts if not
+
+v1 is **deterministic** (no LLM). v2 (TAMD-113) layers an Agent SDK
+loop on top for non-formatter fixes (type-annotation typos, missing
+imports beyond eslint's auto-import scope, etc.) — same circuit
+breaker pattern.
+
+Mirrors mabl's published auto-fix-agent pattern with circuit breakers.
+
 ## Cost + cycle-time receipt per ticket
 
 Every shipped ticket gets a final `:receipt:` Slack post computed by
