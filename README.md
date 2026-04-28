@@ -1,8 +1,10 @@
 # Cheap Shot Hockey
 
-> Fake hockey equipment store. Real demo value. Built to showcase mabl against both UI and API surfaces.
+> Fake hockey equipment store. Real demo value. Built to showcase mabl against both UI and API surfaces — *and* to serve as a forkable reference architecture for an agentic SDLC.
 
 Cheap Shot Hockey is a full-stack Next.js demo app designed for customer demonstrations of [mabl](https://www.mabl.com/). It ships with a storefront UI, a JSON REST API, an OpenAPI 3.1 spec, and a set of toggleable failure modes so you can drive believable demos of UI test auto-healing, API contract testing, and intelligent failure analysis — all from a single Vercel deploy.
+
+This repo also doubles as a **reference architecture for agentic ticket-to-prod**: one prompt to Claude Code drives a Jira ticket through GHA gates (lint → coverage → build → newman → mabl smoke → branch protection → auto-merge → Vercel → post-deploy verification → recovery agent on failure) without further human input. See [`docs/REFERENCE-ARCHITECTURE.md`](docs/REFERENCE-ARCHITECTURE.md) for the pattern, [`docs/FORK-GUIDE.md`](docs/FORK-GUIDE.md) for the 90-min "fork and deploy on your own stack" walkthrough, and [`docs/SDLC-DEMO.md`](docs/SDLC-DEMO.md) for the customer-demo runbook.
 
 ---
 
