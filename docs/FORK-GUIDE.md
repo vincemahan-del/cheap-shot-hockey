@@ -271,6 +271,35 @@ to change — they're application-agnostic.
 | Jira transition doesn't fire | Ticket key extraction relies on the branch name format `<KEY>/short-slug` OR the commit message starting with `<KEY>:`. Check the run logs. |
 | Recovery agent always emits page-human | `ANTHROPIC_API_KEY` not set, or the agent received malformed diagnostic context. Check the GHA `recovery-agent` job logs. |
 | Coverage gate fails on first run | Adjust `coverage.thresholds` in `vitest.config.ts` to match your codebase reality, then tighten over time. |
+| mabl cloud bill is higher than expected during dev iteration | Pause cloud runs with `gh variable set MABL_CLOUD_GATE --body "disabled" --repo OWNER/REPO`. T1 newman API smoke remains as the always-on gate. Reenable with `--body "enabled"` (or unset). See [Cost control](#cost-control) below. |
+
+## Cost control
+
+Each PR fires 2 mabl cloud plan runs (Preview + Prod). For build-out, dev iteration, or any phase where per-PR cloud cost matters more than browser-layer verification:
+
+```bash
+gh variable set MABL_CLOUD_GATE --body "disabled" --repo OWNER/REPO
+```
+
+What stays on:
+- Newman API smoke (T1) on PR + main push — local CLI, no mabl charge
+- Lint, security, unit + coverage, build, test-impact, CodeQL, recovery-agent, evals
+- Slack/Jira audit trail (with a clear "mabl cloud gate paused" notice)
+
+What pauses:
+- `CSH-SMOKE-PR` browser-layer gate on every PR
+- `CSH-SMOKE-POSTDEPLOY` post-deploy verification
+- mabl's native Slack screenshots
+
+Reenable for release-candidate runs:
+
+```bash
+gh variable set MABL_CLOUD_GATE --body "enabled" --repo OWNER/REPO
+# or unset entirely — default is enabled when missing
+gh variable delete MABL_CLOUD_GATE --repo OWNER/REPO
+```
+
+The toggle is a **repo variable** (not a secret) so it shows up in run logs and is auditable. Workflows respect the variable per-run, so the next PR after the toggle change immediately reflects the new state.
 
 ---
 

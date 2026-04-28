@@ -173,18 +173,39 @@ QA investment, tier-tagged assertion policy.
 
 ## Act 2 — Agentic ticket-to-prod (8–10 min)
 
-**Story:** "One prompt. The agent creates the ticket, opens the PR, and
-gates the merge through the full pipeline."
+**Story:** "One prompt. The agent runs through four phases — Analysis, Planning, Implementation, Review — and ships to prod, with humans gating only the consequential decisions."
+
+This act mirrors the four-phase pattern mabl uses internally to ship code across 75+ repos (see [mabl's published architecture](https://www.mabl.com/blog/how-we-built-a-system-for-ai-agents-to-ship-real-code-across-75-repos)). Same shape, packaged for customer adoption.
+
+| Phase | What happens | Human gate? |
+| --- | --- | --- |
+| **1. Analysis** | Orchestrator reads the ticket, scans `CLAUDE.md`, identifies affected files | No — agent autonomous |
+| **2. Planning** | If the change is **high-blast-radius** (auth, API contract, > 200 LOC, etc.), orchestrator emits a plan to Jira and pauses | **Yes for high-blast** — human approves before code is written |
+| **3. Implementation** | Code changes, pre-PR DoD (coverage gate, mabl impact), commit, push, PR opened, auto-merge armed | No — gated by CI |
+| **4. Review** | 5 required CI checks (lint, security, unit, build, T1, mabl), AI code review (`pr-reviewer`), human approval at merge | **Yes at merge** — required reviewer policy |
+
+### Demo flow
 
 1. In Claude Code, prompt: *"Use demo-orchestrator to ship a small
    change: add a 'Free shipping over $99' badge to the cart page."*
-2. The orchestrator subagent:
+2. The orchestrator subagent runs Phase 1 (Analysis):
    - Creates a Jira ticket in TAMD (e.g. TAMD-NN)
    - Posts the kickoff message to `#vince-agentic-workflow-demos` at
      channel root, prefixed `[TAMD-NN]`
    - Branches `TAMD-NN/free-shipping-badge` off main
    - Makes the code change with `data-testid` attributes consistent with
      nearby conventions
+3. **Phase 2 (Planning) — plan-mode gate.** The orchestrator runs
+   `node scripts/orchestrator-plan/detect-blast-radius.js --base main`.
+   - For this *low-blast* example (cart UI tweak, no auth/API/store
+     touched, < 200 LOC) → detector returns `blast_radius: "low"`,
+     orchestrator skips the plan post and proceeds.
+   - For a *high-blast* change (e.g. auth modification), the detector
+     would return `blast_radius: "high"`, the orchestrator would post
+     a structured plan to Jira, and **stop and wait for the human to
+     reply Approved** before continuing. Show this branch by deliberately
+     editing `src/lib/auth-crypto.ts` in a follow-up demo run.
+4. Phase 3 (Implementation):
    - Runs the pre-PR DoD: `npm run test:coverage` (90% gate), then
      `git diff --name-only main | ./scripts/mabl-suggest-tests.sh`
    - Commits with message `TAMD-NN: ...`, pushes, opens the PR, and
@@ -205,7 +226,8 @@ gates the merge through the full pipeline."
    - `:white_check_mark: [TAMD-NN] Passed: Merge-ready` — all 5 required
      checks green, merge button live
 
-5. **Auto-merge fires.** Branch deletes, prod deploy starts. Slack
+5. **Phase 4 (Review) → Auto-merge fires.** Once all 5 required checks
+   green, auto-merge fires. Branch deletes, prod deploy starts. Slack
    posts:
    - `:white_check_mark: [TAMD-NN] Passed: T1 newman smoke (Prod)`
    - `:white_check_mark: [TAMD-NN] Passed: Shipped to production` —

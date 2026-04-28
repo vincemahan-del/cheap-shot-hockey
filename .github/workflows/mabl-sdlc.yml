@@ -379,9 +379,23 @@ jobs:
       MABL_ENV_PREVIEW_ID: ${{ secrets.MABL_ENV_PREVIEW_ID }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+      - name: check MABL_CLOUD_GATE toggle
+        id: gate
+        run: |
+          toggle="${{ vars.MABL_CLOUD_GATE || 'enabled' }}"
+          echo "value=$toggle" >> "$GITHUB_OUTPUT"
+          if [ "$toggle" = "disabled" ]; then
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::mabl cloud gate is disabled (repo var MABL_CLOUD_GATE=disabled). Skipping cloud run."
+          else
+            echo "skipped=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
+        if: steps.gate.outputs.skipped != 'true'
       - run: sudo apt-get update && sudo apt-get install -y jq
+        if: steps.gate.outputs.skipped != 'true'
       - name: lookup Vercel preview URL from GitHub Deployments
+        if: steps.gate.outputs.skipped != 'true'
         id: preview
         run: |
           repo="${GITHUB_REPOSITORY}"
@@ -393,6 +407,7 @@ jobs:
           echo "url=$env_url" >> "$GITHUB_OUTPUT"
           echo "Preview URL: $env_url"
       - name: trigger CSH-SMOKE-PR against Preview
+        if: steps.gate.outputs.skipped != 'true'
         run: |
           chmod +x scripts/mabl-deployment.sh
           ./scripts/mabl-deployment.sh \
@@ -410,18 +425,26 @@ jobs:
       # merge-gate decision (branch protection unblocked / blocked) so
       # we don't duplicate what mabl's Slack app already covers.
       - name: notify (success — merge unblocked)
-        if: success()
+        if: success() && steps.gate.outputs.skipped != 'true'
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
           NEXT_GATE: "Merge allowed — branch protection unblocked. Merging triggers Prod deploy + T3."
         run: |
           bash scripts/ci-notify.sh ok "Merge-ready" "All 5 required PR checks are green — merge button is live. mabl Slack app posted the plan-run result separately with screenshots + assertion details."
       - name: notify (failure — merge blocked)
-        if: failure()
+        if: failure() && steps.gate.outputs.skipped != 'true'
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
         run: |
           bash scripts/ci-notify.sh fail "Merge blocked by mabl" "Browser-layer tests failed on the Preview deploy. See mabl's Slack post in this channel for screenshots + which steps failed, and the plan run for the full detail."
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.skipped == 'true'
+      - name: notify (cloud gate disabled — paused)
+        if: steps.gate.outputs.skipped == 'true'
+        env:
+          NEXT_GATE: "Merge allowed — branch protection unblocked. Merging triggers Prod deploy + T3."
+        run: |
+          bash scripts/ci-notify.sh ok "Merge-ready" ":pause_button: *mabl cloud gate is paused* (repo var \`MABL_CLOUD_GATE=disabled\`). Newman API smoke + GHA gates were the review for this PR. Reenable: \`gh variable set MABL_CLOUD_GATE --body \"enabled\" --repo \$REPO\`."
 
   post-deploy-smoke:
     name: mabl — CSH-SMOKE-POSTDEPLOY (Prod)
@@ -433,9 +456,22 @@ jobs:
       MABL_APPLICATION_ID: ${{ secrets.MABL_APPLICATION_ID }}
       MABL_ENV_PROD_ID: ${{ secrets.MABL_ENV_PROD_ID }}
     steps:
+      - name: check MABL_CLOUD_GATE toggle
+        id: gate
+        run: |
+          toggle="${{ vars.MABL_CLOUD_GATE || 'enabled' }}"
+          echo "value=$toggle" >> "$GITHUB_OUTPUT"
+          if [ "$toggle" = "disabled" ]; then
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::mabl cloud gate is disabled (repo var MABL_CLOUD_GATE=disabled). Skipping cloud run."
+          else
+            echo "skipped=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
       - run: sudo apt-get install -y jq
+        if: steps.gate.outputs.skipped != 'true'
       - name: trigger CSH-SMOKE-POSTDEPLOY against Prod
+        if: steps.gate.outputs.skipped != 'true'
         run: |
           chmod +x scripts/mabl-deployment.sh
           ./scripts/mabl-deployment.sh \
@@ -449,16 +485,24 @@ jobs:
       # Same pattern as mabl-smoke: mabl's native Slack app posts the
       # plan-run result with full detail. Our notifier here handles the
       # "shipped / not shipped" ticket transition + summary.
-      - name: notify (success — shipped)
-        if: success()
+      - name: notify (success — shipped, mabl ran)
+        if: success() && steps.gate.outputs.skipped != 'true'
         env:
           JIRA_TRANSITION: Done
           PROD_URL: ${{ env.PRODUCTION_URL }}
           NEXT_GATE: "Live. Ticket moved to Done."
         run: |
           bash scripts/ci-notify.sh ok "Shipped to production" ":rocket: Change is live on <${{ env.PRODUCTION_URL }}|cheap-shot-hockey.vercel.app> and verified by mabl against real prod (see mabl's Slack post above for per-test detail). Ticket transitioning to *Done*."
+      - name: notify (success — shipped, mabl gate paused)
+        if: success() && steps.gate.outputs.skipped == 'true'
+        env:
+          JIRA_TRANSITION: Done
+          PROD_URL: ${{ env.PRODUCTION_URL }}
+          NEXT_GATE: "Live. Ticket moved to Done. (mabl cloud gate paused — verified by T1 newman + GHA gates only.)"
+        run: |
+          bash scripts/ci-notify.sh ok "Shipped to production" ":rocket: Change is live on <${{ env.PRODUCTION_URL }}|cheap-shot-hockey.vercel.app>. :pause_button: mabl cloud gate is paused (repo var \`MABL_CLOUD_GATE=disabled\`); T1 newman API smoke + GHA gates were the verification surface. Ticket transitioning to *Done*."
       - name: notify (failure)
-        if: failure()
+        if: failure() && steps.gate.outputs.skipped != 'true'
         env:
           PROD_URL: ${{ env.PRODUCTION_URL }}
         run: |

@@ -170,6 +170,50 @@ Promoting any of these to required-check status is a branch-protection
 change (manual on the GitHub repo), not a workflow change. Document
 that decision and the date it lands in this file when it happens.
 
+## Cost-control: pausing mabl cloud runs
+
+Each PR fires 2 mabl cloud plan runs (`CSH-SMOKE-PR` Preview + `CSH-SMOKE-POSTDEPLOY` Prod). For dev iteration / build-out phases where cost matters more than per-PR UI verification, set the `MABL_CLOUD_GATE` repo variable to `disabled`:
+
+```bash
+gh variable set MABL_CLOUD_GATE --body "disabled" --repo OWNER/REPO
+```
+
+The mabl jobs still run (so branch protection stays satisfied) but skip the `mabl-deployment.sh` invocation. ci-notify posts a clear "mabl cloud gate paused" message instead of the usual mabl gate posts. T1 newman API smoke (local CLI, no mabl charge) remains the always-on review surface. Reenable:
+
+```bash
+gh variable set MABL_CLOUD_GATE --body "enabled" --repo OWNER/REPO
+```
+
+(Or unset entirely — default is `enabled` when missing.)
+
+When disabled, you lose: browser-layer UI verification on every PR, post-deploy mabl verification, and mabl's native Slack screenshots. Acceptable for build-out; reenable for release-candidate runs.
+
+## Plan-mode for high-blast-radius changes
+
+Before opening a PR, the orchestrator subagent runs the deterministic
+blast-radius detector at `scripts/orchestrator-plan/detect-blast-radius.js`.
+It reads `git diff --numstat main` and flags `blast_radius: "high"`
+when any of these are touched: `src/lib/auth*`, `src/lib/session*`,
+`src/app/api/auth/**`, `src/app/api/openapi/**`, `mabl/postman/**`,
+`.github/workflows/**`, `scripts/ci-notify.sh`, `scripts/recovery-agent/**`,
+`scripts/orchestrator-plan/**`, `.claude/agents/**`, `evals/recovery-agent/**`,
+`src/lib/store.ts`, `src/lib/seed.ts`, `src/lib/types.ts`, OR total
+LOC delta exceeds 200.
+
+When it fires, the orchestrator emits a structured plan in Jira
+wiki-markup and posts it to the ticket via
+`scripts/orchestrator-plan/post-plan.sh`. The human reviews the plan
+in Jira, then replies *Approved* (or *Reject: <reason>*) to the
+orchestrator in Claude Code. The orchestrator only proceeds to commit
++ push + PR after explicit approval.
+
+This closes the *"AI just merges to prod?"* objection: high-risk
+changes pause for a human checkpoint by deterministic rule, not by
+prompt convention. Path-based v1; v2 (TAMD-108) extends to confidence
+signals (open-question count, breaking-change detection, scope
+assessment) — matching the pattern mabl uses internally for its 75-repo
+agentic system.
+
 ## Failure-recovery agent (autonomous, narrow)
 
 When `mabl CSH-SMOKE-POSTDEPLOY` fails on `main`, GHA triggers
