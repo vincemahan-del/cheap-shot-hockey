@@ -150,6 +150,26 @@ delegate:
 
 See `docs/CLAUDE-AGENTS.md` for examples + invocation patterns.
 
+## Security + supply-chain gate
+
+Three pieces, all advisory in v1 (not in the 5 required PR checks):
+
+- **`npm audit --audit-level=high`** runs as the `security` job in
+  `.github/workflows/mabl-sdlc.yml`, alongside `lint`. Job-level
+  `continue-on-error: true` means it surfaces high/critical findings
+  in the run summary without blocking the merge button.
+- **CodeQL** runs as a separate workflow at
+  `.github/workflows/codeql.yml` — on every PR + push to main, plus a
+  weekly Monday cron. Uploads SARIF to the GitHub Security tab. Uses
+  the `security-extended` query suite.
+- **Dependabot** (`.github/dependabot.yml`) opens weekly dep-update
+  PRs for npm (production app + recovery-agent) and `github-actions`.
+  Each PR goes through the same SDLC pipeline as a human PR.
+
+Promoting any of these to required-check status is a branch-protection
+change (manual on the GitHub repo), not a workflow change. Document
+that decision and the date it lands in this file when it happens.
+
 ## Failure-recovery agent (autonomous, narrow)
 
 When `mabl CSH-SMOKE-POSTDEPLOY` fails on `main`, GHA triggers

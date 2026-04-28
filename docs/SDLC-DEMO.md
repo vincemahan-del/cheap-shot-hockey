@@ -99,6 +99,12 @@ Then don't talk — let the agent run. Tab-switch as each gate fires.
 
 ### Provision GHA (primary CI)
 
+Workflows in `.github/workflows/`:
+
+- **`mabl-sdlc.yml`** — the canonical gate sequence (lint → unit + 90% coverage → build → T1 newman Preview → mabl CSH-SMOKE-PR → on main push, T1 newman Prod → mabl CSH-SMOKE-POSTDEPLOY → recovery-agent on post-deploy failure). Also runs an advisory `security` job (`npm audit --audit-level=high`) in parallel with `lint`.
+- **`codeql.yml`** — GitHub-native static analysis on every PR + push to main + a weekly Monday cron, with results in the Security tab. Uses the `security-extended` query suite.
+- **Dependabot** (`.github/dependabot.yml`) — weekly dep-update PRs for npm (production app + recovery-agent) and `github-actions`. Each PR runs the full SDLC pipeline.
+
 Set these as repo secrets:
 
 | Secret | Source |
@@ -324,6 +330,8 @@ Important honesty for customer demos:
 | `pr-reviewer` convention audit | Yes (when invoked) | No |
 | **Recovery agent** (post-deploy failure → diagnose → recommend) | **Yes** (Agent SDK `query()` with `Read`/`Grep`/`Glob` only) | No |
 | Acting on the recovery agent's recommendation (revert PR, fix, etc.) | No (deliberate sandbox) | Yes |
+| **Security gate** (`npm audit` + CodeQL) — advisory in v1 | Yes (every PR + main push, plus weekly CodeQL cron) | No |
+| **Dependabot** weekly dep PRs (npm + github-actions) | Yes (PRs go through full SDLC pipeline) | No |
 
 The Claude Code subagents run in an interactive session — they need
 Claude in the seat to drive. The CI pipeline they kick off is fully
