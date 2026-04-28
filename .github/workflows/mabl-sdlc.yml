@@ -72,6 +72,31 @@ jobs:
         run: |
           bash scripts/ci-notify.sh fail "lint" "eslint rules failed"
 
+  # Advisory security gate — npm audit at high+critical only. Doesn't
+  # block merge in v1 (continue-on-error: true at job level). Promote
+  # to a required check via branch protection after baseline findings
+  # are addressed. CodeQL runs in a separate workflow (.github/workflows/codeql.yml).
+  security:
+    name: security (npm audit)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: npm audit (production app, high+critical only)
+        run: npm audit --audit-level=high
+      - name: npm audit (recovery-agent, high+critical only)
+        working-directory: scripts/recovery-agent
+        run: npm audit --audit-level=high
+      - name: notify (failure)
+        if: failure()
+        run: |
+          bash scripts/ci-notify.sh fail "Security advisory" "npm audit found high or critical vulnerabilities. Job is advisory in v1 — merge is not blocked, but please triage."
+
   unit:
     name: unit tests + coverage
     needs: lint

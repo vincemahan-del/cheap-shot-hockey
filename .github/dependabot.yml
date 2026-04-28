@@ -1,0 +1,71 @@
+# Dependabot — automated dependency PRs.
+#
+# Each PR goes through the same mabl SDLC pipeline (lint → unit →
+# build → newman → mabl smoke), so a Dependabot PR is functionally
+# indistinguishable from a human PR — same gates, same checks, same
+# auto-merge eligibility once tests pass.
+
+version: 2
+updates:
+  # Production app deps
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "npm"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      next-and-react:
+        patterns:
+          - "next"
+          - "react"
+          - "react-*"
+          - "@types/react*"
+      tailwind:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+      types:
+        patterns:
+          - "@types/*"
+        exclude-patterns:
+          - "@types/react*"
+
+  # Recovery-agent isolated deps
+  - package-ecosystem: "npm"
+    directory: "/scripts/recovery-agent"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "npm"
+      - "recovery-agent"
+    commit-message:
+      prefix: "deps(recovery-agent)"
+
+  # GitHub Actions used in workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
