@@ -196,6 +196,35 @@ breaker pattern.
 
 Mirrors mabl's published auto-fix-agent pattern with circuit breakers.
 
+## Tier-4 routing — area-targeted regression dispatch
+
+The plan-mode detector (`scripts/orchestrator-plan/detect-blast-radius.js`)
+emits a `touched_mabl_areas` array based on which product surfaces the
+PR's diff actually touched (e.g. `["auth", "checkout"]`). The mabl-sdlc
+workflow uses this to route mabl regression tier-4 dispatch:
+
+- **`mabl-cli-pr-regression` GHA job** runs every PR (where touched
+  areas exist). For each touched area, runs `mabl tests run --labels
+  type-rt,area-<X> --headless --reporter mabl` in the GHA runner. Free
+  CLI execution; results published to mabl app for traceability.
+- **`mabl-cloud-regression-high-blast` GHA job** fires only when the
+  detector flags `blast_radius: "high"` — auth · API contract · CI
+  infra · agents · data layer · breaking change · >200 LOC. Dispatches
+  a cloud plan run per touched area for cross-browser parallel + smart
+  locators + diagnostics. Gated on `MABL_CLOUD_GATE` repo variable.
+- **`mabl-nightly.yml`** scheduled workflow runs the full
+  regression-tier suite headlessly vs production every night via mabl
+  CLI. Free, single-browser, catches drift. Skips gracefully without
+  `MABL_API_KEY`.
+
+Mabl test catalog must have `area-*` labels applied (`area-auth`,
+`area-checkout`, `area-catalog`) plus the tier label `type-rt`. Edit
+`MABL_AREA_PATTERNS` in `detect-blast-radius.js` to update the
+file→area mapping when the codebase grows new product surfaces.
+
+Required CI secrets: `MABL_API_KEY` (for CLI auth, separate from the
+cloud-API `MABL_API_TOKEN`). Skips gracefully when missing.
+
 ## Cost + cycle-time receipt per ticket
 
 Every shipped ticket gets a final `:receipt:` Slack post computed by

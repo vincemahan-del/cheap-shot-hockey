@@ -68,6 +68,19 @@ This pattern mirrors [mabl's published architecture](https://www.mabl.com/blog/h
 | **3. Implementation** | Code changes, pre-PR DoD (coverage gate, mabl impact analysis), commit, push, PR opened, auto-merge armed | Interactive Claude Code → GHA pipeline | No — gated by CI |
 | **4. Review** | 5 required CI checks (lint, security, unit, build, T1, mabl), AI code review, **mandatory human approval at merge** | GHA pipeline + branch protection + reviewer policy | **Yes at merge** |
 
+## Tier-4 area routing — risk-driven mabl test selection
+
+When the orchestrator detector classifies a PR's blast radius, it ALSO emits a `touched_mabl_areas` array — the unique set of mabl test areas (e.g. `["auth", "checkout"]`) corresponding to which files the PR actually changed. Two GHA jobs use this:
+
+- **`mabl-cli-pr-regression`** runs on every PR for each touched area. Free `mabl tests run --labels type-rt,area-<X> --headless` in the runner — single-browser, no cloud-credit consumption, results published back to mabl app via `--reporter mabl`.
+- **`mabl-cloud-regression-high-blast`** fires only when blast_radius is `high`. Dispatches a mabl cloud plan run per touched area with `--labels type-rt,area-<X>` filter — cross-browser parallel + smart locators + full diagnostics. Gated by the `MABL_CLOUD_GATE` repo variable for cost control.
+
+Plus the nightly drift catch (`.github/workflows/mabl-nightly.yml`): scheduled cron runs full regression suite via free CLI vs production, single-browser, results to mabl app. Replaces the every-15-min cloud heartbeat pattern with a $0 alternative.
+
+Customers fork → edit `MABL_AREA_PATTERNS` in `detect-blast-radius.js` to match their codebase's surfaces → label their mabl tests with matching `area-<X>` → routing works end-to-end without further code changes.
+
+## Plan-mode signal sources
+
 Plan-mode (Phase 2) combines four signal sources:
 
 - **Path-based** — matches `src/lib/auth/**`, `src/app/api/openapi/**`, `.github/workflows/**`, agent system prompts, shared data layer
