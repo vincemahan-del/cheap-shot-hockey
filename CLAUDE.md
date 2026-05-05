@@ -228,19 +228,31 @@ cloud-API `MABL_API_TOKEN`). Skips gracefully when missing.
 ## Cost + cycle-time receipt per ticket
 
 Every shipped ticket gets a final `:receipt:` Slack post computed by
-`scripts/cycle-time-receipt.sh`. v1 metrics:
+`scripts/cycle-time-receipt.sh`. Metrics:
 
 - **Lead time** — PR-open → merged, humanized (e.g. `8m`, `2h 14m`)
 - **GHA minutes** — sum of all workflow run durations across the PR's
   CI runs + the main-push run
+- **mabl minutes** — best-effort capture via `scripts/mabl-cloud-minutes.sh`
+  (REST `/events/deployment` query in the PR window). Falls back to `n/a`
+  with a stderr diagnostic if the endpoint shape doesn't match your tier
+  — swap `MABL_LIST_ENDPOINT` in the helper to fix. Says `paused` when
+  `MABL_CLOUD_GATE=disabled`.
+- **CI attempts** — count of pull_request workflow runs on the PR head,
+  split by `failure` vs `success`. Surfaces "this PR took 4 attempts"
+  friction signal.
+- **Human touches** — review count + approver handles + manual rerun
+  count (`workflow_dispatch` events on head_sha). Says
+  `0 reviews, 0 manual reruns (fully autonomous)` when nothing humans did.
+- **Agent tokens** — v2, not yet captured (needs Anthropic usage API).
 
-v2 (gated on respective creds): agent tokens (Anthropic usage API),
-mabl plan-run minutes (mabl API). v1 is fully deterministic, no extra
-creds beyond `GITHUB_TOKEN`.
+Fully deterministic — no LLM calls. All creds (`GITHUB_TOKEN`,
+`MABL_API_TOKEN`, `MABL_APPLICATION_ID`) are already wired for other gates.
 
-Customer ROI story: per-ticket cost is **auditable** and **trends over
-time** with no special instrumentation. The receipt is a single Slack
-message at ship time — readable in the channel, parseable from history.
+Customer ROI story: per-ticket cost AND friction (retries, human touches)
+are **auditable** and **trend over time** with no special instrumentation.
+The receipt is a single Slack message at ship time — readable in the
+channel, parseable from history.
 
 ## Cost-control: pausing mabl cloud runs
 
