@@ -1,0 +1,236 @@
+# Azure Pipelines reference — mabl + Azure DevOps integration
+#
+# This is a reference translation of `.github/workflows/mabl-sdlc.yml`
+# showing the same SDLC shape on Azure DevOps Pipelines instead of GHA.
+# Customers running mabl on Azure DevOps can fork this as a starting
+# point and adapt to their pipeline conventions.
+#
+# What this demonstrates:
+#   - Triggering mabl via the deployment-event REST API (overrides
+#     plan-default environment from the pipeline — answers Civix Q2)
+#   - Driving runtime config (TOTP group, env, app id) via pipeline
+#     variables instead of mabl UI defaults (answers Civix Q1)
+#   - Posting mabl results into Azure DevOps Test Plans via a bridge
+#     script (answers Civix Q3 — see scripts/ado-test-results-bridge.sh)
+#   - Slack + Jira lifecycle notifications via the same scripts/ci-notify.sh
+#     used by the GHA pipeline (CI-vendor-agnostic)
+#
+# What this does NOT demonstrate (intentionally — out of scope for a
+# reference; add per your needs):
+#   - The agentic recovery-agent diagnosis loop (would port; uses
+#     ANTHROPIC_API_KEY + Node, runs on any CI)
+#   - The blast-radius detection + tier-4 area-targeted regression
+#     matrix routing (Azure DevOps `strategy: matrix:` supports this
+#     pattern, syntax differs from GHA)
+#   - The cost+cycle-time receipt (would port; uses gh CLI which works
+#     in ADO if you `az devops` for ADO-side metrics OR keep gh CLI
+#     pointed at a GitHub mirror)
+#
+# Setup steps for customers forking this:
+#   1. Install "Azure Pipelines for GitHub" marketplace app to keep your
+#      code in GitHub while running pipelines in Azure DevOps. (No need
+#      to migrate to Azure Repos.)
+#   2. Create an Azure DevOps Variable Group named `mabl-secrets`
+#      containing: MABL_API_TOKEN, MABL_WORKSPACE_ID, MABL_APPLICATION_ID,
+#      MABL_ENV_PREVIEW_ID, MABL_ENV_PROD_ID, ADO_PAT (Test Mgmt scope),
+#      and (optionally) SLACK_WEBHOOK_URL, JIRA_API_TOKEN.
+#   3. Tag mabl tests with labels `ado-tc-<id>` to enable Test Case
+#      traceability via the bridge script.
+#   4. (Optional) Lock the ADO REST API version: keep ADO_API_VERSION=7.1
+#      pinned in the bridge script so a future ADO breaking change
+#      doesn't silently drift your traceability.
+
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+variables:
+  - group: mabl-secrets       # provides MABL_API_TOKEN, ADO_PAT, etc.
+  - name: PRODUCTION_URL
+    value: https://cheap-shot-hockey.vercel.app
+  - name: NODE_VERSION
+    value: "22"
+  # Lock the ADO REST API version against drift (see bridge script note)
+  - name: ADO_API_VERSION
+    value: "7.1"
+
+stages:
+  # ───────────────────────────────────────────────────────────────
+  # Stage 1: build + unit tests
+  # ───────────────────────────────────────────────────────────────
+  - stage: Build
+    displayName: build & unit tests
+    jobs:
+      - job: build
+        displayName: install + build + unit
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: $(NODE_VERSION)
+          - script: npm ci
+            displayName: install deps
+          - script: npm run lint
+            displayName: eslint
+          - script: npm run test:coverage
+            displayName: unit + coverage gate
+          - script: npm run build
+            displayName: next build
+
+  # ───────────────────────────────────────────────────────────────
+  # Stage 2: mabl deployment event (PR-time gate)
+  #
+  # Calls scripts/mabl-deployment.sh, which POSTs to
+  # /events/deployment with `environment_id` in the payload — this
+  # overrides any UI-default env on the plan, answering Civix Q2.
+  # Captures the deployment event id as a pipeline variable so the
+  # ADO Test Plans bridge stage can post per-test results to it.
+  # ───────────────────────────────────────────────────────────────
+  - stage: MablPRGate
+    displayName: mabl PR gate (Preview env)
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - job: mabl_deploy_preview
+        displayName: mabl deployment event (Preview)
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - script: |
+              set -euo pipefail
+              # mabl-deployment.sh emits the event id on the last line
+              # of stdout. We capture it and re-export as a pipeline
+              # variable for downstream stages.
+              event_id=$(bash scripts/mabl-deployment.sh \
+                "$(MABL_ENV_PREVIEW_ID)" \
+                "CSH-SMOKE-PR" \
+                | tail -1)
+              echo "##vso[task.setvariable variable=MABL_EVENT_ID;isOutput=true]$event_id"
+            name: deploy
+            displayName: trigger mabl Preview run
+            env:
+              MABL_API_TOKEN: $(MABL_API_TOKEN)
+              MABL_APPLICATION_ID: $(MABL_APPLICATION_ID)
+              MABL_WORKSPACE_ID: $(MABL_WORKSPACE_ID)
+              # Pipeline drives env at runtime — UI plan default is overridden
+              # Drive TOTP group via mabl variable, NOT plan-level config
+              # (answers Civix Q1)
+              MABL_VARIABLES: '{"TOTP_GROUP_NAME":"preview-totp-group"}'
+
+  - stage: MablPostDeploy
+    displayName: mabl post-deploy (Prod env)
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: mabl_deploy_prod
+        displayName: mabl deployment event (Prod)
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - script: |
+              set -euo pipefail
+              event_id=$(bash scripts/mabl-deployment.sh \
+                "$(MABL_ENV_PROD_ID)" \
+                "CSH-SMOKE-POSTDEPLOY" \
+                | tail -1)
+              echo "##vso[task.setvariable variable=MABL_EVENT_ID;isOutput=true]$event_id"
+            name: deploy
+            displayName: trigger mabl Prod run
+            env:
+              MABL_API_TOKEN: $(MABL_API_TOKEN)
+              MABL_APPLICATION_ID: $(MABL_APPLICATION_ID)
+              MABL_WORKSPACE_ID: $(MABL_WORKSPACE_ID)
+              MABL_VARIABLES: '{"TOTP_GROUP_NAME":"prod-totp-group"}'
+
+  # ───────────────────────────────────────────────────────────────
+  # Stage 3: bridge mabl results into ADO Test Plans
+  #
+  # This is the answer to Civix Q3 — mabl doesn't ship a native ADO
+  # Test Plans connector, so we bridge via the REST APIs:
+  #   1. Read mabl test labels for `ado-tc-<id>` IDs
+  #   2. Create an ADO Test Run + post per-test results
+  #
+  # Tag mabl tests with labels like `ado-tc-1234` to enable this.
+  # Tests without that label are skipped (no error — they just don't
+  # get ADO traceability).
+  # ───────────────────────────────────────────────────────────────
+  - stage: ADOTestPlansBridge
+    displayName: bridge mabl → ADO Test Plans
+    dependsOn:
+      - MablPRGate
+      - MablPostDeploy
+    condition: succeededOrFailed()  # bridge results even on partial failure
+    jobs:
+      - job: bridge
+        displayName: post mabl results to ADO Test Plans
+        pool:
+          vmImage: ubuntu-latest
+        variables:
+          # Pull the deployment event id from whichever upstream stage ran
+          MablEventId: $[ coalesce(
+            stageDependencies.MablPRGate.mabl_deploy_preview.outputs['deploy.MABL_EVENT_ID'],
+            stageDependencies.MablPostDeploy.mabl_deploy_prod.outputs['deploy.MABL_EVENT_ID']
+          ) ]
+        steps:
+          - script: |
+              set -euo pipefail
+              if [ -z "${MABL_DEPLOYMENT_EVENT_ID:-}" ]; then
+                echo "no upstream mabl event id — bridge skipping"
+                exit 0
+              fi
+              bash scripts/ado-test-results-bridge.sh
+            displayName: ado-test-results-bridge.sh
+            env:
+              MABL_API_TOKEN: $(MABL_API_TOKEN)
+              MABL_DEPLOYMENT_EVENT_ID: $(MablEventId)
+              ADO_ORG_URL: $(System.CollectionUri)
+              ADO_PROJECT: $(System.TeamProject)
+              ADO_PAT: $(ADO_PAT)
+              ADO_API_VERSION: $(ADO_API_VERSION)
+              # Optional — link the run to a specific Test Plan
+              # ADO_TEST_PLAN_ID: 1234
+
+  # ───────────────────────────────────────────────────────────────
+  # Stage 4: notification (Slack + Jira lifecycle)
+  #
+  # Reuses scripts/ci-notify.sh from the GHA pipeline — same script,
+  # same secrets, CI-vendor-agnostic. Posts a final pass/fail summary
+  # to the configured Slack channel + comments on the linked Jira
+  # ticket (parsed from the branch name, e.g. TAMD-99/foo).
+  # ───────────────────────────────────────────────────────────────
+  - stage: Notify
+    displayName: Slack + Jira notify
+    dependsOn:
+      - MablPRGate
+      - MablPostDeploy
+      - ADOTestPlansBridge
+    condition: always()
+    jobs:
+      - job: notify
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - script: |
+              outcome="ok"
+              if [ "$(Agent.JobStatus)" != "Succeeded" ]; then
+                outcome="fail"
+              fi
+              bash scripts/ci-notify.sh "$outcome" "ADO mabl SDLC" \
+                "Pipeline $(Build.BuildNumber) on $(Build.SourceBranchName) — $outcome"
+            displayName: post to Slack + Jira
+            env:
+              SLACK_WEBHOOK_URL: $(SLACK_WEBHOOK_URL)
+              JIRA_USER_EMAIL: $(JIRA_USER_EMAIL)
+              JIRA_API_TOKEN: $(JIRA_API_TOKEN)
+              JIRA_BASE_URL: https://your-org.atlassian.net
+              # Source-branch parsing for the Jira ticket key works the
+              # same as in GHA: branch named "TAMD-99/foo" → comments
+              # on TAMD-99.
+              SOURCE_BRANCH: $(Build.SourceBranchName)
