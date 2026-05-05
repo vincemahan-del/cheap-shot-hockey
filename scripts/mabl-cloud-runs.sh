@@ -1,18 +1,28 @@
 #!/usr/bin/env bash
-# mabl-cloud-minutes.sh — best-effort capture of mabl cloud minutes
-# consumed in a given time window, for inclusion in the cost +
+# mabl-cloud-runs.sh — best-effort capture of the *count* of mabl cloud
+# plan runs in a given time window, for inclusion in the cost +
 # cycle-time receipt (cycle-time-receipt.sh).
 #
-# Strategy: query mabl's REST API for plan runs (deployment events)
-# in the window, sum their execution durations, output single-line
-# "MABL_CLOUD_MINUTES=<value>" for the receipt to source.
+# Why count, not minutes: mabl pricing varies by tier (per-run, per-min,
+# bundled credits, overage rates that change). Hardcoding `runs × $X`
+# goes stale within a quarter. The durable signal is **how many cloud
+# plan runs this PR triggered**; whoever reads the receipt multiplies
+# by their current rate.
+#
+# Local CLI runs (`mabl tests run --headless …`) don't post deployment
+# events to mabl cloud — they're free and already excluded by this
+# query. This counts cloud-billable runs only.
+#
+# Strategy: query mabl's REST API for plan-run / deployment events in
+# the window, count them, output single-line "MABL_CLOUD_RUNS=<value>"
+# for the receipt to source.
 #
 # Strictly deterministic — no LLM calls. Falls back to "n/a" with a
 # diagnostic stderr message if the endpoint isn't available or
 # returns no data, so the receipt itself never breaks.
 #
 # Usage:
-#   ./scripts/mabl-cloud-minutes.sh <start-iso> [end-iso]
+#   ./scripts/mabl-cloud-runs.sh <start-iso> [end-iso]
 #
 # Required env:
 #   MABL_API_TOKEN        — same token used by mabl-deployment.sh
@@ -21,7 +31,7 @@
 #   MABL_API_BASE         — defaults to https://api.mabl.com
 #
 # Output (stdout, single line):
-#   MABL_CLOUD_MINUTES=<human-readable>
+#   MABL_CLOUD_RUNS=<count>
 #
 # v1.1 NOTE: the exact mabl REST list-endpoint shape varies by tier
 # and API version. The endpoint guess below is based on the patterns
@@ -39,8 +49,8 @@ end_iso="${2:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
 API_BASE="${MABL_API_BASE:-https://api.mabl.com}"
 
 emit_na() {
-  echo "MABL_CLOUD_MINUTES=n/a"
-  echo "  mabl-cloud-minutes: $1" >&2
+  echo "MABL_CLOUD_RUNS=n/a"
+  echo "  mabl-cloud-runs: $1" >&2
   exit 0
 }
 
@@ -62,16 +72,7 @@ if ! echo "$response" | jq -e . >/dev/null 2>&1; then
   emit_na "endpoint returned non-JSON (possible 404 or auth issue) — verify MABL_LIST_ENDPOINT"
 fi
 
-# Sum executionDuration / duration_ms across common response shapes
-total_ms=$(echo "$response" | jq -r '
-  def sumDurations(arr): [arr[] | (.executionDuration // .duration_ms // 0)] | add // 0;
-  if type == "array" then sumDurations(.)
-  elif .events then sumDurations(.events)
-  elif .results then sumDurations(.results)
-  elif .data then sumDurations(.data)
-  else 0 end
-' 2>/dev/null)
-
+# Count plan runs across common response shapes
 run_count=$(echo "$response" | jq -r '
   if type == "array" then length
   elif .events then (.events | length)
@@ -80,18 +81,18 @@ run_count=$(echo "$response" | jq -r '
   else 0 end
 ' 2>/dev/null)
 
-if [ -z "$total_ms" ] || [ "$total_ms" = "null" ] || [ "$total_ms" = "0" ]; then
-  echo "MABL_CLOUD_MINUTES=0m (no runs in window)"
+if [ -z "$run_count" ] || [ "$run_count" = "null" ]; then
+  emit_na "could not parse run count from response"
+fi
+
+if [ "$run_count" = "0" ]; then
+  echo "MABL_CLOUD_RUNS=0 (no cloud runs in window)"
   exit 0
 fi
 
-total_seconds=$((total_ms / 1000))
-if [ "$total_seconds" -lt 60 ]; then
-  human="${total_seconds}s"
+# Singular vs plural
+if [ "$run_count" = "1" ]; then
+  echo "MABL_CLOUD_RUNS=1 cloud run"
 else
-  mins=$((total_seconds / 60))
-  secs=$((total_seconds % 60))
-  human="${mins}m ${secs}s"
+  echo "MABL_CLOUD_RUNS=${run_count} cloud runs"
 fi
-
-echo "MABL_CLOUD_MINUTES=${human} across ${run_count} runs"

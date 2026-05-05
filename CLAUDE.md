@@ -233,11 +233,15 @@ Every shipped ticket gets a final `:receipt:` Slack post computed by
 - **Lead time** — PR-open → merged, humanized (e.g. `8m`, `2h 14m`)
 - **GHA minutes** — sum of all workflow run durations across the PR's
   CI runs + the main-push run
-- **mabl minutes** — best-effort capture via `scripts/mabl-cloud-minutes.sh`
-  (REST `/events/deployment` query in the PR window). Falls back to `n/a`
-  with a stderr diagnostic if the endpoint shape doesn't match your tier
-  — swap `MABL_LIST_ENDPOINT` in the helper to fix. Says `paused` when
-  `MABL_CLOUD_GATE=disabled`.
+- **mabl cloud runs** — best-effort count via `scripts/mabl-cloud-runs.sh`
+  (REST `/events/deployment` query in the PR window). We track cloud-run
+  *count*, not minutes — mabl pricing varies by tier (per-run, per-min,
+  bundled credits, changing overage rates), so the count is the durable
+  signal; whoever reads the receipt multiplies by their current rate.
+  Local CLI runs are free + already excluded by the API query. Falls
+  back to `n/a` with a stderr diagnostic if the endpoint shape doesn't
+  match your tier — swap `MABL_LIST_ENDPOINT` in the helper to fix.
+  Says `paused` when `MABL_CLOUD_GATE=disabled`.
 - **CI attempts** — count of pull_request workflow runs on the PR head,
   split by `failure` vs `success`. Surfaces "this PR took 4 attempts"
   friction signal.

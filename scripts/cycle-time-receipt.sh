@@ -14,7 +14,7 @@
 #   GH_TOKEN            — for `gh api`
 #
 # Optional:
-#   MABL_CLOUD_GATE     — when "disabled", note mabl minutes as paused
+#   MABL_CLOUD_GATE     — when "disabled", note mabl cloud runs as paused
 #
 # Output: posts the receipt via ci-notify.sh
 
@@ -177,25 +177,31 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mabl_line=""
 case "${MABL_CLOUD_GATE:-enabled}" in
   disabled)
-    mabl_line="• *mabl minutes:* paused (toggle disabled)"
+    mabl_line="• *mabl cloud runs:* paused (toggle disabled — local CLI runs are free + uncounted)"
     ;;
   *)
-    # v1.1 — best-effort capture via mabl-cloud-minutes.sh helper.
+    # v1.1 — best-effort count via mabl-cloud-runs.sh helper. We track
+    # cloud-run count (the durable signal) instead of minutes — mabl
+    # pricing varies by tier (per-run, per-min, bundled credits, changing
+    # overage rates). Whoever reads the receipt multiplies by their
+    # current rate. Local CLI runs are free + already excluded by the
+    # /events/deployment query.
+    #
     # Window starts at PR creation time so we count both PR-time and
-    # post-deploy mabl runs for this ticket.
+    # post-deploy cloud runs for this ticket.
     if [ -n "$pr_created_at" ]; then
       mabl_helper_output=$(MABL_API_TOKEN="${MABL_API_TOKEN:-}" \
         MABL_APPLICATION_ID="${MABL_APPLICATION_ID:-}" \
-        bash "${script_dir}/mabl-cloud-minutes.sh" "$pr_created_at" 2>/dev/null \
-        || echo "MABL_CLOUD_MINUTES=n/a")
-      mabl_value=$(echo "$mabl_helper_output" | grep "^MABL_CLOUD_MINUTES=" | head -1 | sed 's/^MABL_CLOUD_MINUTES=//')
+        bash "${script_dir}/mabl-cloud-runs.sh" "$pr_created_at" 2>/dev/null \
+        || echo "MABL_CLOUD_RUNS=n/a")
+      mabl_value=$(echo "$mabl_helper_output" | grep "^MABL_CLOUD_RUNS=" | head -1 | sed 's/^MABL_CLOUD_RUNS=//')
       if [ -n "$mabl_value" ] && [ "$mabl_value" != "n/a" ]; then
-        mabl_line="• *mabl minutes:* ${mabl_value}"
+        mabl_line="• *mabl cloud runs:* ${mabl_value}"
       else
-        mabl_line="• *mabl minutes:* n/a (verify MABL_LIST_ENDPOINT in scripts/mabl-cloud-minutes.sh against your tier)"
+        mabl_line="• *mabl cloud runs:* n/a (verify MABL_LIST_ENDPOINT in scripts/mabl-cloud-runs.sh against your tier)"
       fi
     else
-      mabl_line="• *mabl minutes:* unknown — could not determine PR window"
+      mabl_line="• *mabl cloud runs:* unknown — could not determine PR window"
     fi
     ;;
 esac
@@ -210,7 +216,7 @@ receipt_body+="• *Agent tokens:* not yet captured (v2 — needs ANTHROPIC_API_
 [ -n "$ci_attempts_line" ] && receipt_body+="${ci_attempts_line}"$'\n'
 [ -n "$human_touches_line" ] && receipt_body+="${human_touches_line}"$'\n'
 receipt_body+=$'\n'
-receipt_body+="_Lead time + GHA + mabl minutes + retry/review counts computed from native GitHub + mabl APIs. Agent tokens land when ANTHROPIC_API_KEY usage tracking is wired. Customer ROI story: per-ticket cost AND friction (retries, human touches) are auditable and trend over time, no special instrumentation required._"
+receipt_body+="_Lead time + GHA minutes + mabl cloud-run count + retry/review counts computed from native GitHub + mabl APIs. Cloud-run count is the durable cost signal (multiply by your current per-run rate); local CLI runs are free + uncounted. Agent tokens land when ANTHROPIC_API_KEY usage tracking is wired. Customer ROI story: per-ticket cost AND friction (retries, human touches) are auditable and trend over time, no special instrumentation required._"
 
 # Use ci-notify.sh's "info" outcome to post a non-OK / non-FAIL message
 # without injecting a "Passed:" or "BLOCKED:" headline.
