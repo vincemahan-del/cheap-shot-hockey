@@ -40,15 +40,42 @@
 #      pinned in the bridge script so a future ADO breaking change
 #      doesn't silently drift your traceability.
 
+# ───────────────────────────────────────────────────────────────
+# Trigger isolation
+#
+# ADO pipeline fires ONLY on:
+#   - branches matching `demo/ado-*` (intentional demo branches)
+#   - manual `Run pipeline` from the ADO UI
+#   - PRs that touch ADO-specific files (validates the YAML/bridge
+#     when those files change, no other PR work)
+#
+# This keeps ADO from competing with Jenkins (Jenkinsfile) and GHA
+# (.github/workflows/mabl-sdlc.yml) on the regular `main` + PR flow.
+# Without this isolation, every push would fire mabl deployment events
+# 3x — burning cloud credits and tripling Slack/Jira notifications.
+#
+# To demo the ADO + mabl integration:
+#   git checkout -b demo/ado-<scenario>
+#   git push -u origin demo/ado-<scenario>
+#   # ADO fires; Jenkins + GHA continue owning main as usual
+#
+# To make ADO the primary CI on `main` (replacing GHA), swap the
+# `demo/ado-*` line below for `main` and remove the `paths` filter.
+# ───────────────────────────────────────────────────────────────
 trigger:
   branches:
     include:
-      - main
+      - demo/ado-*
 
 pr:
   branches:
     include:
       - main
+  paths:
+    include:
+      - azure-pipelines.yml
+      - scripts/ado-test-results-bridge.sh
+      - docs/ADO-INTEGRATION.md
 
 variables:
   - group: mabl-secrets       # provides MABL_API_TOKEN, ADO_PAT, etc.

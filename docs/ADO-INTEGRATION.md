@@ -234,6 +234,38 @@ formal mabl feature requests to put on the product team's radar:
 
 ---
 
+## Coexistence with Jenkins + GitHub Actions
+
+This repo runs **three CI systems** simultaneously: Jenkins (`Jenkinsfile`),
+GitHub Actions (`.github/workflows/mabl-sdlc.yml`), and Azure DevOps
+(`azure-pipelines.yml`). Without trigger isolation, every push would
+fire mabl deployment events 3x — burning cloud credits and tripling
+Slack/Jira notifications.
+
+**The isolation rule** (configured in `azure-pipelines.yml`):
+
+- **Jenkins + GHA** own `main` + regular PRs (the existing demo flow)
+- **ADO** fires only on:
+  - Branches matching `demo/ado-*` (intentional demo branches)
+  - Manual `Run pipeline` from the ADO UI
+  - PRs that touch ADO-specific files (`azure-pipelines.yml`,
+    `scripts/ado-test-results-bridge.sh`, `docs/ADO-INTEGRATION.md`)
+
+**To demo the ADO + mabl integration without disturbing the main flow:**
+
+```bash
+git checkout -b demo/ado-civix-q3-bridge
+git push -u origin demo/ado-civix-q3-bridge
+# ADO fires; Jenkins + GHA stay quiet
+```
+
+**To make ADO the primary CI on `main`** (e.g. for a customer who's
+ADO-only), swap `demo/ado-*` for `main` in the trigger block of
+`azure-pipelines.yml` and remove the `paths` filter — and disable the
+parallel Jenkins/GHA mabl jobs to avoid duplicate runs.
+
+---
+
 ## Demo-ability with this repo
 
 The cheap-shot-hockey demo can demonstrate Q2 + Q3 live:
