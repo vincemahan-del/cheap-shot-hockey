@@ -1,0 +1,93 @@
+# mabl nightly drift catch — phase ⑤ of the agentic SDLC pattern.
+#
+# Runs the full regression-tier mabl suite headlessly via mabl CLI in
+# the GHA runner against production. FREE — no cloud-credit consumption,
+# single-browser, results published back to the mabl app for traceability.
+#
+# Why nightly: continuous-deploy teams ship multiple times per day. A
+# scheduled "every-15-min cloud heartbeat" would burn credits; a
+# nightly CLI run catches drift, third-party regressions, and slow-burn
+# issues missed during the day for $0.
+#
+# Why CLI not cloud:
+#   - CLI runs are unlimited per mabl's pricing surface
+#   - Single-browser is acceptable for drift catching (cross-browser
+#     coverage already happens at pre-merge for high-blast PRs)
+#   - --reporter mabl publishes the run results back to the mabl app
+#     so the team has full visibility / history
+#
+# Skips gracefully if MABL_API_KEY isn't configured (fail-safe pattern
+# matching the recovery agent and evals workflow).
+
+name: mabl nightly drift catch
+
+on:
+  schedule:
+    # Daily at 06:17 UTC — offset to avoid the on-the-hour stampede
+    - cron: "17 6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  nightly-regression:
+    name: nightly regression vs production
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      MABL_API_KEY: ${{ secrets.MABL_API_KEY }}
+      MABL_APPLICATION_ID: ${{ secrets.MABL_APPLICATION_ID }}
+      MABL_ENV_PROD_ID: ${{ secrets.MABL_ENV_PROD_ID }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      SLACK_CHANNEL_ID: C0A321B477Y
+      JIRA_BASE_URL: https://mabl.atlassian.net
+      JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+    steps:
+      - name: skip if MABL_API_KEY not configured
+        id: precheck
+        run: |
+          if [ -z "${MABL_API_KEY:-}" ]; then
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::MABL_API_KEY not set — skipping nightly drift catch"
+          else
+            echo "skipped=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.precheck.outputs.skipped == 'false'
+
+      - uses: actions/setup-node@v4
+        if: steps.precheck.outputs.skipped == 'false'
+        with:
+          node-version: "22"
+
+      - name: install mabl CLI
+        if: steps.precheck.outputs.skipped == 'false'
+        run: npm install -g @mablhq/mabl-cli
+
+      - name: run nightly regression vs production
+        if: steps.precheck.outputs.skipped == 'false'
+        run: |
+          mabl tests run \
+            --labels "type-rt" \
+            --headless \
+            --environment-id "$MABL_ENV_PROD_ID" \
+            --application-id "$MABL_APPLICATION_ID" \
+            --reporter mabl
+
+      - name: notify (success — drift catch clean)
+        if: success() && steps.precheck.outputs.skipped == 'false'
+        run: |
+          bash scripts/ci-notify.sh ok "Nightly drift catch" ":waning_crescent_moon: Full regression suite ran headlessly against production via mabl CLI. All tests passed. Results published to mabl app via --reporter."
+
+      - name: notify (failure — drift detected)
+        if: failure() && steps.precheck.outputs.skipped == 'false'
+        run: |
+          bash scripts/ci-notify.sh fail "Nightly drift catch FAILED" ":waning_crescent_moon: Nightly regression caught a failure in production. May be third-party drift, slow-burn issue, or a regression that escaped daytime gates. Investigate via mabl app run history."
+
+      - name: notify (skipped — MABL_API_KEY missing)
+        if: steps.precheck.outputs.skipped == 'true'
+        run: |
+          bash scripts/ci-notify.sh info "Nightly drift catch skipped" ":pause_button: Skipped — \`MABL_API_KEY\` not configured in repo secrets. Add it to enable nightly drift detection."
