@@ -73,10 +73,8 @@ const HIGH_BLAST_PATTERNS = {
   agents: {
     description: "agent system prompts or invocation scripts",
     patterns: [
-      /^scripts\/recovery-agent\//,
       /^scripts\/orchestrator-plan\//,
       /^\.claude\/agents\//,
-      /^evals\/recovery-agent\//,
     ],
   },
   store: {

@@ -163,8 +163,8 @@ Three pieces, all advisory in v1 (not in the 5 required PR checks):
   weekly Monday cron. Uploads SARIF to the GitHub Security tab. Uses
   the `security-extended` query suite.
 - **Dependabot** (`.github/dependabot.yml`) opens weekly dep-update
-  PRs for npm (production app + recovery-agent) and `github-actions`.
-  Each PR goes through the same SDLC pipeline as a human PR.
+  PRs for npm and `github-actions`. Each PR goes through the same SDLC
+  pipeline as a human PR.
 
 Promoting any of these to required-check status is a branch-protection
 change (manual on the GitHub repo), not a workflow change. Document
@@ -245,11 +245,6 @@ Every shipped ticket gets a final `:receipt:` Slack post computed by
   count (`workflow_dispatch` events AND `run_attempt > 1` UI-driven
   reruns on head_sha). Says `0 reviews, 0 manual reruns (fully
   autonomous)` only when nothing humans did.
-- **Agent tokens** — sum of `cost_usd` across all `__LLM_RECEIPT__`
-  lines emitted by recovery-agent + claude-code-action runs for this
-  ticket. Per-model breakdown included when more than one LLM run.
-  No Anthropic usage API call — receipts are emitted at run time and
-  read back from GHA logs.
 
 Fully deterministic — no LLM calls. All creds (`GITHUB_TOKEN`,
 `MABL_API_TOKEN`, `MABL_APPLICATION_ID`) are already wired for other gates.
@@ -284,8 +279,8 @@ blast-radius detector at `scripts/orchestrator-plan/detect-blast-radius.js`.
 It reads `git diff --numstat main` and flags `blast_radius: "high"`
 when any of these are touched: `src/lib/auth*`, `src/lib/session*`,
 `src/app/api/auth/**`, `src/app/api/openapi/**`, `mabl/postman/**`,
-`.github/workflows/**`, `scripts/ci-notify.sh`, `scripts/recovery-agent/**`,
-`scripts/orchestrator-plan/**`, `.claude/agents/**`, `evals/recovery-agent/**`,
+`.github/workflows/**`, `scripts/ci-notify.sh`,
+`scripts/orchestrator-plan/**`, `.claude/agents/**`,
 `src/lib/store.ts`, `src/lib/seed.ts`, `src/lib/types.ts`, OR total
 LOC delta exceeds 200.
 
@@ -312,20 +307,20 @@ The orchestrator writes `intent.json` (gitignored) before running the
 detector — it's the agent's self-assessment surface. The combined
 shape mirrors the mabl-published confidence-signal pattern.
 
-## Failure-recovery agent (autonomous, narrow)
+## Post-deploy failure response
 
-When `mabl CSH-SMOKE-POSTDEPLOY` fails on `main`, GHA triggers
-`scripts/recovery-agent/index.js` — an Agent SDK `query()` loop
-restricted to `Read`/`Grep`/`Glob` (no `Bash`, no `Edit`, no `Write`).
-The agent reads pre-fetched diagnostic context from `./logs/`, emits a
-structured JSON recommendation (revert / forward-fix / page-human), and
-`scripts/recovery-agent/recommend.sh` posts that recommendation to
-Slack + Jira via `ci-notify.sh`. The agent itself does not open PRs,
-push commits, or transition tickets. Acting on the recommendation is a
-human (or interactive Claude) job.
+When `mabl CSH-SMOKE-POSTDEPLOY` (or T1 newman Prod) fails on `main`,
+`scripts/ci-notify.sh fail "Prod post-deploy failed"` posts a
+deterministic Slack alert with links to the failing run + mabl plan.
+A human triages from there — investigate the failed test, decide
+revert vs forward-fix, act manually. No autonomous LLM-driven
+diagnosis in v1.
 
-Requires `ANTHROPIC_API_KEY` repo secret. Without it, the job emits a
-fail-safe `page-human` recommendation and exits.
+An earlier implementation included an Agent SDK loop that emitted a
+structured recommendation (revert / forward-fix / page-human) on each
+post-deploy failure. That code is preserved at git tag
+`archive/recovery-agent-and-receipts-v1` and can be reinstated by a
+fork that has `ANTHROPIC_API_KEY` configured.
 
 ## Ticket-to-prod demo narration
 

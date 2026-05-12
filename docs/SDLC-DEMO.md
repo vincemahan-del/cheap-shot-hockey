@@ -101,9 +101,9 @@ Then don't talk — let the agent run. Tab-switch as each gate fires.
 
 Workflows in `.github/workflows/`:
 
-- **`mabl-sdlc.yml`** — the canonical gate sequence (lint → unit + 90% coverage → build → T1 newman Preview → mabl CSH-SMOKE-PR → on main push, T1 newman Prod → mabl CSH-SMOKE-POSTDEPLOY → recovery-agent on post-deploy failure). Also runs an advisory `security` job (`npm audit --audit-level=high`) in parallel with `lint`.
+- **`mabl-sdlc.yml`** — the canonical gate sequence (lint → unit + 90% coverage → build → T1 newman Preview → mabl CSH-SMOKE-PR → on main push, T1 newman Prod → mabl CSH-SMOKE-POSTDEPLOY → deterministic Slack alert on post-deploy failure). Also runs an advisory `security` job (`npm audit --audit-level=high`) in parallel with `lint`.
 - **`codeql.yml`** — GitHub-native static analysis on every PR + push to main + a weekly Monday cron, with results in the Security tab. Uses the `security-extended` query suite.
-- **Dependabot** (`.github/dependabot.yml`) — weekly dep-update PRs for npm (production app + recovery-agent) and `github-actions`. Each PR runs the full SDLC pipeline.
+- **Dependabot** (`.github/dependabot.yml`) — weekly dep-update PRs for npm and `github-actions`. Each PR runs the full SDLC pipeline.
 
 Set these as repo secrets:
 
@@ -289,55 +289,41 @@ routing without instrumentation work.
 
 ---
 
-## Act 5 — Autonomous failure recovery + closed-loop fix (5 min)
+## Act 5 — Closed-loop failure response (4 min)
 
-**Story:** "Post-deploy mabl flagged a regression. The recovery agent
-diagnoses it without a human in the seat. An engineer reads the
-recommendation and acts."
+**Story:** "Post-deploy mabl flagged a regression. The deterministic
+alert lands in Slack, a human reads the failure detail, and Claude
+Code drives the fix."
 
 1. **Set up the failure.** Open a small benign-looking PR through the
    normal flow (Act 2). Just before the merge fires, run
    `./scripts/demo-toggle.sh broken` — prod will return 503 once the
    merge deploys.
-2. **Watch the autonomous chain.** Merge fires → Vercel deploys →
+2. **Watch the chain.** Merge fires → Vercel deploys →
    `T1 newman (Prod)` fails → `mabl CSH-SMOKE-POSTDEPLOY (Prod)` fails →
-   the **recovery-agent job** triggers automatically.
-3. **Tab-switch: GHA logs.** Show the `recovery-agent` job running:
-   - Pre-fetches diagnostic context (`logs/gha-run.log`,
-     `logs/recent-commits.txt`, `logs/build-info.json`,
-     `logs/health.json`, `logs/mabl-plan-run.json`)
-   - Invokes the Agent SDK `query()` loop with **read-only tools**
-     (`Read`, `Grep`, `Glob` — no `Bash`, no `Edit`, no `Write`)
-   - Agent emits a structured JSON recommendation
-4. **Tab-switch: Slack.** The recovery agent's recommendation posts via
-   `scripts/recovery-agent/recommend.sh`:
-   ```
-   :robot_face: Recovery agent recommendation: page-human (confidence: high)
-   /api/health returns 503; the demo toggle is set to broken.
-   Hint: agent suspects the demo toggle is set on prod (?demo=broken).
-   Try ./scripts/demo-toggle.sh normal first.
+   `scripts/ci-notify.sh fail "Prod post-deploy failed"` posts a
+   `:rotating_light:` Slack message with links to the failing run +
+   the mabl plan + the prod URL.
+3. **Tab-switch: Slack.** The deterministic post is short and
+   actionable — no AI handwaving, just "here's what failed, here's
+   where to look."
+4. **Closed-loop fix in Claude Code.** Prompt: *"Look at the latest
+   post-deploy failure in Slack. The mabl run shows /api/health 503s.
+   Triage and act."* Claude reads the mabl detail, spots the demo
+   toggle in the build-info endpoint, flips it back, drives the fix
+   through Acts 2–3.
+5. Reset with `./scripts/demo-toggle.sh normal`.
 
-   _Receipt: $0.04 • claude-opus-4-7-... • 12340in/2150out tok • 8.4s • session abc123de_
-   ```
-   The agent **takes no autonomous action on shared infra** — no PR
-   opened, no Jira mutation, no merge. It diagnoses; humans act. The
-   trailing receipt line is the CFO-defensible cost-per-incident number
-   pulled directly from the SDK's `SDKResultMessage.total_cost_usd`.
-5. **Closed-loop fix in Claude Code.** Prompt: *"Read the recovery
-   agent's last Slack post. Act on the recommendation."* Claude flips
-   the toggle (or opens the revert PR if the agent recommended one),
-   then drives the fix through Acts 2–3.
-6. Reset with `./scripts/demo-toggle.sh normal`.
+**Why this matters for the customer:** the post-deploy chain is
+deterministic by design — no LLM in the path between failure and
+alert. The interactive Claude Code session (in your IDE) is where
+human-in-the-loop triage happens. An earlier implementation included
+an autonomous LLM-driven recovery agent (preserved at git tag
+`archive/recovery-agent-and-receipts-v1`); v1 ships without it to
+keep the prod-side surface tight.
 
-**Why this matters for the customer:** the agent demonstrates that
-"agentic" can mean *narrow, sandboxed, advisory* — not *unrestricted
-autonomous action*. Tool restrictions are enforced at the SDK boundary
-(`allowedTools: ['Read', 'Grep', 'Glob']`), not by prompt convention.
-Customers asking "wait, does the AI just push to main?" get a concrete
-answer: "no, by tool sandbox — and here's the YAML that proves it."
-
-**mabl value shown:** closed-loop AI incident triage, autonomous
-diagnosis with hard sandbox boundaries, complete SDLC coverage.
+**mabl value shown:** clear failure attribution, closed-loop fix via
+the human + interactive Claude pair, no autonomous prod-side LLM.
 
 ---
 
@@ -354,8 +340,8 @@ Important honesty for customer demos:
 | Initial prompt to Claude Code | No | Yes |
 | Subagent orchestration (creates ticket, branch, PR) | Yes (after the prompt) | No |
 | `pr-reviewer` convention audit | Yes (when invoked) | No |
-| **Recovery agent** (post-deploy failure → diagnose → recommend) | **Yes** (Agent SDK `query()` with `Read`/`Grep`/`Glob` only) | No |
-| Acting on the recovery agent's recommendation (revert PR, fix, etc.) | No (deliberate sandbox) | Yes |
+| Post-deploy failure alert (deterministic Slack/Jira) | Yes | No |
+| Triaging a post-deploy failure (decide revert vs forward-fix, act) | No — v1 has no autonomous LLM diagnosis | Yes |
 | **Security gate** (`npm audit` + CodeQL) — advisory in v1 | Yes (every PR + main push, plus weekly CodeQL cron) | No |
 | **Dependabot** weekly dep PRs (npm + github-actions) | Yes (PRs go through full SDLC pipeline) | No |
 
@@ -386,19 +372,15 @@ Agent SDK `query()` call invoked from a webhook handler (Phase 2).
 - **Feature-flag wrap** — orchestrator wraps net-new UI in a flag and
   ships at 0%, then a follow-up "ramp" PR moves to 100% after a soak
   window. Operational maturity story.
-- **Cost + cycle-time receipt** — the recovery-agent post already
-  carries a per-run receipt (cost USD, model, in/out tokens, duration,
-  session id) via the SDK's `SDKResultMessage` and `recommend.sh`. The
-  remaining gap is a *per-ticket* final post that aggregates LLM cost
-  with mabl minutes + GHA minutes — see `scripts/cycle-time-receipt.sh`
-  hooks (lead time + GHA minutes are in v1 deterministically; aggregated
-  LLM cost across all runs in the ticket is a v2 add).
-- **Failure-recovery agent (v1 shipped, see Act 5)** — read-only
-  diagnosis agent that runs in CI on post-deploy failure and posts a
-  structured recommendation. Future v2: extract narrow custom MCP
-  tools (`open_revert_pr`, `comment_jira`) so the agent can act
-  directly on its own recommendation, with the action surface
-  enforced at the SDK boundary rather than via prompt convention.
+- **LLM cost aggregation in the cycle-time receipt** — v1's receipt
+  covers lead time, GHA minutes, mabl minutes, CI attempts, and
+  human touches. Per-LLM-run cost capture is preserved at git tag
+  `archive/recovery-agent-and-receipts-v1` for forks that want it.
+- **Autonomous recovery agent** — Agent SDK loop that runs on
+  post-deploy failure, emits a structured `revert` / `forward-fix` /
+  `page-human` recommendation. Implementation preserved at git tag
+  `archive/recovery-agent-and-receipts-v1`. Requires an
+  `ANTHROPIC_API_KEY` repo secret.
 - **Datadog / Grafana tie-in** — overlay mabl pass-rate on the latency
   dashboard for one screen ("correctness × performance").
 - **k6 load test in parallel** — "mabl proves correctness, k6 proves

@@ -44,7 +44,7 @@ Anthropic's published guidance on building agents.
 │        → Vercel prod deploy (auto)                                   │
 │        → T1 newman smoke (Prod)                                      │
 │        → mabl <PREFIX>-SMOKE-POSTDEPLOY (Prod)                       │
-│        → on failure: recovery-agent (Read/Grep/Glob — advisory)      │
+│        → on failure: "Prod post-deploy failed" Slack alert           │
 └──────────────────────────────────────────────────────────────────────┘
                                │
                                ▼
@@ -59,7 +59,7 @@ Anthropic's published guidance on building agents.
 
 ## The four-phase pipeline
 
-This pattern mirrors [mabl's published architecture](https://www.mabl.com/blog/how-we-built-a-system-for-ai-agents-to-ship-real-code-across-75-repos) for shipping AI-assisted code across 75+ repos. Same shape, packaged for customer adoption with two extensions (recovery agent + eval harness) that mabl's posts don't cover.
+This pattern mirrors [mabl's published architecture](https://www.mabl.com/blog/how-we-built-a-system-for-ai-agents-to-ship-real-code-across-75-repos) for shipping AI-assisted code across 75+ repos.
 
 | Phase | What happens | Surface | Human gate? |
 | --- | --- | --- | --- |
@@ -99,7 +99,7 @@ Combined detection mirrors mabl's published confidence-signal pattern. The orche
 | Branch protection + auto-merge | Workflow | Pure rule evaluation. |
 | Jira lifecycle transitions (To Do → In Progress → Done) | Workflow | Triggered by gate transitions; rule-based. |
 | Slack/Jira gate notifications | Workflow | Templated messages, deterministic composition. |
-| **Failure diagnosis** (recovery-agent) | **Agent** | Open-ended: which gate failed, why, is it flake, is it the toggle, does this need revert or forward-fix? Different every time. |
+| Post-deploy failure response | Workflow | Deterministic Slack/Jira alert. Human triages from there. v1 has no autonomous LLM-driven diagnosis. |
 | **Test authoring** (mabl-test-author subagent) | **Agent** | Plain-English description of a flow → test plan with assertions. Open-ended. |
 | **Convention review** (pr-reviewer subagent) | **Agent** | "Does this match the codebase's conventions?" requires context that's hard to express as rules. |
 | **Ticket-to-prod orchestration** (demo-orchestrator subagent) | **Agent** | The work the human prompt describes is open-ended — ticket creation, branch naming, code change, PR body, Slack kickoff format. |
@@ -108,11 +108,11 @@ Combined detection mirrors mabl's published confidence-signal pattern. The orche
 
 The pattern follows these published Anthropic principles:
 
-1. **Start with the simplest workflow; only add agents where measurably needed.** Most of the pipeline is workflow because workflow is enough. Agents appear at three points only: orchestration (interactive), test authoring (interactive), and failure diagnosis (autonomous, narrow).
+1. **Start with the simplest workflow; only add agents where measurably needed.** Most of the pipeline is workflow because workflow is enough. Agents appear at two points: orchestration (interactive Claude Code laptop session) and the in-CI `@claude` / DoD actions (read-only by default; `/claude write` escalation gated to OWNER/MEMBER).
 
-2. **Tool design matters as much as model choice.** The recovery agent's `allowedTools: ['Read', 'Grep', 'Glob']` is enforced at the SDK boundary, not at the prompt level. Customers asking "wait, AI just merges to prod?" get a concrete answer: *no, by tool sandbox*.
+2. **Tool design matters as much as model choice.** The `@claude` action's tool surface is enforced at the action's `--allowed-tools` flag, not at the prompt level. The static contract check (see principle 8) blocks any PR that widens the surface. Customers asking "wait, AI just merges to prod?" get a concrete answer: *no, every Claude-driven job has a paren-restricted Bash allowlist and explicit author gating.*
 
-3. **Test agents in a sandboxed environment with extensive guardrails.** The recovery agent runs with a 5-minute hard timeout, a task-budget advisory limit, and a fail-safe `page-human` default for any error path (missing API key, malformed JSON output, exception).
+3. **Sandbox by tool restriction, not just by prompt.** `READ_ONLY_TOOLS` / `WRITE_MODE_TOOLS` / `DOD_ANALYSIS_TOOLS` lists in the workflow YAML are the source of truth; `scripts/llm/check-tool-surface.mjs` asserts they stay narrow on every PR.
 
 4. **File-based memory + CLAUDE.md project conventions.** The orchestrator subagent reads `CLAUDE.md` for project conventions on every invocation — single source of truth that stays in git.
 
@@ -120,9 +120,7 @@ The pattern follows these published Anthropic principles:
 
 6. **MCP for tool exposure.** Slack, Jira, mabl, and GitHub are exposed as MCP servers — customers can swap in their own MCP servers without changing the agent code.
 
-7. **Eval the agents you ship.** The recovery agent has a frozen-fixture eval suite at `evals/recovery-agent/` covering five reasoning shapes (clean revert, demo-toggle detection, mabl flake, multi-commit ambiguity, forward-fix obvious). Runs on PRs that touch the agent or its fixtures, plus a nightly cron. Skips gracefully if `ANTHROPIC_API_KEY` isn't configured. Score is a number — "5/5 fixtures pass" — that customers can point to instead of vibes.
-
-8. **Lock the agentic surface, then statically enforce it.** Three Claude-driven jobs run on this repo (`@claude`, agentic DoD, recovery agent). All three have narrow tool surfaces, pinned models, pinned action SHAs, and (for the public-repo `@claude`) an `author_association` allowlist that silently no-ops drive-by comments. `scripts/llm/check-tool-surface.mjs` runs in the lint gate on every PR and fails the merge if anyone widens the surface — so the hardening is enforced by branch protection, not by reviewer attention. Full details in [`AGENTS.md`](../AGENTS.md#agentic-surface--hardened-gates).
+7. **Lock the agentic surface, then statically enforce it.** Two Claude-driven jobs run on this repo (`@claude`, agentic DoD). Both have narrow tool surfaces, pinned models, pinned action SHAs, and (for the public-repo `@claude`) an `author_association` allowlist that silently no-ops drive-by comments. `scripts/llm/check-tool-surface.mjs` runs in the lint gate on every PR and fails the merge if anyone widens the surface — so the hardening is enforced by branch protection, not by reviewer attention. Full details in [`AGENTS.md`](../AGENTS.md#agentic-surface--hardened-gates).
 
 ## What's autonomous vs what needs a human
 
@@ -134,9 +132,9 @@ Honest split. Customers will press on this.
 | Slack + Jira posts at every gate | Yes (via webhook + bot token) | No |
 | Jira lifecycle transitions | Yes | No |
 | Vercel (or equivalent) deploy on main push | Yes | No |
-| Recovery agent diagnosis on post-deploy failure | Yes (read-only sandbox) | No |
+| Post-deploy failure alert (deterministic Slack/Jira) | Yes | No |
 | **Initial prompt that starts the orchestrator** | **No** | **Yes** |
-| **Acting on the recovery agent's recommendation** (revert PR, fix, etc.) | **No** (deliberate sandbox) | **Yes** |
+| **Triaging a post-deploy failure** (investigate, revert, forward-fix) | **No** — v1 has no autonomous diagnosis | **Yes** |
 | Test authoring | Yes (when invoked from interactive Claude Code) | The invocation needs a human |
 | Convention review (pr-reviewer subagent) | Yes (when invoked) | The invocation needs a human |
 
@@ -151,20 +149,8 @@ calls invoked from a webhook handler. That's a separate piece of work.
 - **A code regression catches in PR-gate mabl** → the merge button stays
   red, ci-notify posts `:rotating_light:` with mabl's screenshot link.
   Auto-merge stays armed; merge fires when CI re-greens.
-- **A code regression escapes to post-deploy** → recovery agent
-  diagnoses, posts a recommendation, a human acts. Prod stays broken
-  until the human acts — by design, because autonomous prod mutations
-  are out of scope for v1.
-- **mabl flake** → recovery agent flags `looks_like_flake: true`,
-  recommends `page-human`. A retry might pass.
-- **The demo `?demo=broken` toggle is on** → recovery agent flags
-  `looks_like_demo_toggle: true`, recommends `page-human` with a hint
-  to flip the toggle back. (Demo-specific, but the pattern of
-  detecting "this isn't really broken, it's intentional" generalizes
-  to maintenance windows, scheduled downtime, etc.)
-- **`ANTHROPIC_API_KEY` not configured** → recovery agent emits a
-  fail-safe `page-human` and exits 0. The architecture works without
-  the key; only the live diagnosis loop is gated on it.
+- **A code regression escapes to post-deploy** → deterministic "Prod post-deploy failed" Slack alert with links to the failing run + mabl plan. Human triages from there. Prod stays broken until the human acts — by design, because autonomous prod mutations are out of scope for v1.
+- **mabl flake or `?demo=broken` toggle** → same path: post-deploy alert, human reads the mabl detail, flips the toggle back or retries. No LLM-driven diagnosis layer in v1.
 
 ## Auto-fix workflow (deterministic v1)
 
@@ -178,19 +164,17 @@ v2 (TAMD-113) layers an Agent SDK loop on top for non-formatter fixes (type-anno
 
 Mirrors [mabl's published auto-fix-agent pattern](https://www.mabl.com/blog/how-we-built-a-system-for-ai-agents-to-ship-real-code-across-75-repos) with circuit breakers.
 
-## Cost + cycle-time receipt (per ticket)
+## Cycle-time receipt (per ticket)
 
-Every shipped ticket gets a final `:receipt:` Slack message at the end of the post-deploy chain. v1 metrics:
+Every shipped ticket gets a final `:receipt:` Slack message at the end of the post-deploy chain. v1 metrics, all deterministic from native GitHub + mabl APIs:
 
-- **Lead time** — PR open → merged (deterministic).
-- **GHA minutes** — total across all workflow runs for this ticket (deterministic).
-- **Per-LLM-run receipt** — every recovery-agent invocation pulls `total_cost_usd`, `usage.input_tokens`, `usage.output_tokens`, model ID, and `session_id` from the SDK's `SDKResultMessage` and emits two things: a `__LLM_RECEIPT__ {...}` line in the GHA log (greppable for offline aggregation) and a one-line receipt in the Slack/Jira post (`scripts/recovery-agent/recommend.sh`). The claude-code-action runs (`@claude`, agentic DoD) emit the same shape via `scripts/llm/emit-receipt.sh` as a post-step.
+- **Lead time** — PR open → merged.
+- **GHA minutes** — total across all workflow runs for this ticket.
+- **mabl minutes** — captured via the mabl plan-runs API (paused when `MABL_CLOUD_GATE=disabled`).
+- **CI attempts** — count of `pull_request` workflow runs on the PR head, split by failure vs success.
+- **Human touches** — review count + approver handles + manual reruns (counts both `workflow_dispatch` events AND UI-driven `run_attempt > 1` re-runs).
 
-v2 (still open): a single per-ticket aggregator that sums LLM receipt lines + mabl plan-run minutes + GHA minutes into one final Slack post.
-
-The customer ROI story this answers: *"what does each ticket cost us, and how fast does it ship?"* Per-run numbers now; per-ticket roll-up in v2. The data is structured enough that a customer could pipe it to a real BI tool.
-
-`scripts/cycle-time-receipt.sh` is the implementation for the deterministic v1 portion; the LLM receipt lines come from `scripts/llm/emit-receipt.sh` and `scripts/recovery-agent/index.js`.
+`scripts/cycle-time-receipt.sh` is the implementation. Customer ROI story: *"how fast did this ship, and how much friction was in the cycle?"* Per-ticket numbers in the channel, trend tracking via Slack search.
 
 ## Cost-control: the `MABL_CLOUD_GATE` toggle
 
@@ -220,14 +204,17 @@ keep the surface understandable. Each is a known follow-up:
 
 - **Pluggable notification transports** (Teams, just-Jira, just-GitHub)
   — Slack-only in v1.
-- **Recovery agent action surface** — diagnose-only in v1; v2 extracts
-  narrow custom MCP tools (`open_revert_pr`, `comment_jira`) so the
-  agent can act with sandboxing enforced at the SDK boundary.
+- **Autonomous post-deploy recovery agent** — v1 deliberately fires a
+  deterministic Slack alert and stops; humans triage. An earlier
+  Agent SDK implementation is preserved at git tag
+  `archive/recovery-agent-and-receipts-v1` and can be reinstated by
+  any fork that has an `ANTHROPIC_API_KEY` available.
 - **Plan mode "AI proposes, human disposes"** — for high-blast-radius
   changes (auth, payments, schema migrations) the orchestrator should
   post a plan to Jira and wait for approval before executing.
-- **Cost + cycle-time receipt** — a final Slack post per ticket with
-  lead time, agent tokens, GHA minutes, and mabl minutes. ROI story.
+- **Per-ticket LLM cost aggregation** — the cycle-time receipt covers
+  lead time + GHA + mabl + friction, but not aggregated LLM cost.
+  Preserved at the same archive tag if you want to wire it.
 - **Eval harness** for the orchestrator — Anthropic's "don't ship
   agents you can't measure" advice.
 - **Feature-flag wrap by default** — orchestrator wraps net-new UI
@@ -246,4 +233,3 @@ plan).
 4. [`docs/MCP-NARRATION-PLAYBOOK.md`](MCP-NARRATION-PLAYBOOK.md) — the canonical event format for Slack/Jira posts
 5. `CLAUDE.md` (root) — project conventions the agents read
 6. `.claude/agents/*.md` — the three Claude Code subagent system prompts
-7. `scripts/recovery-agent/system-prompt.md` — the failure-recovery agent's narrow charter
