@@ -31,7 +31,10 @@ const failures = [];
 const fail = (msg) => failures.push(msg);
 
 const PINNED_SHA_RE = /@[0-9a-f]{40}\b/;
-const PINNED_MODEL_RE = /--model\s+claude-[a-z]+-\d+-\d+/;
+// --model accepts either a literal model ID OR an env interpolation that
+// resolves to one — both are checked.
+const PINNED_MODEL_FLAG_RE = /--model\s+(?:claude-[a-z]+-\d+-\d+|\$\{\{\s*env\.CLAUDE_MODEL\s*\}\})/;
+const PINNED_MODEL_ENV_RE = /CLAUDE_MODEL:\s*claude-[a-z]+-\d+-\d+/;
 const FORBIDDEN_IN_READ_ONLY = [
   /\bEdit\b/,
   /\bWrite\b/,
@@ -91,21 +94,46 @@ if (dodActionLine) {
 }
 
 // --- 2. Model pinning -------------------------------------------------------
+// Both layers checked: the env CLAUDE_MODEL value is a pinned ID, AND
+// --model is actually used in claude_args (otherwise the env is decorative).
 assert(
-  PINNED_MODEL_RE.test(claudeYml),
-  "claude.yml: --model flag missing or doesn't look like a pinned model ID (claude-<family>-<version>)"
+  PINNED_MODEL_ENV_RE.test(claudeYml),
+  "claude.yml: env.CLAUDE_MODEL must be a pinned model ID like claude-opus-4-7 (no -latest)"
 );
 assert(
-  PINNED_MODEL_RE.test(dodYml),
-  "claude-agentic-dod.yml: --model flag missing or doesn't look like a pinned model ID"
+  PINNED_MODEL_FLAG_RE.test(claudeYml),
+  "claude.yml: --model flag missing from claude_args"
 );
 assert(
-  !/(@latest|@beta|@v1\b|@v2\b)/.test(claudeYml),
-  "claude.yml: floating tag detected (@latest, @beta, @v1, @v2 are not pinned)"
+  PINNED_MODEL_ENV_RE.test(dodYml),
+  "claude-agentic-dod.yml: env.CLAUDE_MODEL must be a pinned model ID"
 );
 assert(
-  !/(@latest|@beta|@v1\b|@v2\b)/.test(dodYml),
-  "claude-agentic-dod.yml: floating tag detected"
+  PINNED_MODEL_FLAG_RE.test(dodYml),
+  "claude-agentic-dod.yml: --model flag missing from claude_args"
+);
+// "-latest" check scoped to model context only, to avoid matching
+// `runs-on: ubuntu-latest`.
+const MODEL_LATEST_RE = /claude-[a-z-]+-latest|--model[^\n]+latest/;
+assert(
+  !MODEL_LATEST_RE.test(claudeYml),
+  "claude.yml: -latest model alias detected near --model"
+);
+assert(
+  !MODEL_LATEST_RE.test(dodYml),
+  "claude-agentic-dod.yml: -latest model alias detected near --model"
+);
+// Action ref must not use floating tags. Check the action line specifically
+// rather than the whole file (the README/comments may legitimately mention
+// "@beta" historically).
+const actionFloatRe = /anthropics\/claude-code-action@(latest|beta|v\d+\b)/;
+assert(
+  !actionFloatRe.test(claudeYml),
+  "claude.yml: action ref uses a floating tag (@latest/@beta/@v1)"
+);
+assert(
+  !actionFloatRe.test(dodYml),
+  "claude-agentic-dod.yml: action ref uses a floating tag"
 );
 
 // --- 3. READ_ONLY_TOOLS forbidden patterns ----------------------------------
