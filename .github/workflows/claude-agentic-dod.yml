@@ -78,7 +78,7 @@ jobs:
 
       - name: Run Claude definition-of-done check
         id: claude
-        uses: anthropics/claude-code-action@23e4ee05df2c5aefd801f51b83c81cd4215be7e9  # v1.0.120
+        uses: anthropics/claude-code-action@dde2242db6af13460b916652159b6ba19a598f30  # v1.0.120
         env:
           MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
           JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
