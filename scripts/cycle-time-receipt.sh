@@ -197,6 +197,12 @@ else
   llm_receipts_tmp=$(mktemp)
   trap 'rm -f "$llm_receipts_tmp"' EXIT
 
+  # Disable pipefail inside the aggregator: grep returns 1 when it finds
+  # zero matches in a run's log (most runs have no LLM receipts), which
+  # with `set -o pipefail` bubbles up and trips `set -e`. The aggregator
+  # is best-effort by design — a missing receipt is a real signal, not
+  # an error.
+  set +o pipefail
   for s in "${shas[@]}"; do
     run_ids=$(gh api "repos/${repo}/actions/runs?head_sha=${s}&per_page=50" \
       --jq '.workflow_runs[].id' 2>/dev/null || true)
@@ -210,6 +216,7 @@ else
           done
     done <<< "$run_ids"
   done
+  set -o pipefail
 
   total_llm_runs=$(wc -l < "$llm_receipts_tmp" | tr -d ' ')
   if [ "$total_llm_runs" -gt 0 ]; then
