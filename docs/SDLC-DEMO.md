@@ -316,9 +316,13 @@ recommendation and acts."
    /api/health returns 503; the demo toggle is set to broken.
    Hint: agent suspects the demo toggle is set on prod (?demo=broken).
    Try ./scripts/demo-toggle.sh normal first.
+
+   _Receipt: $0.04 • claude-opus-4-7-... • 12340in/2150out tok • 8.4s • session abc123de_
    ```
    The agent **takes no autonomous action on shared infra** — no PR
-   opened, no Jira mutation, no merge. It diagnoses; humans act.
+   opened, no Jira mutation, no merge. It diagnoses; humans act. The
+   trailing receipt line is the CFO-defensible cost-per-incident number
+   pulled directly from the SDK's `SDKResultMessage.total_cost_usd`.
 5. **Closed-loop fix in Claude Code.** Prompt: *"Read the recovery
    agent's last Slack post. Act on the recommendation."* Claude flips
    the toggle (or opens the revert PR if the agent recommended one),
@@ -382,9 +386,13 @@ Agent SDK `query()` call invoked from a webhook handler (Phase 2).
 - **Feature-flag wrap** — orchestrator wraps net-new UI in a flag and
   ships at 0%, then a follow-up "ramp" PR moves to 100% after a soak
   window. Operational maturity story.
-- **Cost + cycle-time receipt** — final Slack post per ticket:
-  `lead time · agent tokens · mabl minutes · GHA minutes`. Tells the
-  ROI story.
+- **Cost + cycle-time receipt** — the recovery-agent post already
+  carries a per-run receipt (cost USD, model, in/out tokens, duration,
+  session id) via the SDK's `SDKResultMessage` and `recommend.sh`. The
+  remaining gap is a *per-ticket* final post that aggregates LLM cost
+  with mabl minutes + GHA minutes — see `scripts/cycle-time-receipt.sh`
+  hooks (lead time + GHA minutes are in v1 deterministically; aggregated
+  LLM cost across all runs in the ticket is a v2 add).
 - **Failure-recovery agent (v1 shipped, see Act 5)** — read-only
   diagnosis agent that runs in CI on post-deploy failure and posts a
   structured recommendation. Future v2: extract narrow custom MCP

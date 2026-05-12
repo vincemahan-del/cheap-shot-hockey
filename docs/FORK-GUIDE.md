@@ -147,6 +147,14 @@ gh secret set JIRA_API_TOKEN       --body "..." --repo OWNER/REPO
 
 # Optional — recovery agent fail-safes if missing
 gh secret set ANTHROPIC_API_KEY    --body "sk-ant-..." --repo OWNER/REPO
+
+# Optional — for the @claude action and the auto-DoD action.
+# Either CLAUDE_CODE_OAUTH_TOKEN (preferred — uses your Claude
+# Pro/Max/Team subscription, no separate API billing) or
+# ANTHROPIC_API_KEY (above) works. Run `/install-github-app` in
+# Claude Code, OR `claude setup-token` in a terminal, to mint the
+# OAuth token.
+gh secret set CLAUDE_CODE_OAUTH_TOKEN --body "..." --repo OWNER/REPO
 ```
 
 Or use the GitHub UI: Settings → Secrets and variables → Actions →
@@ -207,6 +215,17 @@ Enable: **Allow auto-merge**, **Automatically delete head branches**.
 gh repo edit OWNER/REPO --enable-auto-merge
 gh api -X PATCH /repos/OWNER/REPO -f delete_branch_on_merge=true
 ```
+
+**Close the admin bypass.** By default, repo admins can merge through
+failing required checks. Flip this off so the gate applies to everyone:
+
+```bash
+gh api -X POST /repos/OWNER/REPO/branches/main/protection/enforce_admins
+```
+
+The agentic SDLC's auto-merge culture (documented in `AGENTS.md`) only
+works honestly if no one can hand-wave the checks away — including the
+admin who set them up.
 
 **Time:** ~5 min.
 

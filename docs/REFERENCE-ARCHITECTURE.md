@@ -122,6 +122,8 @@ The pattern follows these published Anthropic principles:
 
 7. **Eval the agents you ship.** The recovery agent has a frozen-fixture eval suite at `evals/recovery-agent/` covering five reasoning shapes (clean revert, demo-toggle detection, mabl flake, multi-commit ambiguity, forward-fix obvious). Runs on PRs that touch the agent or its fixtures, plus a nightly cron. Skips gracefully if `ANTHROPIC_API_KEY` isn't configured. Score is a number — "5/5 fixtures pass" — that customers can point to instead of vibes.
 
+8. **Lock the agentic surface, then statically enforce it.** Three Claude-driven jobs run on this repo (`@claude`, agentic DoD, recovery agent). All three have narrow tool surfaces, pinned models, pinned action SHAs, and (for the public-repo `@claude`) an `author_association` allowlist that silently no-ops drive-by comments. `scripts/llm/check-tool-surface.mjs` runs in the lint gate on every PR and fails the merge if anyone widens the surface — so the hardening is enforced by branch protection, not by reviewer attention. Full details in [`AGENTS.md`](../AGENTS.md#agentic-surface--hardened-gates).
+
 ## What's autonomous vs what needs a human
 
 Honest split. Customers will press on this.
@@ -178,16 +180,17 @@ Mirrors [mabl's published auto-fix-agent pattern](https://www.mabl.com/blog/how-
 
 ## Cost + cycle-time receipt (per ticket)
 
-Every shipped ticket gets a final `:receipt:` Slack message at the end of the post-deploy chain. v1 metrics are deterministic and need no extra creds:
+Every shipped ticket gets a final `:receipt:` Slack message at the end of the post-deploy chain. v1 metrics:
 
-- Lead time — PR open → merged
-- GHA minutes — total across all workflow runs for this ticket
+- **Lead time** — PR open → merged (deterministic).
+- **GHA minutes** — total across all workflow runs for this ticket (deterministic).
+- **Per-LLM-run receipt** — every recovery-agent invocation pulls `total_cost_usd`, `usage.input_tokens`, `usage.output_tokens`, model ID, and `session_id` from the SDK's `SDKResultMessage` and emits two things: a `__LLM_RECEIPT__ {...}` line in the GHA log (greppable for offline aggregation) and a one-line receipt in the Slack/Jira post (`scripts/recovery-agent/recommend.sh`). The claude-code-action runs (`@claude`, agentic DoD) emit the same shape via `scripts/llm/emit-receipt.sh` as a post-step.
 
-v2 (when respective creds are configured): agent tokens (Anthropic usage), mabl plan-run minutes (mabl API).
+v2 (still open): a single per-ticket aggregator that sums LLM receipt lines + mabl plan-run minutes + GHA minutes into one final Slack post.
 
-The customer ROI story this answers: *"what does each ticket cost us, and how fast does it ship?"* Per-ticket numbers in the channel; trend tracking via Slack search. No dashboards required for v1, but the data is structured enough that a customer could pipe it to a real BI tool.
+The customer ROI story this answers: *"what does each ticket cost us, and how fast does it ship?"* Per-run numbers now; per-ticket roll-up in v2. The data is structured enough that a customer could pipe it to a real BI tool.
 
-`scripts/cycle-time-receipt.sh` is the implementation; it runs as the last step of `post-deploy-smoke` once production is verified.
+`scripts/cycle-time-receipt.sh` is the implementation for the deterministic v1 portion; the LLM receipt lines come from `scripts/llm/emit-receipt.sh` and `scripts/recovery-agent/index.js`.
 
 ## Cost-control: the `MABL_CLOUD_GATE` toggle
 
