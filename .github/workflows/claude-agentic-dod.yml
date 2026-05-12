@@ -1,31 +1,41 @@
 name: Claude — agentic definition of done
 
-# Fires automatically on every PR open or push. No @claude required.
-# Claude reads AGENTS.md, checks coverage, identifies mabl test gaps,
-# creates missing tests via MCP, and posts a findings comment.
+# Fires automatically on every PR open or push. Analysis-only — no code
+# edits, no Jira creation, no mabl test creation. The agent inspects the
+# diff, runs coverage, lists gaps, and posts a PR comment. Humans handle
+# remediation.
 #
-# Runs in parallel with the main SDLC gate — informational on coverage
-# (vitest already blocks the merge if below 90%), blocking on mabl gaps
-# only when Claude determines a new flow has zero coverage.
+# DEFENSE IN DEPTH:
+#   1. Same-repo PRs only (no fork heads).
+#   2. Tool surface: Read/Grep/Glob + tightly scoped Bash patterns +
+#      read-only mabl/atlassian. No Edit, Write, or *create* tools.
+#   3. Model and action SHA are pinned.
 #
 # Required secrets (same as claude.yml):
 #   CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY
-#   MABL_API_TOKEN, MABL_WORKSPACE_ID, MABL_APPLICATION_ID
-#   JIRA_USER_EMAIL, JIRA_API_TOKEN
+#   MABL_API_TOKEN, JIRA_USER_EMAIL, JIRA_API_TOKEN
 
 on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
 
+env:
+  CLAUDE_ACTION_SHA: 23e4ee05df2c5aefd801f51b83c81cd4215be7e9  # v1.0.120
+  CLAUDE_MODEL: claude-opus-4-7
+  DOD_ANALYSIS_TOOLS: "Read,Glob,Grep,Bash(npm run test:coverage),Bash(npm run lint),Bash(git diff *),Bash(git log *),Bash(./scripts/mabl-suggest-tests.sh *),mcp__mabl__get_mabl_tests,mcp__mabl__get_mabl_test_details,mcp__mabl__get_environments,mcp__mabl__get_applications,mcp__atlassian__read_jira_issue,mcp__atlassian__search_jira_issues"
+
 jobs:
   claude-dod:
     name: Claude — definition of done
+    # Same-repo PRs only. Fork PRs do not have secrets and could plant
+    # adversarial files; skip them entirely.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
-      issues: write
+      issues: read
       id-token: write
       actions: read
     steps:
@@ -40,62 +50,85 @@ jobs:
 
       - run: npm ci
 
-      - name: Run Claude definition-of-done check
-        uses: anthropics/claude-code-action@beta
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          settings: ".claude/settings.json"
-          allowed_tools: "Bash,Edit,Write,Read,Glob,Grep,WebFetch,mcp__mabl__get_mabl_tests,mcp__mabl__plan_new_test,mcp__mabl__create_mabl_test_cloud,mcp__mabl__get_cloud_test_gen_status,mcp__mabl__analyze_failure,mcp__atlassian__read_jira_issue,mcp__atlassian__create_jira_issue,mcp__atlassian__add_jira_comment"
-          mcp_config: |
-            {
-              "mcpServers": {
-                "mabl": {
-                  "command": "npx",
-                  "args": ["--yes", "@mabl/mcp"],
-                  "env": {
-                    "MABL_API_KEY": "${{ secrets.MABL_API_TOKEN }}"
-                  }
-                },
-                "atlassian": {
-                  "command": "npx",
-                  "args": ["--yes", "mcp-atlassian", "--transport", "stdio"],
-                  "env": {
-                    "JIRA_URL": "https://mabl.atlassian.net",
-                    "JIRA_USERNAME": "${{ secrets.JIRA_USER_EMAIL }}",
-                    "JIRA_API_TOKEN": "${{ secrets.JIRA_API_TOKEN }}"
-                  }
+      - name: Write MCP config
+        run: |
+          mkdir -p .runtime
+          cat > .runtime/mcp.json <<'EOF'
+          {
+            "mcpServers": {
+              "mabl": {
+                "command": "npx",
+                "args": ["--yes", "@mabl/mcp"],
+                "env": {
+                  "MABL_API_KEY": "${MABL_API_TOKEN}"
+                }
+              },
+              "atlassian": {
+                "command": "npx",
+                "args": ["--yes", "mcp-atlassian", "--transport", "stdio"],
+                "env": {
+                  "JIRA_URL": "https://mabl.atlassian.net",
+                  "JIRA_USERNAME": "${JIRA_USER_EMAIL}",
+                  "JIRA_API_TOKEN": "${JIRA_API_TOKEN}"
                 }
               }
             }
-          direct_prompt: |
-            You are running as part of the CI pipeline for the cheap-shot-hockey repo.
-            A PR was just opened or updated. Run the definition of done checks from AGENTS.md.
+          }
+          EOF
 
-            Steps to follow in order:
+      - name: Run Claude definition-of-done check
+        id: claude
+        uses: anthropics/claude-code-action@23e4ee05df2c5aefd801f51b83c81cd4215be7e9  # v1.0.120
+        env:
+          MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # NOTE: intentionally NOT passing `settings: ".claude/settings.json"`.
+          # See claude.yml for rationale.
+          claude_args: >-
+            --model ${{ env.CLAUDE_MODEL }}
+            --mcp-config .runtime/mcp.json
+            --allowed-tools "${{ env.DOD_ANALYSIS_TOOLS }}"
+          prompt: |
+            You are running as part of the CI pipeline for the cheap-shot-hockey repo,
+            in ANALYSIS-ONLY mode. You may not write files, edit code, create Jira
+            issues, or create mabl tests. Your tools are intentionally read-only +
+            scoped Bash. If you find a gap, list it in the PR comment for a human to
+            address — do not try to fix it yourself.
 
-            1. Run `npm run test:coverage` and capture the output. If any metric is below 90%,
-               identify which files are under-covered and write the missing unit tests.
-               Re-run until the gate passes. Do not proceed until coverage is green.
+            Steps:
+
+            1. Run `npm run test:coverage` and capture the output. Note any metric
+               below 90%. (The vitest gate already blocks merge below 90% — your
+               role is to call out which files are under-covered.)
 
             2. Run `git diff --name-only origin/main HEAD` to get changed files.
-               Pipe that list through `./scripts/mabl-suggest-tests.sh` to find existing
-               mabl tests that may be affected. Note any matches.
+               Pipe that list through `./scripts/mabl-suggest-tests.sh` to find
+               existing mabl tests that may be affected.
 
-            3. Check if the PR adds new UI pages, components, or API routes that have no
-               existing mabl test coverage. Use `mcp__mabl__get_mabl_tests` to query the
-               mabl workspace (workspace_id: pXXgThbNi4HfQOpiZptHfw-w,
-               application_id: OZqmshBkUfVSesWy49g1eQ-a) for relevant tests.
-               If gaps exist: use `mcp__mabl__plan_new_test` then
-               `mcp__mabl__create_mabl_test_cloud` to create coverage, and use
-               `mcp__atlassian__create_jira_issue` to cut a follow-up ticket in TAMD.
+            3. Use `mcp__mabl__get_mabl_tests` (workspace_id pXXgThbNi4HfQOpiZptHfw-w,
+               application_id OZqmshBkUfVSesWy49g1eQ-a) to identify new UI pages,
+               components, or API routes that have NO existing mabl test coverage.
+               List the gaps — do NOT create tests or open tickets.
 
             4. Post a single PR comment summarising:
-               - Coverage result (pass/fail, metrics)
-               - Any unit tests written (if needed)
-               - Existing mabl tests affected (from step 2)
-               - Any new mabl tests created and Jira tickets cut (from step 3)
-               - Overall DoD status: PASS or NEEDS ATTENTION
+               - Coverage result (pass/fail, metrics, under-covered files)
+               - Existing mabl tests affected by this PR
+               - Coverage gaps: new flows with no mabl test (recommend, don't act)
+               - Existing Jira tickets that may relate (read-only mcp__atlassian__search)
+               - Overall DoD status: PASS, OBSERVATIONS, or GAPS
 
-            Be concise. Post one comment, not multiple. If everything is already green
-            and no gaps exist, say so clearly.
+            Be concise. One comment, not multiple. If everything is green and no gaps
+            exist, say so plainly.
+
+      - name: Emit receipt
+        if: always()
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+          SESSION_ID: ${{ steps.claude.outputs.session_id }}
+          WORKFLOW: claude-agentic-dod.yml
+          WRITE_MODE: "false"
+        run: bash scripts/llm/emit-receipt.sh

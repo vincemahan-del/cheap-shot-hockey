@@ -1,13 +1,19 @@
 name: Claude Code
 
 # Responds when @claude is mentioned in issues, PR comments, or review
-# comments. Uses anthropics/claude-code-action.
+# comments. Uses anthropics/claude-code-action SHA-pinned to v1.0.120.
+#
+# DEFENSE IN DEPTH:
+#   1. Job-level allowlist: only OWNER/MEMBER/COLLABORATOR comments fire.
+#   2. Action-level allowlist: allowed_non_write_users left empty, so the
+#      action also enforces "write-permission required" internally.
+#   3. Tool surface: read-only by default. Write mode requires a separate
+#      `/claude write` phrase on the same comment AND author OWNER/MEMBER.
+#   4. Model and action SHA are pinned (no floating tags).
 #
 # Auth — one of these secrets must be set:
 #   CLAUDE_CODE_OAUTH_TOKEN  (preferred — uses your Claude Pro/Max/Team
 #                            subscription; no separate API billing)
-#     Create by running `/install-github-app` in Claude Code, OR
-#     run `claude setup-token` in a terminal to mint one manually.
 #   ANTHROPIC_API_KEY        (alternative — a console.anthropic.com key)
 
 on:
@@ -20,13 +26,54 @@ on:
   pull_request_review:
     types: [submitted]
 
+env:
+  CLAUDE_ACTION_SHA: 23e4ee05df2c5aefd801f51b83c81cd4215be7e9  # v1.0.120
+  CLAUDE_MODEL: claude-opus-4-7
+  READ_ONLY_TOOLS: "Read,Glob,Grep,WebFetch,WebSearch,mcp__mabl__get_mabl_tests,mcp__mabl__get_mabl_test_details,mcp__mabl__analyze_failure,mcp__mabl__get_latest_plan_runs,mcp__mabl__get_latest_test_runs,mcp__mabl__get_environments,mcp__mabl__get_applications,mcp__atlassian__read_jira_issue,mcp__atlassian__search_jira_issues,mcp__atlassian__get_my_unresolved_issues"
+  WRITE_MODE_TOOLS: "Read,Glob,Grep,Edit,Write,Bash(npm run *),Bash(git *),Bash(gh *),WebFetch,WebSearch,mcp__mabl__get_mabl_tests,mcp__mabl__get_mabl_test_details,mcp__mabl__plan_new_test,mcp__mabl__create_mabl_test_cloud,mcp__mabl__get_cloud_test_gen_status,mcp__mabl__analyze_failure,mcp__mabl__get_latest_plan_runs,mcp__mabl__get_latest_test_runs,mcp__mabl__run_mabl_test_cloud,mcp__atlassian__read_jira_issue,mcp__atlassian__create_jira_issue,mcp__atlassian__add_jira_comment,mcp__atlassian__search_jira_issues"
+
 jobs:
-  claude:
+  authorize:
+    # Resolves trigger context once so the claude job can branch on it
+    # without re-evaluating each event shape.
+    runs-on: ubuntu-latest
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    outputs:
+      authorized: ${{ steps.gate.outputs.authorized }}
+      write_mode: ${{ steps.gate.outputs.write_mode }}
+      who: ${{ steps.gate.outputs.who }}
+    steps:
+      - id: gate
+        env:
+          ASSOC: ${{ github.event.comment.author_association || github.event.review.author_association || github.event.issue.author_association }}
+          BODY: ${{ github.event.comment.body || github.event.review.body || github.event.issue.body }}
+          ACTOR: ${{ github.event.comment.user.login || github.event.review.user.login || github.event.issue.user.login }}
+        run: |
+          set -euo pipefail
+          assoc_strict="OWNER MEMBER COLLABORATOR"
+          assoc_write="OWNER MEMBER"
+          authorized=false
+          write_mode=false
+          for a in $assoc_strict; do
+            if [ "$ASSOC" = "$a" ]; then authorized=true; fi
+          done
+          if echo "$BODY" | grep -q "/claude write"; then
+            for a in $assoc_write; do
+              if [ "$ASSOC" = "$a" ]; then write_mode=true; fi
+            done
+          fi
+          echo "authorized=$authorized" >> "$GITHUB_OUTPUT"
+          echo "write_mode=$write_mode" >> "$GITHUB_OUTPUT"
+          echo "who=$ACTOR ($ASSOC)" >> "$GITHUB_OUTPUT"
+          echo "Trigger by $ACTOR with association=$ASSOC → authorized=$authorized write_mode=$write_mode"
+
+  claude:
+    needs: authorize
+    if: needs.authorize.outputs.authorized == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -35,38 +82,69 @@ jobs:
       id-token: write
       actions: read
     steps:
+      - name: Announce trigger
+        run: |
+          echo "Trigger: ${{ needs.authorize.outputs.who }}"
+          echo "Write mode: ${{ needs.authorize.outputs.write_mode }}"
+          echo "Model pin: $CLAUDE_MODEL"
+          echo "Action pin: $CLAUDE_ACTION_SHA"
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Run Claude Code
-        id: claude
-        uses: anthropics/claude-code-action@beta
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          settings: ".claude/settings.json"
-          allowed_tools: "Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,mcp__mabl__get_mabl_tests,mcp__mabl__plan_new_test,mcp__mabl__create_mabl_test_cloud,mcp__mabl__get_cloud_test_gen_status,mcp__mabl__analyze_failure,mcp__mabl__get_latest_plan_runs,mcp__mabl__get_latest_test_runs,mcp__mabl__run_mabl_test_cloud,mcp__atlassian__read_jira_issue,mcp__atlassian__create_jira_issue,mcp__atlassian__add_jira_comment,mcp__atlassian__search_jira_issues,mcp__atlassian__get_my_unresolved_issues"
-          trigger_phrase: "@claude"
-          mcp_config: |
-            {
-              "mcpServers": {
-                "mabl": {
-                  "command": "npx",
-                  "args": ["--yes", "@mabl/mcp"],
-                  "env": {
-                    "MABL_API_KEY": "${{ secrets.MABL_API_TOKEN }}"
-                  }
-                },
-                "atlassian": {
-                  "command": "npx",
-                  "args": ["--yes", "mcp-atlassian", "--transport", "stdio"],
-                  "env": {
-                    "JIRA_URL": "https://mabl.atlassian.net",
-                    "JIRA_USERNAME": "${{ secrets.JIRA_USER_EMAIL }}",
-                    "JIRA_API_TOKEN": "${{ secrets.JIRA_API_TOKEN }}"
-                  }
+      - name: Write MCP config
+        run: |
+          mkdir -p .runtime
+          cat > .runtime/mcp.json <<'EOF'
+          {
+            "mcpServers": {
+              "mabl": {
+                "command": "npx",
+                "args": ["--yes", "@mabl/mcp"],
+                "env": {
+                  "MABL_API_KEY": "${MABL_API_TOKEN}"
+                }
+              },
+              "atlassian": {
+                "command": "npx",
+                "args": ["--yes", "mcp-atlassian", "--transport", "stdio"],
+                "env": {
+                  "JIRA_URL": "https://mabl.atlassian.net",
+                  "JIRA_USERNAME": "${JIRA_USER_EMAIL}",
+                  "JIRA_API_TOKEN": "${JIRA_API_TOKEN}"
                 }
               }
             }
+          }
+          EOF
+
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@23e4ee05df2c5aefd801f51b83c81cd4215be7e9  # v1.0.120
+        env:
+          MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          trigger_phrase: "@claude"
+          # NOTE: intentionally NOT passing `settings: ".claude/settings.json"`.
+          # That file is for interactive sessions on the developer laptop and
+          # grants broad Bash + many write-tools. CI runs are gated by the
+          # narrow --allowed-tools list below.
+          claude_args: >-
+            --model ${{ env.CLAUDE_MODEL }}
+            --mcp-config .runtime/mcp.json
+            --allowed-tools "${{ needs.authorize.outputs.write_mode == 'true' && env.WRITE_MODE_TOOLS || env.READ_ONLY_TOOLS }}"
+
+      - name: Emit receipt
+        if: always()
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+          SESSION_ID: ${{ steps.claude.outputs.session_id }}
+          WORKFLOW: claude.yml
+          WRITE_MODE: ${{ needs.authorize.outputs.write_mode }}
+        run: bash scripts/llm/emit-receipt.sh

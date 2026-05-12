@@ -703,6 +703,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
       FAILED_STAGE: post-deploy-smoke
+      RECOVERY_AGENT_MODEL: claude-opus-4-7
       # PROD_URL, SLACK_*, JIRA_*, SLACK_CHANNEL_ID inherit from the
       # workflow-level env block at the top of this file. Job-level
       # env cannot reference ${{ env.* }} from workflow-level (context
