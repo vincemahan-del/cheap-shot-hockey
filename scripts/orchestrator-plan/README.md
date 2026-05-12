@@ -23,7 +23,7 @@ detection rules, before the agent even opens the PR."*
 | `auth` | `src/lib/auth*`, `src/lib/session*`, `src/app/api/auth/**` | Authentication mistakes are quiet, customer-affecting, and often security-sensitive |
 | `api_contract` | `src/app/api/openapi/**`, `mabl/postman/**` | Breaking the contract breaks every API consumer including mabl tests |
 | `ci_infra` | `.github/workflows/**`, `scripts/ci-notify.sh`, `scripts/install-git-hooks.sh` | A bad workflow change can lock the entire team out of merging |
-| `agents` | `scripts/recovery-agent/**`, `scripts/orchestrator-plan/**`, `.claude/agents/**`, `evals/recovery-agent/**` | Agent system-prompt regressions are extremely hard to detect without evals |
+| `agents` | `scripts/orchestrator-plan/**`, `.claude/agents/**` | Agent system-prompt regressions are extremely hard to detect without evals |
 | `store` | `src/lib/store.ts`, `src/lib/seed.ts`, `src/lib/types.ts` | Shared data layer — every page/route depends on these |
 | LOC threshold | total `git diff --numstat` lines > 200 | Large changes are hard to review thoroughly, even when path categories are low-risk |
 

@@ -123,12 +123,3 @@ jobs:
 
             Be concise. One comment, not multiple. If everything is green and no gaps
             exist, say so plainly.
-
-      - name: Emit receipt
-        if: always()
-        env:
-          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
-          SESSION_ID: ${{ steps.claude.outputs.session_id }}
-          WORKFLOW: claude-agentic-dod.yml
-          WRITE_MODE: "false"
-        run: bash scripts/llm/emit-receipt.sh

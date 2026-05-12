@@ -81,14 +81,14 @@ fails the merge if any of these contracts regress.
   no `*_create_*` — gaps are listed in the PR comment, not fixed in place.
 - Same model and action pinning as `@claude`.
 
-### 3. Recovery agent (`scripts/recovery-agent/index.js`)
-- Trigger: post-deploy verification fails on a push to `main`.
-- Tools: `Read,Grep,Glob` only (read-only).
-- Hard 5-min timeout. Failsafe path on any error → `decision: page-human`.
-- Model: `claude-opus-4-7` (override via `RECOVERY_AGENT_MODEL`).
-- Emits a `__LLM_RECEIPT__` line with `cost_usd`, `model_actual`,
-  `input_tokens`, `output_tokens`, `session_id` — surfaced in the
-  Slack/Jira post by `scripts/recovery-agent/recommend.sh`.
+### 3. No autonomous post-deploy recovery agent in v1
+v1 deliberately does NOT include an LLM-driven recovery agent on
+post-deploy failure. A real prod-side failure fires the deterministic
+"Prod post-deploy failed" Slack notification and stops; humans
+triage. An earlier implementation (read-only `Read,Grep,Glob` tools,
+SDK `query()` loop, structured JSON recommendation, cost receipt) is
+preserved at git tag `archive/recovery-agent-and-receipts-v1` and can
+be reinstated by a fork that has an `ANTHROPIC_API_KEY` available.
 
 ### What `scripts/llm/check-tool-surface.mjs` enforces
 - Action references are SHA-pinned (40-char hex).

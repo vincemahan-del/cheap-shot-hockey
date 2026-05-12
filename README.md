@@ -4,7 +4,7 @@
 
 Cheap Shot Hockey is a full-stack Next.js demo app designed for customer demonstrations of [mabl](https://www.mabl.com/). It ships with a storefront UI, a JSON REST API, an OpenAPI 3.1 spec, and a set of toggleable failure modes so you can drive believable demos of UI test auto-healing, API contract testing, and intelligent failure analysis — all from a single Vercel deploy.
 
-This repo also doubles as a **reference architecture for agentic ticket-to-prod**: one prompt to Claude Code drives a Jira ticket through GHA gates (lint → coverage → build → newman → mabl smoke → branch protection → auto-merge → Vercel → post-deploy verification → recovery agent on failure) without further human input. See [`docs/REFERENCE-ARCHITECTURE.md`](docs/REFERENCE-ARCHITECTURE.md) for the pattern, [`docs/FORK-GUIDE.md`](docs/FORK-GUIDE.md) for the 90-min "fork and deploy on your own stack" walkthrough, and [`docs/SDLC-DEMO.md`](docs/SDLC-DEMO.md) for the customer-demo runbook.
+This repo also doubles as a **reference architecture for agentic ticket-to-prod**: one prompt to Claude Code drives a Jira ticket through GHA gates (lint → coverage → build → newman → mabl smoke → branch protection → auto-merge → Vercel → post-deploy verification) without further human input. See [`docs/REFERENCE-ARCHITECTURE.md`](docs/REFERENCE-ARCHITECTURE.md) for the pattern, [`docs/FORK-GUIDE.md`](docs/FORK-GUIDE.md) for the 90-min "fork and deploy on your own stack" walkthrough, and [`docs/SDLC-DEMO.md`](docs/SDLC-DEMO.md) for the customer-demo runbook.
 
 ---
 
@@ -183,9 +183,12 @@ narrow. Three layers of defense:
 2. **The auto-DoD action** runs analysis-only on same-repo PRs (no fork
    heads). It lists coverage / mabl-test gaps in a PR comment; it does
    not edit code, create Jira tickets, or create mabl tests.
-3. **The recovery agent** has tools `Read,Grep,Glob` only — no Bash, no
-   writes. Every run emits a `__LLM_RECEIPT__` JSON line with cost,
-   tokens, model, and session id so spend is auditable.
+3. **No autonomous post-deploy mutation.** v1 has no recovery-agent
+   running on failed deploys — the deterministic "Prod post-deploy
+   failed" Slack notification fires and a human triages. The git tag
+   `archive/recovery-agent-and-receipts-v1` preserves an earlier
+   implementation that required an `ANTHROPIC_API_KEY` secret; v1 keeps
+   the surface narrow.
 
 Every model is pinned to `claude-opus-4-7`. Every action is SHA-pinned
 to a 40-char commit. `scripts/llm/check-tool-surface.mjs` runs on every

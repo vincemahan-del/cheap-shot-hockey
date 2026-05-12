@@ -16,8 +16,7 @@
 #   - --reporter mabl publishes the run results back to the mabl app
 #     so the team has full visibility / history
 #
-# Skips gracefully if MABL_API_KEY isn't configured (fail-safe pattern
-# matching the recovery agent and evals workflow).
+# Skips gracefully if MABL_API_KEY isn't configured (fail-safe pattern).
 
 name: mabl nightly drift catch
 

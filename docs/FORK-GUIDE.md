@@ -145,9 +145,6 @@ gh secret set SLACK_BOT_TOKEN      --body "xoxb-..." --repo OWNER/REPO
 gh secret set JIRA_USER_EMAIL      --body "..." --repo OWNER/REPO
 gh secret set JIRA_API_TOKEN       --body "..." --repo OWNER/REPO
 
-# Optional — recovery agent fail-safes if missing
-gh secret set ANTHROPIC_API_KEY    --body "sk-ant-..." --repo OWNER/REPO
-
 # Optional — for the @claude action and the auto-DoD action.
 # Either CLAUDE_CODE_OAUTH_TOKEN (preferred — uses your Claude
 # Pro/Max/Team subscription, no separate API billing) or
@@ -288,7 +285,6 @@ to change — they're application-agnostic.
 | Slack posts show italic where bold should be | You're using the MCP path (standard markdown) but the templates are Slack mrkdwn. See [`docs/MCP-NARRATION-PLAYBOOK.md`](MCP-NARRATION-PLAYBOOK.md) "Markdown dialect" section. |
 | `mabl deployment` polling never resolves | Verify the plan name matches `MABL_PLAN_LABELS` exactly + the env UUID is right. `scripts/mabl-deployment.sh` has a 60s grace for "no plan match". |
 | Jira transition doesn't fire | Ticket key extraction relies on the branch name format `<KEY>/short-slug` OR the commit message starting with `<KEY>:`. Check the run logs. |
-| Recovery agent always emits page-human | `ANTHROPIC_API_KEY` not set, or the agent received malformed diagnostic context. Check the GHA `recovery-agent` job logs. |
 | Coverage gate fails on first run | Adjust `coverage.thresholds` in `vitest.config.ts` to match your codebase reality, then tighten over time. |
 | mabl cloud bill is higher than expected during dev iteration | Pause cloud runs with `gh variable set MABL_CLOUD_GATE --body "disabled" --repo OWNER/REPO`. T1 newman API smoke remains as the always-on gate. Reenable with `--body "enabled"` (or unset). See [Cost control](#cost-control) below. |
 
@@ -302,7 +298,7 @@ gh variable set MABL_CLOUD_GATE --body "disabled" --repo OWNER/REPO
 
 What stays on:
 - Newman API smoke (T1) on PR + main push — local CLI, no mabl charge
-- Lint, security, unit + coverage, build, test-impact, CodeQL, recovery-agent, evals
+- Lint, security, unit + coverage, build, test-impact, CodeQL
 - Slack/Jira audit trail (with a clear "mabl cloud gate paused" notice)
 
 What pauses:
@@ -326,8 +322,11 @@ The toggle is a **repo variable** (not a secret) so it shows up in run logs and 
 
 - **Pluggable notification transports** (Slack-bot / Slack-webhook /
   Teams / Jira-only / GitHub-comments) — track in a follow-up.
-- **Failure-recovery agent action surface** — currently advisory only;
-  v2 can extract custom MCP tools for autonomous revert PRs.
+- **Autonomous post-deploy recovery agent** — Agent SDK loop that
+  diagnoses post-deploy failures and posts a structured
+  recommendation. Implementation preserved at git tag
+  `archive/recovery-agent-and-receipts-v1`. Requires an
+  `ANTHROPIC_API_KEY` repo secret to enable.
 - **Plan-mode "AI proposes, human disposes"** — for high-blast-radius
   changes, the orchestrator can post a plan to Jira, wait on a
   transition for approval, then execute.
