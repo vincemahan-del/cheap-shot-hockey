@@ -38,6 +38,15 @@ updates:
           - "@types/*"
         exclude-patterns:
           - "@types/react*"
+      vitest:
+        # vitest and its companion packages must move together; without
+        # this group, Dependabot bumps @vitest/coverage-v8 alone and the
+        # peer-dep constraint (`peer vitest@<exact>`) breaks `npm ci`.
+        # See PR #55 (closed 2026-05-12) for the failure pattern.
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "@vitejs/plugin-react"
 
   # Recovery-agent isolated deps
   - package-ecosystem: "npm"
