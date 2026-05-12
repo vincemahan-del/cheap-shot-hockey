@@ -470,7 +470,7 @@ jobs:
         env:
           NEXT_GATE: "Merge allowed — branch protection unblocked. Merging triggers Prod deploy + T3."
         run: |
-          bash scripts/ci-notify.sh ok "Merge-ready" ":pause_button: *mabl cloud gate is paused* (repo var \`MABL_CLOUD_GATE=disabled\`). Newman API smoke + GHA gates were the review for this PR. Reenable: \`gh variable set MABL_CLOUD_GATE --body \"enabled\" --repo \$REPO\`."
+          bash scripts/ci-notify.sh ok "Merge-ready" ":pause_button: mabl cloud gate paused for this PR (Newman + GHA gates were the verification surface)."
 
   # ─────────────────────────────────────────────────────────────────
   # Tier-4 routing — PR-time mabl CLI regression (FREE)
@@ -655,7 +655,7 @@ jobs:
           PROD_URL: ${{ env.PRODUCTION_URL }}
           NEXT_GATE: "Live. Ticket moved to Done. (mabl cloud gate paused — verified by T1 newman + GHA gates only.)"
         run: |
-          bash scripts/ci-notify.sh ok "Shipped to production" ":rocket: Change is live on <${{ env.PRODUCTION_URL }}|cheap-shot-hockey.vercel.app>. :pause_button: mabl cloud gate is paused (repo var \`MABL_CLOUD_GATE=disabled\`); T1 newman API smoke + GHA gates were the verification surface. Ticket transitioning to *Done*."
+          bash scripts/ci-notify.sh ok "Shipped to production" ":rocket: Change is live on <${{ env.PRODUCTION_URL }}|cheap-shot-hockey.vercel.app>. :pause_button: mabl cloud gate paused (Newman + GHA gates verified). Ticket transitioning to *Done*."
       - name: notify (failure)
         if: failure() && steps.gate.outputs.skipped != 'true'
         env:

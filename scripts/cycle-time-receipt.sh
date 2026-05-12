@@ -204,19 +204,18 @@ case "${MABL_CLOUD_GATE:-enabled}" in
     ;;
 esac
 
-receipt_body=":receipt: *Cost + cycle-time receipt*"$'\n\n'
-receipt_body+="• *Lead time:* ${lead_time_human:-unknown} (PR open → merged)"$'\n'
+# The body — bullets stand on their own; the previous italic footer
+# justifying what the bullets are has been dropped.
+receipt_body="• *Lead time:* ${lead_time_human:-unknown} (PR open → merged)"$'\n'
 receipt_body+="• *GHA minutes:* ${gha_human:-unknown}"
 [ "$runs_counted" -gt 0 ] && receipt_body+=" across ${runs_counted} workflow runs"
 receipt_body+=$'\n'
 receipt_body+="${mabl_line}"$'\n'
 [ -n "$ci_attempts_line" ] && receipt_body+="${ci_attempts_line}"$'\n'
 [ -n "$human_touches_line" ] && receipt_body+="${human_touches_line}"$'\n'
-receipt_body+=$'\n'
-receipt_body+="_Lead time + GHA + mabl minutes + retry/review counts computed from native GitHub + mabl APIs. Customer ROI story: per-ticket cycle-time AND friction (retries, human touches) are auditable and trend over time, no special instrumentation required._"
 
-# Use ci-notify.sh's "info" outcome to post a non-OK / non-FAIL message
-# without injecting a "Passed:" or "BLOCKED:" headline.
-bash "${script_dir}/ci-notify.sh" info "Receipt" "$receipt_body"
+# Post via ci-notify.sh's `receipt` outcome — single ":receipt: *[TICKET]
+# Cost + cycle-time receipt*" headline, no "Update:" prefix.
+bash "${script_dir}/ci-notify.sh" receipt "Cost + cycle-time receipt" "$receipt_body"
 
 echo "cycle-time-receipt: posted (lead=${lead_time_human:-?} gha=${gha_human:-?} runs=${runs_counted})"

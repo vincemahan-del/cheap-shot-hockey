@@ -126,6 +126,14 @@ case "$outcome" in
     headline_label="Update"
     jira_state="INFO"
     ;;
+  receipt)
+    # Terminal per-ticket receipt — no "Passed:" / "Update:" prefix.
+    # Headline is the stage label itself; the receipt body bullets
+    # carry the data.
+    headline_emoji=":receipt:"
+    headline_label=""   # suppresses the "Label: " prefix below
+    jira_state="RECEIPT"
+    ;;
   *)
     headline_emoji=":grey_question:"
     headline_label="$outcome"
@@ -158,7 +166,13 @@ slack=""
 metric_block=""
 
 # ── Header ────────────────────────────────────────────────────────
-slack+="${headline_emoji} *${ticket_prefix}${headline_label}: ${stage}*"
+# Outcomes with an empty headline_label (e.g. `receipt`) get
+# "<emoji> *[TICKET] stage*" instead of "<emoji> *[TICKET] Label: stage*".
+if [ -n "$headline_label" ]; then
+  slack+="${headline_emoji} *${ticket_prefix}${headline_label}: ${stage}*"
+else
+  slack+="${headline_emoji} *${ticket_prefix}${stage}*"
+fi
 if [ -n "$pr_url" ]; then
   slack+=" · <${pr_url}|PR #${pr_num}>"
 elif [ -n "${GITHUB_SHA:-}" ]; then
@@ -249,17 +263,13 @@ if [ -n "${MABL_PLAN_NAME:-}" ]; then
   slack+='```'$'\n'
 fi
 
-# ── Section: Required checks (merge-ready stage only) ─────────────
-if [ "$stage" = "Merge-ready" ] && [ "$outcome" = "ok" ]; then
-  slack+=$'\n'":dart: *Required checks (5/5)*"$'\n'
-  slack+='```'$'\n'
-  slack+="Stage 1 · code quality                ✅"$'\n'
-  slack+="T1 newman (Preview)                   ✅"$'\n'
-  slack+="mabl CSH-SMOKE-PR (Preview)           ✅"$'\n'
-  slack+="Test impact analysis                  ✅"$'\n'
-  slack+="Definition of done                    ✅"$'\n'
-  slack+='```'$'\n'
-fi
+# Note: a hardcoded "Required checks (5/5)" block used to live here.
+# Dropped because the displayed list didn't match actual branch-
+# protection required contexts (it grouped lint/unit/build into a
+# "Stage 1" label and included advisory checks). The "Passed:
+# Merge-ready" headline already communicates "all required checks
+# green"; over-specifying it just invited "those aren't the required
+# checks" questions from customers reading along.
 
 # ── Section: T3 chain (shipped stage only) ────────────────────────
 if [ "$stage" = "Shipped to production" ] && [ "$outcome" = "ok" ]; then
@@ -272,14 +282,24 @@ if [ "$stage" = "Shipped to production" ] && [ "$outcome" = "ok" ]; then
 fi
 
 # ── Status + next-gate (blockquote, visual chunk separator) ───────
+# Exception: the `receipt` outcome's body is pre-structured (bullets)
+# and renders worse inside a blockquote (Slack mrkdwn only applies `>`
+# to the first line of a multi-line quote, so only the first bullet
+# gets indented). For receipts, render the body inline without `>`.
 context_lines=()
 [ -n "$extra" ] && context_lines+=("${extra}")
 [ -n "${NEXT_GATE:-}" ] && context_lines+=(":arrow_forward: Next: ${NEXT_GATE}")
 if [ ${#context_lines[@]} -gt 0 ]; then
   slack+=$'\n'
-  for line in "${context_lines[@]}"; do
-    slack+="> ${line}"$'\n'
-  done
+  if [ "$outcome" = "receipt" ]; then
+    for line in "${context_lines[@]}"; do
+      slack+="${line}"$'\n'
+    done
+  else
+    for line in "${context_lines[@]}"; do
+      slack+="> ${line}"$'\n'
+    done
+  fi
 fi
 
 # ── Links cluster (comprehensive, fixes IFS bug) ──────────────────
@@ -316,10 +336,28 @@ if [ ${#links[@]} -gt 0 ]; then
 fi
 
 # ── Footer: italic context (author, branch) ───────────────────────
-context_footer=""
-[ -n "$pr_author" ] && context_footer+="by ${pr_author} · "
-context_footer+="branch \`${branch}\`"
-slack+=$'\n'"_${context_footer}_"
+# Only on terminal stages (the receipt + the "Shipped to production"
+# headline) to avoid repeating the same line under every gate post.
+# Intermediate gate messages already carry the Commit / PR links above,
+# which expose author + branch on hover.
+case "$stage" in
+  "Shipped to production"|"Cost + cycle-time receipt")
+    context_footer=""
+    [ -n "$pr_author" ] && context_footer+="by ${pr_author} · "
+    context_footer+="branch \`${branch}\`"
+    slack+=$'\n'"_${context_footer}_"
+    ;;
+esac
+
+# ──────────────────────────────────────────────────────────────────
+# Dry-run shortcut: print the composed Slack body and exit. Lets
+# anyone preview what a notify-call would render without actually
+# posting. Set CI_NOTIFY_DRY_RUN=1 to enable.
+# ──────────────────────────────────────────────────────────────────
+if [ "${CI_NOTIFY_DRY_RUN:-0}" = "1" ]; then
+  echo "$slack"
+  exit 0
+fi
 
 # ──────────────────────────────────────────────────────────────────
 # Slack POST
