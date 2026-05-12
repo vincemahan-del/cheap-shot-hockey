@@ -168,6 +168,49 @@ assert(
   "claude.yml: write-mode escalation phrase '/claude write' not found"
 );
 
+// --- 5b. Write-mode escalation must be gated tighter than the trigger ------
+// Trigger allowlist is OWNER/MEMBER/COLLABORATOR. Write mode must drop
+// COLLABORATOR — anyone with COLLABORATOR write-mode could `/claude write`
+// their way to Edit/Write/Bash(gh *) tools. Asserts the shell loop's
+// allowlist variable contains OWNER + MEMBER but not COLLABORATOR.
+// Surfaced by a real LLM run against the static contract — see
+// vincemahan-del/cheap-shot-hockey#51 comment 4432485056.
+const writeAllowlistMatch = claudeYml.match(/assoc_write\s*=\s*"([^"]+)"/);
+assert(
+  writeAllowlistMatch,
+  "claude.yml: write-mode allowlist variable (assoc_write=\"...\") not found near the /claude write gate"
+);
+if (writeAllowlistMatch) {
+  const writeAllowlist = writeAllowlistMatch[1];
+  assert(
+    /\bOWNER\b/.test(writeAllowlist) && /\bMEMBER\b/.test(writeAllowlist),
+    `claude.yml: write-mode allowlist must include OWNER and MEMBER (got "${writeAllowlist}")`
+  );
+  assert(
+    !/\bCOLLABORATOR\b/.test(writeAllowlist),
+    `claude.yml: write-mode allowlist must NOT include COLLABORATOR — that's a privilege-escalation path; got "${writeAllowlist}"`
+  );
+  assert(
+    !/\bNONE\b/.test(writeAllowlist) && !/\bCONTRIBUTOR\b/.test(writeAllowlist),
+    `claude.yml: write-mode allowlist must not include NONE/CONTRIBUTOR; got "${writeAllowlist}"`
+  );
+}
+
+// --- 5c. WRITE_MODE_TOOLS must use paren-restricted Bash, not bare ----------
+// WRITE_MODE_TOOLS intentionally includes Edit/Write/Bash — that's the
+// point. But every Bash entry must be paren-arg-restricted (Bash(npm run *)
+// etc), not bare. Bare Bash would unlock arbitrary shell.
+const writeToolsMatch = claudeYml.match(/WRITE_MODE_TOOLS:\s*"([^"]+)"/);
+if (writeToolsMatch) {
+  const writeTools = writeToolsMatch[1];
+  // Find every "Bash" occurrence and ensure each is followed by "(".
+  const bareBash = writeTools.split(",").some((t) => /^Bash$/.test(t.trim()));
+  assert(
+    !bareBash,
+    `claude.yml WRITE_MODE_TOOLS contains bare Bash (unrestricted shell). Every Bash entry must use paren args, e.g. Bash(npm run *).`
+  );
+}
+
 // --- 6. DoD same-repo PRs only ---------------------------------------------
 assert(
   /github\.event\.pull_request\.head\.repo\.full_name\s*==\s*github\.repository/.test(dodYml),
