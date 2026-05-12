@@ -60,18 +60,28 @@ jobs:
         if: steps.precheck.outputs.skipped == 'false'
         working-directory: scripts/recovery-agent
         # SDK 0.2.113+ spawns a native Claude Code binary via per-platform
-        # optional dependencies. The lockfile is committed from a Mac
-        # workstation; npm install on Linux CI must explicitly include
-        # optional deps to fetch the linux-x64 platform package. Without
-        # this, the SDK fails at runtime with "Claude Code native binary
-        # not found." `--include=optional` is npm's documented switch for
-        # this exact scenario.
+        # optional dependencies. PR #70's `--include=optional` registered
+        # the optional deps in the install metadata, but npm still created
+        # an empty `claude-agent-sdk-linux-x64/` directory without
+        # extracting the tarball (verified via run 25749503123 diagnostic).
+        #
+        # Brute-force fix: nuke node_modules + lockfile + npm cache, force
+        # a fresh resolve and re-extract on Linux. The lockfile is
+        # regenerated each CI run — fine for this isolated package, which
+        # has only one main dep with pinned platform optionals.
         run: |
+          rm -rf node_modules package-lock.json
+          npm cache clean --force 2>/dev/null || true
           npm install --no-audit --no-fund --include=optional
-          echo "--- installed @anthropic-ai/* packages (diagnostic) ---"
+          echo "--- npm ls (does npm think it's installed?) ---"
+          npm ls --depth=0 2>&1 | grep claude-agent-sdk || true
+          echo "--- @anthropic-ai/ dir listing ---"
           ls -la node_modules/@anthropic-ai/ || true
-          echo "--- platform binary present? ---"
-          ls -la node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/ 2>/dev/null || echo "(linux-x64 package missing)"
+          echo "--- linux-x64 binary present + executable? ---"
+          ls -la node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/ 2>/dev/null || echo "(linux-x64 package missing entirely)"
+          test -x node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/claude \
+            && echo "✓ binary exists and is executable" \
+            || echo "✗ binary missing OR not executable"
 
       - name: run eval suite
         if: steps.precheck.outputs.skipped == 'false'
