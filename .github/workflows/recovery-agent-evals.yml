@@ -59,7 +59,19 @@ jobs:
       - name: install recovery-agent deps
         if: steps.precheck.outputs.skipped == 'false'
         working-directory: scripts/recovery-agent
-        run: npm install --no-audit --no-fund
+        # SDK 0.2.113+ spawns a native Claude Code binary via per-platform
+        # optional dependencies. The lockfile is committed from a Mac
+        # workstation; npm install on Linux CI must explicitly include
+        # optional deps to fetch the linux-x64 platform package. Without
+        # this, the SDK fails at runtime with "Claude Code native binary
+        # not found." `--include=optional` is npm's documented switch for
+        # this exact scenario.
+        run: |
+          npm install --no-audit --no-fund --include=optional
+          echo "--- installed @anthropic-ai/* packages (diagnostic) ---"
+          ls -la node_modules/@anthropic-ai/ || true
+          echo "--- platform binary present? ---"
+          ls -la node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/ 2>/dev/null || echo "(linux-x64 package missing)"
 
       - name: run eval suite
         if: steps.precheck.outputs.skipped == 'false'

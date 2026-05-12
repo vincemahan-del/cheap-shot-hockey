@@ -751,7 +751,12 @@ jobs:
 
       - name: install recovery-agent deps
         working-directory: scripts/recovery-agent
-        run: npm install --no-audit --no-fund
+        # See recovery-agent-evals.yml for context. SDK 0.2.113+ requires
+        # platform-specific optional deps (`claude-agent-sdk-linux-x64`)
+        # to spawn its native binary. The committed lockfile is generated
+        # on a Mac, so Linux CI needs `--include=optional` to fetch the
+        # right platform package.
+        run: npm install --no-audit --no-fund --include=optional
 
       - name: run diagnosis agent
         env:
