@@ -171,6 +171,29 @@ src/
 └── middleware.ts            Translates ?demo= query into X-Demo-Mode header
 ```
 
+## Agentic surface — security model
+
+This repo is a public mirror, so the Claude-driven jobs are intentionally
+narrow. Three layers of defense:
+
+1. **`@claude` actions** are gated on `author_association ∈ {OWNER, MEMBER,
+   COLLABORATOR}` — drive-by comments from random GitHub users silently
+   no-op. Default tools are read-only; write access requires an explicit
+   `/claude write` phrase from an OWNER or MEMBER.
+2. **The auto-DoD action** runs analysis-only on same-repo PRs (no fork
+   heads). It lists coverage / mabl-test gaps in a PR comment; it does
+   not edit code, create Jira tickets, or create mabl tests.
+3. **The recovery agent** has tools `Read,Grep,Glob` only — no Bash, no
+   writes. Every run emits a `__LLM_RECEIPT__` JSON line with cost,
+   tokens, model, and session id so spend is auditable.
+
+Every model is pinned to `claude-opus-4-7`. Every action is SHA-pinned
+to a 40-char commit. `scripts/llm/check-tool-surface.mjs` runs on every
+PR and fails the merge if any of those contracts regress. Full details
+in [`AGENTS.md`](AGENTS.md#agentic-surface--hardened-gates).
+
+If you fork this repo, the contracts come with it.
+
 ## License
 
 Demo project — do what you want with it.

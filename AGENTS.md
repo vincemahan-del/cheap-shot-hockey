@@ -51,3 +51,54 @@ Every PR that touches `src/` must satisfy all three before the branch is pushed:
 
 Follow `docs/MCP-NARRATION-PLAYBOOK.md` exactly when narrating CI events to Slack/Jira.
 Key invariants: one thread per Jira ticket, kickoff at channel level only, all subsequent posts as thread replies, forward mabl's native Slack posts into the thread.
+
+## Agentic surface — hardened gates
+
+Three Claude-driven jobs run on this repo. They are intentionally narrow.
+`scripts/llm/check-tool-surface.mjs` runs in the lint gate on every PR and
+fails the merge if any of these contracts regress.
+
+### 1. `@claude` action (`.github/workflows/claude.yml`)
+- Trigger: a comment containing `@claude` on an issue, PR, or review.
+- **Author gate**: only `OWNER`, `MEMBER`, or `COLLABORATOR` associations
+  pass the `authorize` job. Drive-by comments from random GitHub users
+  silently no-op.
+- **Default tools**: read-only (`Read,Glob,Grep,WebFetch,WebSearch` plus
+  read-only `mcp__mabl__*` and `mcp__atlassian__*`).
+- **Write mode**: requires the comment to contain `/claude write` AND the
+  commenter to be `OWNER` or `MEMBER`. Adds `Edit,Write,Bash(npm run *),
+  Bash(git *),Bash(gh *)` and the mabl/atlassian *create_* tools.
+- **Model**: `claude-opus-4-7` pinned via `--model` in `claude_args`.
+- **Action**: SHA-pinned to `anthropics/claude-code-action@<40-char SHA>`,
+  never `@beta` or `@v1`.
+
+### 2. Definition-of-done check (`.github/workflows/claude-agentic-dod.yml`)
+- Trigger: PR opened, synchronized, or reopened against `main`.
+- **Same-repo only**: fork-head PRs are skipped (no secrets exposure).
+- **Analysis-only**: tools are `Read,Glob,Grep` + tightly scoped
+  `Bash(npm run *)`, `Bash(git diff *)`, `Bash(./scripts/mabl-suggest-tests.sh *)`
+  + read-only `mcp__mabl__*` / `mcp__atlassian__*`. No `Edit`, no `Write`,
+  no `*_create_*` — gaps are listed in the PR comment, not fixed in place.
+- Same model and action pinning as `@claude`.
+
+### 3. Recovery agent (`scripts/recovery-agent/index.js`)
+- Trigger: post-deploy verification fails on a push to `main`.
+- Tools: `Read,Grep,Glob` only (read-only).
+- Hard 5-min timeout. Failsafe path on any error → `decision: page-human`.
+- Model: `claude-opus-4-7` (override via `RECOVERY_AGENT_MODEL`).
+- Emits a `__LLM_RECEIPT__` line with `cost_usd`, `model_actual`,
+  `input_tokens`, `output_tokens`, `session_id` — surfaced in the
+  Slack/Jira post by `scripts/recovery-agent/recommend.sh`.
+
+### What `scripts/llm/check-tool-surface.mjs` enforces
+- Action references are SHA-pinned (40-char hex).
+- `--model` is present and looks pinned (no `@latest`, `@beta`, `@v1`).
+- `READ_ONLY_TOOLS` and `DOD_ANALYSIS_TOOLS` contain no `Edit`, `Write`,
+  `mcp__*__create_*`, `mcp__*__add_jira_comment`, `mcp__mabl__plan_new_test`,
+  `mcp__mabl__run_mabl_test_cloud`, or bare `Bash` (without paren-restricted args).
+- `claude.yml` has an `author_association` gate with `OWNER`, `MEMBER`,
+  `COLLABORATOR`, and the `/claude write` escalation phrase.
+- `claude-agentic-dod.yml` restricts to same-repo PRs.
+
+**If you intentionally widen the surface, update `check-tool-surface.mjs`
+in the same PR so the contract stays explicit and reviewable.**
