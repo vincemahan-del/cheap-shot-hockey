@@ -287,11 +287,19 @@ Only do this if you still have the room. Huge impact.
   the 503s, flags the failure.
 - Open a new GitHub issue:
   ```
-  @claude — prod is returning 503s. Pull the latest failed mabl run,
-  triage it, and open a PR with the fix if you find the cause.
+  @claude /claude write — prod is returning 503s. Pull the latest failed
+  mabl run, triage it, and open a PR with the fix if you find the cause.
   ```
 - Claude calls `analyze_failure` → identifies the demo toggle → writes
   the "reset" PR → pipeline runs → prod green again.
+
+**Why the `/claude write` phrase?** Post-hardening (May 2026), the
+`@claude` action is read-only by default to prevent abuse on the public
+mirror. The `/claude write` escalation grants `Edit`/`Write`/mabl-create/
+Jira-create tools, and only fires for commenters whose
+`author_association` is `OWNER` or `MEMBER` — a drive-by GitHub user
+adding the phrase still no-ops. See [`AGENTS.md`](../AGENTS.md#agentic-surface--hardened-gates)
+for the full gate model.
 
 ```bash
 ./scripts/demo-toggle.sh normal
