@@ -21,6 +21,19 @@ if [ ! -f "$result_file" ]; then
   exit 0
 fi
 
+# Detect the precheck-noop result (agent couldn't even start because
+# ANTHROPIC_API_KEY isn't configured). Don't post a Slack "BLOCKED:
+# Recovery agent diagnosis" message — that misrepresents a deliberate
+# skip as an alert. The deterministic "Prod post-deploy failed"
+# notification from mabl-sdlc.yml's post-deploy-smoke failure step is
+# what humans should act on. Recovery agent only adds Slack value when
+# it actually ran.
+is_noop=$(jq -r '.noop // false' "$result_file")
+if [ "$is_noop" = "true" ]; then
+  echo "recommend.sh: result is precheck-noop (no ANTHROPIC_API_KEY) — skipping Slack post."
+  exit 0
+fi
+
 decision=$(jq -r '.decision // "page-human"' "$result_file")
 confidence=$(jq -r '.confidence // "low"' "$result_file")
 reasoning=$(jq -r '.reasoning // "no reasoning provided"' "$result_file")

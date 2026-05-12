@@ -55,9 +55,9 @@ async function writeResult(obj) {
 
 if (!process.env.ANTHROPIC_API_KEY) {
   console.log("[recovery-agent] ANTHROPIC_API_KEY not set — emitting page-human noop.");
-  await writeResult(
-    failsafe("ANTHROPIC_API_KEY is not configured in repo secrets; agent did not run.")
-  );
+  const out = failsafe("ANTHROPIC_API_KEY is not configured in repo secrets; agent did not run.");
+  out.noop = true;  // signals recommend.sh to skip the Slack post — the agent never actually ran
+  await writeResult(out);
   process.exit(0);
 }
 
