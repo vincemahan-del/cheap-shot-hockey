@@ -13,6 +13,12 @@
 //
 // Tools available to the agent: Read, Grep, Glob (no Bash, no Edit, no Write).
 // Permission mode: default (read-only tools won't trigger prompts anyway).
+//
+// Model is pinned (RECOVERY_AGENT_MODEL, default claude-opus-4-7). The final
+// SDKResultMessage's total_cost_usd, usage, modelUsage, and session_id are
+// captured into recovery-result.json AND emitted as a single
+// `__LLM_RECEIPT__ {...}` line on stdout. recommend.sh surfaces cost/model
+// in the Slack/Jira post.
 
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { readFile, writeFile } from "node:fs/promises";
@@ -24,6 +30,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const RESULT_FILE = process.env.RECOVERY_RESULT_FILE || "./recovery-result.json";
 const LOGS_DIR = process.env.LOGS_DIR || "./logs";
 const HARD_TIMEOUT_MS = 5 * 60 * 1000;
+const MODEL = process.env.RECOVERY_AGENT_MODEL || "claude-opus-4-7";
 
 const failsafe = (reason) => ({
   decision: "page-human",
@@ -33,7 +40,13 @@ const failsafe = (reason) => ({
   suggested_fix_summary: null,
   looks_like_flake: false,
   looks_like_demo_toggle: false,
+  receipt: null,
 });
+
+function emitReceipt(receipt) {
+  // Single-line JSON marker; greppable from GHA logs if you want to aggregate.
+  console.log(`__LLM_RECEIPT__ ${JSON.stringify(receipt)}`);
+}
 
 async function writeResult(obj) {
   await writeFile(RESULT_FILE, JSON.stringify(obj, null, 2) + "\n", "utf8");
@@ -69,11 +82,14 @@ Context for traceability (do not refetch — these are facts, not files):
 
 Begin by globbing ${ctx.logsDir}/ to confirm available evidence, then read gha-run.log first.`;
 
-console.log(`[recovery-agent] starting · ticket=${ctx.ticket} sha=${ctx.shaShort} run=${ctx.runId}`);
+console.log(`[recovery-agent] starting · ticket=${ctx.ticket} sha=${ctx.shaShort} run=${ctx.runId} model=${MODEL}`);
 
 const startedAt = Date.now();
 let toolUseCount = 0;
 const assistantTexts = [];
+let sdkResult = null;     // captured from final SDKResultMessage
+let initModel = null;     // captured from SDKSystemMessage (init)
+let sessionId = null;
 
 const timer = setTimeout(async () => {
   console.error("[recovery-agent] HARD TIMEOUT (5 min) — emitting fail-safe page-human.");
@@ -88,6 +104,7 @@ try {
     prompt,
     options: {
       systemPrompt,
+      model: MODEL,
       allowedTools: ["Read", "Grep", "Glob"],
       permissionMode: "default",
       cwd: process.env.GITHUB_WORKSPACE || process.cwd(),
@@ -108,8 +125,14 @@ try {
           console.log(`[recovery-agent] tool_result (${out.length}B)`);
         }
       }
+    } else if (t === "system" && message?.subtype === "init") {
+      initModel = message.model || null;
+      sessionId = message.session_id || sessionId;
+      console.log(`[recovery-agent] init · model=${initModel} session=${sessionId}`);
     } else if (t === "result") {
-      console.log(`[recovery-agent] sdk result message`);
+      sdkResult = message;
+      sessionId = message.session_id || sessionId;
+      console.log(`[recovery-agent] sdk result · subtype=${message.subtype} cost_usd=${message.total_cost_usd}`);
     }
   }
 } catch (err) {
@@ -124,13 +147,41 @@ clearTimeout(timer);
 const durationSec = ((Date.now() - startedAt) / 1000).toFixed(1);
 console.log(`[recovery-agent] done in ${durationSec}s · tool_uses=${toolUseCount}`);
 
+const receipt = {
+  workflow: "recovery-agent",
+  ticket: ctx.ticket,
+  run_id: ctx.runId,
+  sha: ctx.shaShort,
+  model_pin: MODEL,
+  model_actual: initModel || MODEL,
+  session_id: sessionId,
+  duration_sec: Number(durationSec),
+  tool_uses: toolUseCount,
+  num_turns: sdkResult?.num_turns ?? null,
+  cost_usd: sdkResult?.total_cost_usd ?? null,
+  input_tokens: sdkResult?.usage?.input_tokens ?? null,
+  output_tokens: sdkResult?.usage?.output_tokens ?? null,
+  cache_read_input_tokens: sdkResult?.usage?.cache_read_input_tokens ?? null,
+  cache_creation_input_tokens: sdkResult?.usage?.cache_creation_input_tokens ?? null,
+  subtype: sdkResult?.subtype ?? null,
+  is_error: sdkResult?.is_error ?? null,
+  ts: new Date().toISOString(),
+};
+emitReceipt(receipt);
+
 // Extract the final JSON block from the last assistant message.
 const finalText = assistantTexts[assistantTexts.length - 1] || "";
 const jsonMatch = finalText.match(/```json\s*\n([\s\S]*?)\n```\s*$/);
 
+const failWithReceipt = async (reason) => {
+  const out = failsafe(reason);
+  out.receipt = receipt;
+  await writeResult(out);
+};
+
 if (!jsonMatch) {
   console.error("[recovery-agent] no fenced JSON block at end of final assistant message.");
-  await writeResult(failsafe("Agent did not emit a fenced JSON block in the expected schema."));
+  await failWithReceipt("Agent did not emit a fenced JSON block in the expected schema.");
   process.exit(0);
 }
 
@@ -139,7 +190,7 @@ try {
   parsed = JSON.parse(jsonMatch[1]);
 } catch (e) {
   console.error("[recovery-agent] JSON parse error:", e.message);
-  await writeResult(failsafe(`Agent JSON was not parseable: ${e.message}`));
+  await failWithReceipt(`Agent JSON was not parseable: ${e.message}`);
   process.exit(0);
 }
 
@@ -147,14 +198,14 @@ const requiredKeys = ["decision", "confidence", "reasoning"];
 const missing = requiredKeys.filter((k) => !(k in parsed));
 if (missing.length > 0) {
   console.error("[recovery-agent] missing required keys:", missing);
-  await writeResult(failsafe(`Agent JSON missing required keys: ${missing.join(", ")}`));
+  await failWithReceipt(`Agent JSON missing required keys: ${missing.join(", ")}`);
   process.exit(0);
 }
 
 const validDecisions = ["revert", "forward-fix", "page-human"];
 if (!validDecisions.includes(parsed.decision)) {
   console.error("[recovery-agent] invalid decision:", parsed.decision);
-  await writeResult(failsafe(`Agent emitted invalid decision: ${parsed.decision}`));
+  await failWithReceipt(`Agent emitted invalid decision: ${parsed.decision}`);
   process.exit(0);
 }
 
@@ -166,6 +217,7 @@ const validated = {
   suggested_fix_summary: parsed.suggested_fix_summary || null,
   looks_like_flake: Boolean(parsed.looks_like_flake),
   looks_like_demo_toggle: Boolean(parsed.looks_like_demo_toggle),
+  receipt,
 };
 
 await writeResult(validated);
