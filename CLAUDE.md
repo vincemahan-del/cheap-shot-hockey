@@ -242,9 +242,14 @@ Every shipped ticket gets a final `:receipt:` Slack post computed by
   split by `failure` vs `success`. Surfaces "this PR took 4 attempts"
   friction signal.
 - **Human touches** — review count + approver handles + manual rerun
-  count (`workflow_dispatch` events on head_sha). Says
-  `0 reviews, 0 manual reruns (fully autonomous)` when nothing humans did.
-- **Agent tokens** — v2, not yet captured (needs Anthropic usage API).
+  count (`workflow_dispatch` events AND `run_attempt > 1` UI-driven
+  reruns on head_sha). Says `0 reviews, 0 manual reruns (fully
+  autonomous)` only when nothing humans did.
+- **Agent tokens** — sum of `cost_usd` across all `__LLM_RECEIPT__`
+  lines emitted by recovery-agent + claude-code-action runs for this
+  ticket. Per-model breakdown included when more than one LLM run.
+  No Anthropic usage API call — receipts are emitted at run time and
+  read back from GHA logs.
 
 Fully deterministic — no LLM calls. All creds (`GITHUB_TOKEN`,
 `MABL_API_TOKEN`, `MABL_APPLICATION_ID`) are already wired for other gates.
