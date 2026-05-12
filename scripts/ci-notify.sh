@@ -333,9 +333,16 @@ fi
 case "$stage" in
   "Shipped to production"|"Cost + cycle-time receipt")
     context_footer=""
-    [ -n "$pr_author" ] && context_footer+="by ${pr_author} · "
-    context_footer+="branch \`${branch}\`"
-    slack+=$'\n'"_${context_footer}_"
+    [ -n "$pr_author" ] && context_footer+="by ${pr_author}"
+    # On a main-push the branch is always `main` (dead weight) and the
+    # PR # is already in the headline (redundant in the footer). Only
+    # add a branch suffix when the post is from a non-main branch
+    # (intermediate gates on the PR branch itself).
+    if [ "$branch" != "main" ]; then
+      [ -n "$pr_author" ] && context_footer+=" · "
+      context_footer+="branch \`${branch}\`"
+    fi
+    [ -n "$context_footer" ] && slack+=$'\n'"_${context_footer}_"
     ;;
 esac
 
