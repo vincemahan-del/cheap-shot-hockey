@@ -174,9 +174,9 @@ metric_block=""
 # the clickable URLs live in the link cluster at the bottom where
 # Slack's URL auto-detection produces a usable result.
 if [ -n "$headline_label" ]; then
-  slack+="${headline_emoji} *${ticket_prefix}${headline_label}: ${stage}*"
+  slack+="${headline_emoji} ${ticket_prefix}${headline_label}: ${stage}"
 else
-  slack+="${headline_emoji} *${ticket_prefix}${stage}*"
+  slack+="${headline_emoji} ${ticket_prefix}${stage}"
 fi
 if [ -n "$pr_url" ]; then
   slack+=" · PR #${pr_num}"
@@ -192,7 +192,7 @@ slack+=$'\n'
 
 # ── Section: Changes ──────────────────────────────────────────────
 if [ -n "${DIFF_FILES:-}" ] && [ "${DIFF_FILES:-0}" != "0" ]; then
-  slack+=$'\n'":clipboard: *Changes*"$'\n'
+  slack+=$'\n'":clipboard: Changes"$'\n'
   slack+="• Files: ${DIFF_FILES}"$'\n'
   slack+="• Lines: +${DIFF_ADDITIONS:-0} / -${DIFF_DELETIONS:-0}"$'\n'
 fi
@@ -200,7 +200,7 @@ fi
 # ── Section: Unit tests + coverage ────────────────────────────────
 if [ -n "${TEST_TOTAL:-}" ]; then
   cov_threshold="${COVERAGE_THRESHOLD:-90}"
-  slack+=$'\n'":test_tube: *Unit tests + coverage*  (gate ${cov_threshold}%)"$'\n'
+  slack+=$'\n'":test_tube: Unit tests + coverage (gate ${cov_threshold}%)"$'\n'
   if [ -n "${COVERAGE_LINES:-}" ]; then
     indicator="✅"
     if [ "$(printf '%.0f' "$COVERAGE_LINES")" -lt "$cov_threshold" ] 2>/dev/null; then
@@ -229,7 +229,7 @@ if [ -n "${NEWMAN_REQUESTS:-}" ]; then
   newman_pass=$((${NEWMAN_ASSERTIONS:-0} - ${NEWMAN_FAILURES:-0}))
   duration_sec=""
   [ -n "${NEWMAN_DURATION_MS:-}" ] && duration_sec=$(awk -v ms="$NEWMAN_DURATION_MS" 'BEGIN{printf "%.2f", ms/1000}')
-  slack+=$'\n'":zap: *Newman results*"$'\n'
+  slack+=$'\n'":zap: Newman results"$'\n'
   slack+="• Requests: ${NEWMAN_REQUESTS}"$'\n'
   if [ "${NEWMAN_FAILURES:-0}" -gt 0 ] 2>/dev/null; then
     slack+="• Assertions: ${newman_pass}/${NEWMAN_ASSERTIONS} passed, ${NEWMAN_FAILURES} FAILED ❌"$'\n'
@@ -243,7 +243,7 @@ fi
 
 # ── Section: mabl plan ────────────────────────────────────────────
 if [ -n "${MABL_PLAN_NAME:-}" ]; then
-  slack+=$'\n'":robot_face: *mabl plan*  ${MABL_PLAN_NAME}"$'\n'
+  slack+=$'\n'":robot_face: mabl plan — ${MABL_PLAN_NAME}"$'\n'
   m_pass="${MABL_TEST_PASSED:-?}"
   m_total="${MABL_TEST_TOTAL:-?}"
   m_fail="${MABL_TEST_FAILED:-0}"
@@ -261,7 +261,7 @@ fi
 
 # ── Section: T3 chain (shipped stage only) ────────────────────────
 if [ "$stage" = "Shipped to production" ] && [ "$outcome" = "ok" ]; then
-  slack+=$'\n'":stopwatch: *T3 chain*"$'\n'
+  slack+=$'\n'":stopwatch: T3 chain"$'\n'
   slack+="• T1 newman (Prod) ✅"$'\n'
   slack+="• mabl CSH-SMOKE-POSTDEPLOY (Prod) ✅"$'\n'
   slack+="• Vercel prod deploy ✅"$'\n'

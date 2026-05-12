@@ -247,7 +247,7 @@ jobs:
           COVERAGE_BRANCHES: ${{ needs.unit.outputs.coverage_branches }}
           NEXT_GATE: "T1 — newman smoke (Preview)"
         run: |
-          bash scripts/ci-notify.sh ok "Stage 1 · code quality" "Lint ok, unit tests green, build succeeded. Ticket moving to *In Progress*."
+          bash scripts/ci-notify.sh ok "Stage 1 · code quality" "Lint ok, unit tests green, build succeeded. Ticket moving to In Progress."
 
   # ─────────────────────────────────────────────────────────────────
   # Stage 2: T1 CLI smoke (newman vs Postman collection)
@@ -647,7 +647,7 @@ jobs:
           PROD_URL: ${{ env.PRODUCTION_URL }}
           NEXT_GATE: "Live. Ticket moved to Done."
         run: |
-          bash scripts/ci-notify.sh ok "Shipped to production" ":rocket: Change is live on <${{ env.PRODUCTION_URL }}|cheap-shot-hockey.vercel.app> and verified by mabl against real prod (see mabl's Slack post above for per-test detail). Ticket transitioning to *Done*."
+          bash scripts/ci-notify.sh ok "Shipped to production" ":rocket: Change is live on ${{ env.PRODUCTION_URL }} and verified by mabl against real prod (see mabl's Slack post above for per-test detail). Ticket transitioning to Done."
       - name: notify (success — shipped, mabl gate paused)
         if: success() && steps.gate.outputs.skipped == 'true'
         env:
@@ -655,7 +655,7 @@ jobs:
           PROD_URL: ${{ env.PRODUCTION_URL }}
           NEXT_GATE: "Live. Ticket moved to Done. (mabl cloud gate paused — verified by T1 newman + GHA gates only.)"
         run: |
-          bash scripts/ci-notify.sh ok "Shipped to production" ":rocket: Change is live on <${{ env.PRODUCTION_URL }}|cheap-shot-hockey.vercel.app>. :pause_button: mabl cloud gate paused (Newman + GHA gates verified). Ticket transitioning to *Done*."
+          bash scripts/ci-notify.sh ok "Shipped to production" ":rocket: Change is live on ${{ env.PRODUCTION_URL }}. :pause_button: mabl cloud gate paused (Newman + GHA gates verified). Ticket transitioning to Done."
       - name: notify (failure)
         if: failure() && steps.gate.outputs.skipped != 'true'
         env:

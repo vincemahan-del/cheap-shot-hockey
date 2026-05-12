@@ -143,12 +143,15 @@ if [ -n "$pr_num" ]; then
       || echo "0")
   fi
 
+  # Bullet labels rendered as plain text — Slack Workflow Builder
+  # webhook doesn't reliably parse `*bold*` mid-body, so the asterisks
+  # were showing as literal characters in the channel.
   if [ "$review_count" -gt 0 ] || [ "$manual_runs" -gt 0 ]; then
-    human_touches_line="• *Human touches:* ${review_count} reviews"
+    human_touches_line="• Human touches: ${review_count} reviews"
     [ -n "$approver_handles" ] && human_touches_line+=" (approved by ${approver_handles})"
     [ "$manual_runs" -gt 0 ] && human_touches_line+=", ${manual_runs} manual reruns"
   else
-    human_touches_line="• *Human touches:* 0 reviews, 0 manual reruns (fully autonomous)"
+    human_touches_line="• Human touches: 0 reviews, 0 manual reruns (fully autonomous)"
   fi
 fi
 
@@ -166,9 +169,9 @@ if [ -n "$head_sha" ]; then
 
   if [ "$ci_total" -gt 0 ]; then
     if [ "$ci_failed" -gt 0 ]; then
-      ci_attempts_line="• *CI attempts:* ${ci_total} runs (${ci_failed} failed → ${ci_success} green)"
+      ci_attempts_line="• CI attempts: ${ci_total} runs (${ci_failed} failed → ${ci_success} green)"
     else
-      ci_attempts_line="• *CI attempts:* ${ci_total} runs, all green (no retries)"
+      ci_attempts_line="• CI attempts: ${ci_total} runs, all green (no retries)"
     fi
   fi
 fi
@@ -181,7 +184,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mabl_line=""
 case "${MABL_CLOUD_GATE:-enabled}" in
   disabled)
-    mabl_line="• *mabl minutes:* paused (toggle disabled)"
+    mabl_line="• mabl minutes: paused (toggle disabled)"
     ;;
   *)
     # v1.1 — best-effort capture via mabl-cloud-minutes.sh helper.
@@ -194,20 +197,21 @@ case "${MABL_CLOUD_GATE:-enabled}" in
         || echo "MABL_CLOUD_MINUTES=n/a")
       mabl_value=$(echo "$mabl_helper_output" | grep "^MABL_CLOUD_MINUTES=" | head -1 | sed 's/^MABL_CLOUD_MINUTES=//')
       if [ -n "$mabl_value" ] && [ "$mabl_value" != "n/a" ]; then
-        mabl_line="• *mabl minutes:* ${mabl_value}"
+        mabl_line="• mabl minutes: ${mabl_value}"
       else
-        mabl_line="• *mabl minutes:* n/a (verify MABL_LIST_ENDPOINT in scripts/mabl-cloud-minutes.sh against your tier)"
+        mabl_line="• mabl minutes: n/a (verify MABL_LIST_ENDPOINT in scripts/mabl-cloud-minutes.sh against your tier)"
       fi
     else
-      mabl_line="• *mabl minutes:* unknown — could not determine PR window"
+      mabl_line="• mabl minutes: unknown — could not determine PR window"
     fi
     ;;
 esac
 
-# The body — bullets stand on their own; the previous italic footer
-# justifying what the bullets are has been dropped.
-receipt_body="• *Lead time:* ${lead_time_human:-unknown} (PR open → merged)"$'\n'
-receipt_body+="• *GHA minutes:* ${gha_human:-unknown}"
+# The body — bullets in plain text (no `*bold*`). The Slack Workflow
+# Builder webhook renders mid-body `*` markers as literal characters,
+# so the asterisks were showing in the channel.
+receipt_body="• Lead time: ${lead_time_human:-unknown} (PR open → merged)"$'\n'
+receipt_body+="• GHA minutes: ${gha_human:-unknown}"
 [ "$runs_counted" -gt 0 ] && receipt_body+=" across ${runs_counted} workflow runs"
 receipt_body+=$'\n'
 receipt_body+="${mabl_line}"$'\n'
