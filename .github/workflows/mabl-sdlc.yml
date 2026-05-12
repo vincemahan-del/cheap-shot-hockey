@@ -67,10 +67,16 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - name: tool-surface contract check
+        # Static assertions on the agentic surface — fails the lint gate
+        # (and therefore the PR) if anyone widens @claude / DoD beyond
+        # the hardened defaults, un-pins a model, or removes the author
+        # allowlist. See scripts/llm/check-tool-surface.mjs.
+        run: npm run check:tool-surface
       - name: notify (failure)
         if: failure()
         run: |
-          bash scripts/ci-notify.sh fail "lint" "eslint rules failed"
+          bash scripts/ci-notify.sh fail "lint" "eslint or tool-surface contract failed"
 
   # Advisory security gate — npm audit at high+critical only. Doesn't
   # block merge in v1 (continue-on-error: true at job level). Promote
