@@ -131,11 +131,15 @@ if [ -n "$pr_num" ]; then
   approver_handles=$(echo "$reviews_json" \
     | jq -r '[.[] | select(.state=="APPROVED") | .user.login] | unique | join(", ")')
 
-  # Manual reruns = workflow_dispatch events on this PR's head_sha
+  # Manual reruns = workflow_dispatch events OR UI-driven reruns
+  # (run_attempt > 1). GitHub's "Re-run failed jobs" button does NOT fire
+  # workflow_dispatch — it re-fires the original event and bumps
+  # run_attempt. Without this, the receipt would claim "0 manual reruns"
+  # even when a human clicked Re-run during the cycle.
   manual_runs=0
   if [ -n "$head_sha" ]; then
     manual_runs=$(gh api "repos/${repo}/actions/runs?head_sha=${head_sha}&per_page=50" \
-      --jq '[.workflow_runs[] | select(.event=="workflow_dispatch")] | length' 2>/dev/null \
+      --jq '[.workflow_runs[] | select(.event=="workflow_dispatch" or .run_attempt > 1)] | length' 2>/dev/null \
       || echo "0")
   fi
 
@@ -166,6 +170,65 @@ if [ -n "$head_sha" ]; then
     else
       ci_attempts_line="• *CI attempts:* ${ci_total} runs, all green (no retries)"
     fi
+  fi
+fi
+
+# ──────────────────────────────────────────────────────────────────
+# 3d. Agent tokens — sum __LLM_RECEIPT__ lines from this ticket's runs.
+# Receipts are emitted by:
+#   - scripts/recovery-agent/index.js (on post-deploy failure)
+#   - scripts/llm/emit-receipt.sh (claude.yml + claude-agentic-dod.yml)
+# Each is a single-line JSON with cost_usd, model_actual, input/output
+# tokens, session_id. We aggregate across the PR's head_sha AND the
+# merge commit so both PR-time and post-deploy LLM activity counts.
+# Bounded: SKIP_LLM_RECEIPT_AGG=1 disables the gh-run-view loop if a
+# fork wants to skip the log fetch (each call is up to a few MB).
+# ──────────────────────────────────────────────────────────────────
+agent_tokens_line=""
+total_llm_cost="0"
+total_llm_runs=0
+if [ "${SKIP_LLM_RECEIPT_AGG:-0}" = "1" ]; then
+  agent_tokens_line="• *Agent tokens:* skipped (SKIP_LLM_RECEIPT_AGG=1)"
+else
+  shas=()
+  [ -n "$head_sha" ] && shas+=("$head_sha")
+  [ -n "$GITHUB_SHA" ] && [ "$GITHUB_SHA" != "$head_sha" ] && shas+=("$GITHUB_SHA")
+
+  llm_receipts_tmp=$(mktemp)
+  trap 'rm -f "$llm_receipts_tmp"' EXIT
+
+  for s in "${shas[@]}"; do
+    run_ids=$(gh api "repos/${repo}/actions/runs?head_sha=${s}&per_page=50" \
+      --jq '.workflow_runs[].id' 2>/dev/null || true)
+    while IFS= read -r rid; do
+      [ -z "$rid" ] && continue
+      gh run view "$rid" --log 2>/dev/null \
+        | grep -oE '__LLM_RECEIPT__ \{[^}]*\}' \
+        | sed 's/^__LLM_RECEIPT__ //' \
+        | while IFS= read -r line; do
+            echo "$line" | jq -c . >/dev/null 2>&1 && echo "$line" >> "$llm_receipts_tmp"
+          done
+    done <<< "$run_ids"
+  done
+
+  total_llm_runs=$(wc -l < "$llm_receipts_tmp" | tr -d ' ')
+  if [ "$total_llm_runs" -gt 0 ]; then
+    total_llm_cost=$(jq -s '[.[] | (.cost_usd // 0)] | add // 0' "$llm_receipts_tmp")
+    # Per-model breakdown for the receipt — informational, optional.
+    by_model=$(jq -s -r '
+      group_by(.model_actual // "unknown")
+      | map({m: .[0].model_actual // "unknown", c: ([.[] | (.cost_usd // 0)] | add // 0), n: length})
+      | sort_by(-.c)
+      | .[]
+      | "  - \(.m): $\(.c | . * 10000 | round / 10000) (\(.n) runs)"
+    ' "$llm_receipts_tmp")
+    cost_fmt=$(printf '%.4f' "$total_llm_cost")
+    agent_tokens_line="• *Agent tokens:* \$${cost_fmt} across ${total_llm_runs} LLM runs"
+    if [ -n "$by_model" ] && [ "$total_llm_runs" -gt 1 ]; then
+      agent_tokens_line+=$'\n'"$by_model"
+    fi
+  else
+    agent_tokens_line="• *Agent tokens:* \$0.0000 (no LLM runs this ticket)"
   fi
 fi
 
@@ -206,14 +269,14 @@ receipt_body+="• *GHA minutes:* ${gha_human:-unknown}"
 [ "$runs_counted" -gt 0 ] && receipt_body+=" across ${runs_counted} workflow runs"
 receipt_body+=$'\n'
 receipt_body+="${mabl_line}"$'\n'
-receipt_body+="• *Agent tokens:* not yet captured (v2 — needs ANTHROPIC_API_KEY usage call)"$'\n'
+receipt_body+="${agent_tokens_line}"$'\n'
 [ -n "$ci_attempts_line" ] && receipt_body+="${ci_attempts_line}"$'\n'
 [ -n "$human_touches_line" ] && receipt_body+="${human_touches_line}"$'\n'
 receipt_body+=$'\n'
-receipt_body+="_Lead time + GHA + mabl minutes + retry/review counts computed from native GitHub + mabl APIs. Agent tokens land when ANTHROPIC_API_KEY usage tracking is wired. Customer ROI story: per-ticket cost AND friction (retries, human touches) are auditable and trend over time, no special instrumentation required._"
+receipt_body+="_Lead time + GHA + mabl minutes + agent tokens + retry/review counts computed from native GitHub + mabl APIs + \`__LLM_RECEIPT__\` log lines emitted by each Claude run. Customer ROI story: per-ticket cost AND friction (retries, human touches) are auditable and trend over time, no special instrumentation required._"
 
 # Use ci-notify.sh's "info" outcome to post a non-OK / non-FAIL message
 # without injecting a "Passed:" or "BLOCKED:" headline.
 bash "${script_dir}/ci-notify.sh" info "Receipt" "$receipt_body"
 
-echo "cycle-time-receipt: posted (lead=${lead_time_human:-?} gha=${gha_human:-?} runs=${runs_counted})"
+echo "cycle-time-receipt: posted (lead=${lead_time_human:-?} gha=${gha_human:-?} runs=${runs_counted} agent=\$${total_llm_cost} across ${total_llm_runs} LLM runs)"
