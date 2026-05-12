@@ -168,61 +168,60 @@ metric_block=""
 # ── Header ────────────────────────────────────────────────────────
 # Outcomes with an empty headline_label (e.g. `receipt`) get
 # "<emoji> *[TICKET] stage*" instead of "<emoji> *[TICKET] Label: stage*".
+# WEBHOOK-SAFE: Slack Workflow Builder webhooks render the mrkdwn link
+# syntax `<URL|label>` raw (brackets + pipe show as literal chars).
+# So we keep the header plain — PR number / sha-short on branch — and
+# the clickable URLs live in the link cluster at the bottom where
+# Slack's URL auto-detection produces a usable result.
 if [ -n "$headline_label" ]; then
   slack+="${headline_emoji} *${ticket_prefix}${headline_label}: ${stage}*"
 else
   slack+="${headline_emoji} *${ticket_prefix}${stage}*"
 fi
 if [ -n "$pr_url" ]; then
-  slack+=" · <${pr_url}|PR #${pr_num}>"
+  slack+=" · PR #${pr_num}"
 elif [ -n "${GITHUB_SHA:-}" ]; then
   slack+=" · \`${sha_short}\` on \`${branch}\`"
 fi
 slack+=$'\n'
 
+# WEBHOOK-SAFE: Slack Workflow Builder webhooks render triple-backtick
+# ``` code fences raw (three backticks show as literal chars). All the
+# metric sections below use bullet-list formatting instead — same data,
+# loses monospace alignment but renders cleanly across both transports.
+
 # ── Section: Changes ──────────────────────────────────────────────
 if [ -n "${DIFF_FILES:-}" ] && [ "${DIFF_FILES:-0}" != "0" ]; then
   slack+=$'\n'":clipboard: *Changes*"$'\n'
-  slack+='```'$'\n'
-  printf -v line "Files          %s\n" "${DIFF_FILES}"
-  slack+="$line"
-  printf -v line "Lines          +%s / -%s\n" "${DIFF_ADDITIONS:-0}" "${DIFF_DELETIONS:-0}"
-  slack+="$line"
-  slack+='```'$'\n'
+  slack+="• Files: ${DIFF_FILES}"$'\n'
+  slack+="• Lines: +${DIFF_ADDITIONS:-0} / -${DIFF_DELETIONS:-0}"$'\n'
 fi
 
 # ── Section: Unit tests + coverage ────────────────────────────────
-# Note: Slack does NOT process emoji shortcodes inside ``` fences,
-# so we use Unicode glyphs (✅ / ❌) directly in the table rows.
 if [ -n "${TEST_TOTAL:-}" ]; then
   cov_threshold="${COVERAGE_THRESHOLD:-90}"
   slack+=$'\n'":test_tube: *Unit tests + coverage*  (gate ${cov_threshold}%)"$'\n'
-  slack+='```'$'\n'
   if [ -n "${COVERAGE_LINES:-}" ]; then
     indicator="✅"
     if [ "$(printf '%.0f' "$COVERAGE_LINES")" -lt "$cov_threshold" ] 2>/dev/null; then
       indicator="❌"
     fi
-    printf -v line "Lines          %s%%   %s\n" "${COVERAGE_LINES}" "$indicator"
-    slack+="$line"
+    slack+="• Lines: ${COVERAGE_LINES}% ${indicator}"$'\n'
   fi
   if [ -n "${COVERAGE_BRANCHES:-}" ]; then
     indicator="✅"
     if [ "$(printf '%.0f' "$COVERAGE_BRANCHES")" -lt 85 ] 2>/dev/null; then
       indicator="❌"
     fi
-    printf -v line "Branches       %s%%   %s\n" "${COVERAGE_BRANCHES}" "$indicator"
-    slack+="$line"
+    slack+="• Branches: ${COVERAGE_BRANCHES}% ${indicator}"$'\n'
   fi
   pass_str="${TEST_PASSED:-${TEST_TOTAL}}"
   fail_str="${TEST_FAILED:-0}"
   if [ "$fail_str" -gt 0 ] 2>/dev/null; then
-    printf -v line "Tests          %s/%s passed   %s FAILED  ❌\n" "$pass_str" "$TEST_TOTAL" "$fail_str"
+    slack+="• Tests: ${pass_str}/${TEST_TOTAL} passed, ${fail_str} FAILED ❌"$'\n'
   else
-    printf -v line "Tests          %s/%s passed   ✅\n" "$pass_str" "$TEST_TOTAL"
+    slack+="• Tests: ${pass_str}/${TEST_TOTAL} passed ✅"$'\n'
   fi
-  slack+="$line"
-  slack+='```'$'\n'
 fi
 
 # ── Section: Newman results ───────────────────────────────────────
@@ -231,54 +230,41 @@ if [ -n "${NEWMAN_REQUESTS:-}" ]; then
   duration_sec=""
   [ -n "${NEWMAN_DURATION_MS:-}" ] && duration_sec=$(awk -v ms="$NEWMAN_DURATION_MS" 'BEGIN{printf "%.2f", ms/1000}')
   slack+=$'\n'":zap: *Newman results*"$'\n'
-  slack+='```'$'\n'
-  printf -v line "Requests       %s\n" "$NEWMAN_REQUESTS"
-  slack+="$line"
+  slack+="• Requests: ${NEWMAN_REQUESTS}"$'\n'
   if [ "${NEWMAN_FAILURES:-0}" -gt 0 ] 2>/dev/null; then
-    printf -v line "Assertions     %s/%s passed   %s FAILED  ❌\n" "$newman_pass" "$NEWMAN_ASSERTIONS" "$NEWMAN_FAILURES"
+    slack+="• Assertions: ${newman_pass}/${NEWMAN_ASSERTIONS} passed, ${NEWMAN_FAILURES} FAILED ❌"$'\n'
   else
-    printf -v line "Assertions     %s/%s passed   ✅\n" "$newman_pass" "$NEWMAN_ASSERTIONS"
+    slack+="• Assertions: ${newman_pass}/${NEWMAN_ASSERTIONS} passed ✅"$'\n'
   fi
-  slack+="$line"
   if [ -n "$duration_sec" ]; then
-    printf -v line "Duration       %ss\n" "$duration_sec"
-    slack+="$line"
+    slack+="• Duration: ${duration_sec}s"$'\n'
   fi
-  slack+='```'$'\n'
 fi
 
 # ── Section: mabl plan ────────────────────────────────────────────
 if [ -n "${MABL_PLAN_NAME:-}" ]; then
   slack+=$'\n'":robot_face: *mabl plan*  ${MABL_PLAN_NAME}"$'\n'
-  slack+='```'$'\n'
   m_pass="${MABL_TEST_PASSED:-?}"
   m_total="${MABL_TEST_TOTAL:-?}"
   m_fail="${MABL_TEST_FAILED:-0}"
   if [ "$m_fail" -gt 0 ] 2>/dev/null; then
-    printf -v line "Tests          %s/%s passed   %s FAILED  ❌\n" "$m_pass" "$m_total" "$m_fail"
+    slack+="• Tests: ${m_pass}/${m_total} passed, ${m_fail} FAILED ❌"$'\n'
   else
-    printf -v line "Tests          %s/%s passed   ✅\n" "$m_pass" "$m_total"
+    slack+="• Tests: ${m_pass}/${m_total} passed ✅"$'\n'
   fi
-  slack+="$line"
-  slack+='```'$'\n'
 fi
 
 # Note: a hardcoded "Required checks (5/5)" block used to live here.
 # Dropped because the displayed list didn't match actual branch-
-# protection required contexts (it grouped lint/unit/build into a
-# "Stage 1" label and included advisory checks). The "Passed:
-# Merge-ready" headline already communicates "all required checks
-# green"; over-specifying it just invited "those aren't the required
-# checks" questions from customers reading along.
+# protection required contexts; the "Passed: Merge-ready" headline
+# already communicates "all required checks green".
 
 # ── Section: T3 chain (shipped stage only) ────────────────────────
 if [ "$stage" = "Shipped to production" ] && [ "$outcome" = "ok" ]; then
   slack+=$'\n'":stopwatch: *T3 chain*"$'\n'
-  slack+='```'$'\n'
-  slack+="T1 newman (Prod)                      ✅"$'\n'
-  slack+="mabl CSH-SMOKE-POSTDEPLOY (Prod)      ✅"$'\n'
-  slack+="Vercel prod deploy                    ✅"$'\n'
-  slack+='```'$'\n'
+  slack+="• T1 newman (Prod) ✅"$'\n'
+  slack+="• mabl CSH-SMOKE-POSTDEPLOY (Prod) ✅"$'\n'
+  slack+="• Vercel prod deploy ✅"$'\n'
 fi
 
 # ── Status + next-gate (blockquote, visual chunk separator) ───────
@@ -302,35 +288,39 @@ if [ ${#context_lines[@]} -gt 0 ]; then
   fi
 fi
 
-# ── Links cluster (comprehensive, fixes IFS bug) ──────────────────
-# bash IFS only honors single-char separators, so the previous
-# `IFS=' · '; echo "${links[*]}"` silently dropped the dot.
-# Build the joined string explicitly.
+# ── Links cluster — webhook-safe, plain URLs on their own lines ──
+# Workflow Builder webhooks render the `<URL|label>` mrkdwn link
+# syntax raw, so we use a "Label: URL" line-per-link format. URLs
+# get auto-linked by Slack's general URL detector; the leading bold
+# label is the only formatting that needs to survive the transport.
 links=()
-[ -n "$pr_url" ] && links+=("<${pr_url}|PR #${pr_num}>")
-links+=("<${run_url}|Actions run>")
-[ -n "$commit_url" ] && links+=("<${commit_url}|Commit ${sha_short}>")
-[ -n "$ticket_key" ] && links+=("<${JIRA_BASE_URL}/browse/${ticket_key}|Jira ${ticket_key}>")
+[ -n "$pr_url" ] && links+=("PR #${pr_num}|${pr_url}")
+links+=("Actions run|${run_url}")
+[ -n "$commit_url" ] && links+=("Commit ${sha_short}|${commit_url}")
+[ -n "$ticket_key" ] && links+=("Jira ${ticket_key}|${JIRA_BASE_URL}/browse/${ticket_key}")
 if [ -n "${MABL_PLAN_URL:-}" ]; then
-  links+=("<${MABL_PLAN_URL}|mabl plan run>")
+  links+=("mabl plan run|${MABL_PLAN_URL}")
 elif [ -n "${MABL_PLAN_NAME:-}" ] || [ "$stage" = "Merge-ready" ] || [[ "$stage" == *"mabl"* ]]; then
-  links+=("<${mabl_workspace_url}|mabl workspace>")
+  links+=("mabl workspace|${mabl_workspace_url}")
 fi
-[ -n "${JENKINS_BUILD_URL:-}" ] && links+=("<${JENKINS_BUILD_URL}|Jenkins build>")
-[ -z "${JENKINS_BUILD_URL:-}" ] && [ -n "${JENKINS_JOB_URL:-}" ] && links+=("<${JENKINS_JOB_URL}|Jenkins job>")
-[ -n "${PREVIEW_URL:-}" ] && links+=("<${PREVIEW_URL}|Preview>")
-# Only include Production URL on terminal "shipped" / "T1 prod" gates
-# to avoid auto-unfurled preview cards on every intermediate gate post.
+[ -n "${JENKINS_BUILD_URL:-}" ] && links+=("Jenkins build|${JENKINS_BUILD_URL}")
+[ -z "${JENKINS_BUILD_URL:-}" ] && [ -n "${JENKINS_JOB_URL:-}" ] && links+=("Jenkins job|${JENKINS_JOB_URL}")
+[ -n "${PREVIEW_URL:-}" ] && links+=("Preview|${PREVIEW_URL}")
+# Production URL only on terminal "shipped" / "T1 prod" gates to keep
+# the Vercel auto-unfurl preview off intermediate gate posts.
 if [ -n "${PROD_URL:-}" ] && \
    { [ "$stage" = "Shipped to production" ] || [[ "$stage" == *"Prod"* ]]; }; then
-  links+=("<${PROD_URL}|Production>")
+  links+=("Production|${PROD_URL}")
 fi
 
 if [ ${#links[@]} -gt 0 ]; then
   joined=""
   for i in "${!links[@]}"; do
-    [ "$i" -gt 0 ] && joined+=" · "
-    joined+="${links[$i]}"
+    entry="${links[$i]}"
+    label="${entry%%|*}"
+    url="${entry#*|}"
+    [ "$i" -gt 0 ] && joined+="  ·  "
+    joined+="${label} ${url}"
   done
   slack+=$'\n'":link: ${joined}"
 fi
