@@ -218,8 +218,16 @@ receipt_body+="${mabl_line}"$'\n'
 [ -n "$ci_attempts_line" ] && receipt_body+="${ci_attempts_line}"$'\n'
 [ -n "$human_touches_line" ] && receipt_body+="${human_touches_line}"$'\n'
 
-# Post via ci-notify.sh's `receipt` outcome — single ":receipt: *[TICKET]
-# Cost + cycle-time receipt*" headline, no "Update:" prefix.
-bash "${script_dir}/ci-notify.sh" receipt "Cost + cycle-time receipt" "$receipt_body"
+# Strip the trailing \n so ci-notify's appended \n (from the receipt-
+# outcome render loop) doesn't double up into a blank line before the
+# link cluster.
+receipt_body="${receipt_body%$'\n'}"
+
+# Post via ci-notify.sh's `receipt` outcome — single ":receipt: [TICKET]
+# Cost + cycle-time receipt" headline, no "Update:" prefix.
+# Pass PR_NUMBER through so the headline + footer can reference the
+# specific PR that triggered this main-push receipt (instead of just
+# showing "branch main", which is always true for receipts).
+PR_NUMBER="${pr_num}" bash "${script_dir}/ci-notify.sh" receipt "Cost + cycle-time receipt" "$receipt_body"
 
 echo "cycle-time-receipt: posted (lead=${lead_time_human:-?} gha=${gha_human:-?} runs=${runs_counted})"
