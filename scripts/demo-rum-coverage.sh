@@ -1,23 +1,44 @@
 #!/usr/bin/env bash
 # demo-rum-coverage.sh — one-command POC runner.
 #
-# 1. Drives realistic user traffic against prod via Playwright (loadgen)
-# 2. Reminds you to invoke the rum-coverage-analyzer subagent in Claude
+# Two modes:
+#   mock (default, recommended for demos) — uses scripts/generate-rum-mock.mjs.
+#         Instant, deterministic, curated to surface interesting gaps.
+#   live — uses scripts/loadgen-rum.mjs (Playwright against prod).
+#          Takes ~3 min. Drives real HTTP traffic, but Vercel bot filter
+#          usually catches it, so the dashboard rarely populates.
+#
+# Both write /tmp/loadgen-journeys.json — the agent doesn't care which.
 #
 # Usage:
-#   ./scripts/demo-rum-coverage.sh                 # default 30 sessions
-#   ./scripts/demo-rum-coverage.sh --sessions 50   # more traffic
-#   ./scripts/demo-rum-coverage.sh --headed        # show browser windows
+#   ./scripts/demo-rum-coverage.sh                       # mock, default 150 sessions
+#   ./scripts/demo-rum-coverage.sh --scenario gap-heavy  # bias toward uncovered journeys
+#   ./scripts/demo-rum-coverage.sh --live                # use Playwright loadgen instead
+#   ./scripts/demo-rum-coverage.sh --live --sessions 30  # 30 live sessions
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$REPO_ROOT"
 
+MODE="mock"
+PASS_ARGS=()
+for arg in "$@"; do
+  if [ "$arg" = "--live" ]; then
+    MODE="live"
+  else
+    PASS_ARGS+=("$arg")
+  fi
+done
+
 echo "🏒 RUM coverage POC"
 echo ""
-echo "Stage 1 — Loadgen"
-echo "─────────────────"
-node scripts/loadgen-rum.mjs "$@"
+echo "Stage 1 — Journey data ($MODE mode)"
+echo "─────────────────────────────────"
+if [ "$MODE" = "mock" ]; then
+  node scripts/generate-rum-mock.mjs "${PASS_ARGS[@]}"
+else
+  node scripts/loadgen-rum.mjs "${PASS_ARGS[@]}"
+fi
 
 echo ""
 echo "Stage 2 — Analyzer (manual)"

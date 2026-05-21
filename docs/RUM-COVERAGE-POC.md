@@ -14,10 +14,11 @@ quarterly roadmap item:
 
 | Piece | File | Role |
 |---|---|---|
-| Loadgen | `scripts/loadgen-rum.mjs` | Drives realistic Playwright sessions against prod, writes a journey log |
-| Journey log | `/tmp/loadgen-journeys.json` | Proxy "real user journey" data for the POC |
+| Mock generator | `scripts/generate-rum-mock.mjs` | **Recommended for demos.** Generates deterministic curated journey data with deliberate coverage gaps — instant, no real-traffic required |
+| Loadgen | `scripts/loadgen-rum.mjs` | Drives real Playwright sessions against prod. Useful when you want actual HTTP traffic; usually filtered out by Vercel Analytics bot detection |
+| Journey log | `/tmp/loadgen-journeys.json` | Proxy "real user journey" data for the POC. Same format from either source |
 | Analyzer | `.claude/agents/rum-coverage-analyzer.md` | Claude Code subagent — reads log + mabl test inventory, outputs gap analysis |
-| Wrapper | `scripts/demo-rum-coverage.sh` | One-command: loadgen → analyzer → report |
+| Wrapper | `scripts/demo-rum-coverage.sh` | One-command: data-gen (mock or live) → analyzer invocation hint |
 
 ## Architectural shortcut for the POC
 
@@ -36,16 +37,37 @@ exactly the same.
 
 ## Run it
 
+### Demo path (recommended) — mock data, instant
+
 ```bash
-# 1. Generate realistic traffic (populates Vercel Analytics dashboard
-#    AND writes /tmp/loadgen-journeys.json)
-node scripts/loadgen-rum.mjs --sessions 30
+# 1. Generate curated mock journey data (150 sessions, deliberate gaps)
+node scripts/generate-rum-mock.mjs --scenario realistic --seed 42
 
 # 2. Invoke the analyzer in Claude Code
 claude
-> Use the rum-coverage-analyzer subagent to analyze the latest
-> loadgen run and tell me which top journeys are uncovered.
+> Use the rum-coverage-analyzer subagent to analyze /tmp/loadgen-journeys.json
+> and tell me which top journeys are uncovered.
 ```
+
+Use `--seed 42` for reproducible demo output. Use `--scenario gap-heavy`
+if you want the uncovered journeys to dominate the top of the report
+(stronger demo punch).
+
+### Live path — Playwright against prod, ~3 min
+
+```bash
+# 1. Drive real Playwright traffic (takes ~3 min for 30 sessions)
+node scripts/loadgen-rum.mjs --sessions 30
+
+# 2. Same analyzer invocation
+claude
+> Use the rum-coverage-analyzer subagent to analyze the latest run.
+```
+
+Caveat: Vercel Analytics filters most synthetic browser traffic
+including Playwright. The loadgen produces a valid journey log but
+the live dashboard rarely populates from it. The mock path is better
+for demos that show "this is what real users do."
 
 ## What the analyzer outputs
 
