@@ -54,6 +54,9 @@ describe("product queries", () => {
   it("respects price range filters", () => {
     const cheap = listProducts({ maxPriceCents: 2000 });
     expect(cheap.every((p) => currentPrice(p) <= 2000)).toBe(true);
+    const premium = listProducts({ minPriceCents: 20000 });
+    expect(premium.length).toBeGreaterThan(0);
+    expect(premium.every((p) => currentPrice(p) >= 20000)).toBe(true);
   });
 
   it("getProduct / getProductBySlug work and return undefined for misses", () => {

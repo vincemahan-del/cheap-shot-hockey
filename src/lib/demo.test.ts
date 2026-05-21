@@ -1,5 +1,28 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { parseDemoMode, shouldDemoFail, applyDemoDelay, sleep } from "./demo";
+import {
+  parseDemoMode,
+  readDemoMode,
+  shouldDemoFail,
+  applyDemoDelay,
+  sleep,
+} from "./demo";
+
+describe("readDemoMode", () => {
+  it("reads the x-demo-mode header injected by middleware", async () => {
+    const hdrs = new Headers({ "x-demo-mode": "flaky" });
+    expect(await readDemoMode(hdrs)).toBe("flaky");
+  });
+
+  it("falls back to 'normal' when the header is absent", async () => {
+    expect(await readDemoMode(new Headers())).toBe("normal");
+  });
+
+  it("falls back to 'normal' for an unrecognized value", async () => {
+    const hdrs = new Headers({ "x-demo-mode": "definitely-not-a-mode" });
+    expect(await readDemoMode(hdrs)).toBe("normal");
+  });
+});
+
 
 describe("parseDemoMode", () => {
   it.each([
