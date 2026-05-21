@@ -77,7 +77,7 @@ includes severity, location, current state, and recommendation.
 
 ### ✅ Passes
 - Branch name `TICKET-XX/short-slug` matches convention
-- 73/73 unit tests pass, coverage 97.97% (gate 90% ✓)
+- 90/90 unit tests pass, coverage 97.93% lines / 91.66% functions (gate 90% ✓)
 - ...
 
 ### ⚠️ Suggestions (non-blocking)
