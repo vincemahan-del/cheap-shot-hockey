@@ -25,17 +25,23 @@ and **API journey** layer. Everything else is still in play.
 │                     Full quality pipeline                        │
 ├──────────────────────────────────────────────────────────────────┤
 │  Lint (eslint)                        — correctness + style      │
+│  Security (npm audit, high+critical)  — supply-chain gate        │
 │  Unit tests + coverage (vitest)       — small, deterministic     │
 │  Build (Next.js)                      — compiles, type-checks    │
 │  ─── deploy preview ───                                          │
-│  mabl — API smoke                     — happy-path API journeys  │
+│  T1 — newman smoke                    — API journeys, <2s        │
 │  mabl — UI PR gate                    — critical UI journeys     │
-│  mabl — full regression (main only)   — everything, parallel     │
+│  Regression rollup (matrix → 1 gate)  — area-targeted regression │
 │  ─── promote ───                                                 │
 │  mabl — post-deploy smoke             — prod validation          │
 │  mabl — scheduled runs                — continuous prod monitor  │
 └──────────────────────────────────────────────────────────────────┘
 ```
+
+**Seven of these are required checks** that block merge on failure
+(lint, security, unit, build, T1 newman, mabl UI gate, regression
+rollup). Everything else is advisory — see [`docs/MERGE-POLICY.md`](MERGE-POLICY.md)
+for the full split.
 
 Each row runs as a stage in `Jenkinsfile` and as a job in
 `.github/workflows/mabl-sdlc.yml`. **Mabl lives right where it adds
@@ -330,8 +336,10 @@ For a workshop or deeper follow-up:
   `@claude` mentions
 - `vitest.config.ts` — unit test + coverage config (thresholds enforced
   in CI)
-- `src/lib/*.test.ts` — 73 unit tests covering the library layer
-  (98% coverage)
+- `src/lib/*.test.ts` — 90 unit tests covering the library layer
+  (94.76% statements, 95% branches, 91.66% functions, 97.93% lines)
+- `docs/MERGE-POLICY.md` — required vs advisory checks (the 7-gate policy)
+- `docs/LOCAL-GATE.md` — T1 local-gate setup + the laptop-pre-push hook
 - `scripts/mabl-deployment.sh` — mabl REST event + poll loop
 - `scripts/mabl-analyze-last-failure.sh` — the primitive the triage
   agent wraps

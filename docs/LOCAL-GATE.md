@@ -80,6 +80,53 @@ Claude:  → edits shipping logic
 The 450ms gate is inside Claude's normal edit-run-check loop — it
 doesn't slow the agent down.
 
+## T1.5 — local mabl-CLI browser run (Unified Reporting)
+
+T1 (newman) is API-layer and stays on the laptop — UR can't ingest
+newman runs (browser-only by design). For laptop-driven *browser*
+coverage that **does** publish to the mabl dashboard, use the mabl
+CLI directly with `--reporter mabl`:
+
+```bash
+mabl tests run \
+  --id <test-id> \
+  --url http://localhost:3000 \
+  --environment-id <env-id> \
+  --application-id <app-id> \
+  --headless \
+  --allow-billable-features \
+  --reporter mabl
+```
+
+What this gets you:
+
+- **Browser-layer coverage locally** — the same mabl test that runs in
+  CI, against your local dev server
+- **Results visible in the mabl app** — Unified Reporting ingestion
+  (GA 2026-01-14) shows the run alongside cloud runs, tagged as a
+  local execution
+- **Zero mabl-cloud minutes** — the browser runs on your laptop, only
+  the result payload publishes
+- `--allow-billable-features` enables GenAI/visual assertions in local
+  runs (off by default)
+
+Trade-offs vs newman T1:
+
+| | T1 (newman) | T1.5 (mabl CLI) |
+|---|---|---|
+| Layer | API only | Browser |
+| Speed | < 2s | 30–60s per test |
+| Reports to mabl | ❌ | ✅ via `--reporter mabl` |
+| Visible in mabl dashboard | ❌ | ✅ |
+| Pre-push gate | ✅ (current default) | ⚠️ Too slow for every push |
+
+T1.5 is the right tool for **manual local UI verification** before a
+risky change. T1 stays the default pre-push gate because of speed.
+
+See [`docs/MERGE-POLICY.md`](MERGE-POLICY.md) for the full 7-gate
+policy this fits into. See [mabl Unified Reporting](https://help.mabl.com/hc/en-us/articles/36863174886932-Unified-Reporting)
+for the canonical doc on `--reporter mabl`.
+
 ## Mapping to the mabl cloud layer
 
 The `mabl/postman/csh-api-smoke.postman_collection.json` collection is
@@ -129,6 +176,8 @@ Two options:
 - `docs/MABL-API-TESTS.md` — T2/T3 cloud plan catalog
 - `docs/MABL-UI-TESTS.md` — T2 UI layer
 - `docs/AGENTIC-SHIFT-LEFT.md` — full T1→T2→T3 workflow narrative
+- `docs/MERGE-POLICY.md` — required vs advisory checks (7-gate policy)
 - `scripts/mabl-local-gate.sh` — the runner
 - `scripts/install-git-hooks.sh` — pre-push hook installer
 - `mabl/postman/csh-api-smoke.postman_collection.json` — the T1 collection
+- [mabl Unified Reporting](https://help.mabl.com/hc/en-us/articles/36863174886932-Unified-Reporting) — `--reporter mabl` ingestion path for T1.5
