@@ -1,5 +1,14 @@
 # Demo runbook — Ticket → Prod, with mabl at every gate
 
+> **⚠️ Older / longer-form runbook.** For the current 20–30 min agentic
+> ticket-to-prod demo, use [`docs/SDLC-DEMO.md`](SDLC-DEMO.md). This doc
+> is the original 35-minute Jenkins-first walkthrough; it still has
+> useful narration patterns and the tier model, but the gate counts,
+> plan label names (`pr-gate` / `regression` → now `type-smk,exec-pr` /
+> `type-rt`), and CI primary (Jenkins → now GHA) are stale.
+> [`docs/MERGE-POLICY.md`](MERGE-POLICY.md) is the source of truth for
+> the current required-checks list.
+
 The **primary** customer demo arc. ~35 minutes. Every act shows a mabl
 value story and a real CI artifact. Nothing is mocked.
 

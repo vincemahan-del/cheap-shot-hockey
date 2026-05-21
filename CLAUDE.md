@@ -152,21 +152,24 @@ See `docs/CLAUDE-AGENTS.md` for examples + invocation patterns.
 
 ## Security + supply-chain gate
 
-Three pieces, all advisory in v1 (not in the 5 required PR checks):
+Three pieces. `npm audit` is now required (PR #82, 2026-05-21); CodeQL
+and Dependabot are advisory:
 
 - **`npm audit --audit-level=high`** runs as the `security` job in
-  `.github/workflows/mabl-sdlc.yml`, alongside `lint`. Job-level
-  `continue-on-error: true` means it surfaces high/critical findings
-  in the run summary without blocking the merge button.
+  `.github/workflows/mabl-sdlc.yml`, alongside `lint`. **Blocks merge
+  on high/critical findings** — one of the 7 required PR checks per
+  `docs/MERGE-POLICY.md`. Moderate vulnerabilities still surface in the
+  run summary but don't block.
 - **CodeQL** runs as a separate workflow at
   `.github/workflows/codeql.yml` — on every PR + push to main, plus a
   weekly Monday cron. Uploads SARIF to the GitHub Security tab. Uses
-  the `security-extended` query suite.
+  the `security-extended` query suite. Advisory — findings appear in
+  the Security tab, not as a merge gate.
 - **Dependabot** (`.github/dependabot.yml`) opens weekly dep-update
   PRs for npm and `github-actions`. Each PR goes through the same SDLC
   pipeline as a human PR.
 
-Promoting any of these to required-check status is a branch-protection
+Promoting CodeQL to required-check status is a branch-protection
 change (manual on the GitHub repo), not a workflow change. Document
 that decision and the date it lands in this file when it happens.
 

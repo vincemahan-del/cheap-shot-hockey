@@ -31,14 +31,15 @@ Anthropic's published guidance on building agents.
 ┌──────────────────────────────────────────────────────────────────────┐
 │  GitHub Actions  (.github/workflows/mabl-sdlc.yml — primary CI)      │
 │                                                                      │
-│   PR  →  lint · security (advisory) → unit + 90% coverage gate →     │
+│   PR  →  lint · security (npm audit, required) → unit + 90% gate →   │
 │        → build                                                       │
 │        → T1 newman smoke (Preview, vs Vercel preview deploy)         │
 │        → mabl <PREFIX>-SMOKE-PR (Preview, type-smk,exec-pr)          │
+│        → regression rollup (matrix → 1 required gate)                │
 │        → test-impact-analysis (advisory PR comment)                  │
 │        → claude-code-action DoD                                      │
 │                                                                      │
-│   Branch protection: 5 required checks · auto-merge armed per PR     │
+│   Branch protection: 7 required checks · auto-merge armed per PR     │
 │                                                                      │
 │   main push (after auto-merge) →                                     │
 │        → Vercel prod deploy (auto)                                   │
@@ -66,14 +67,15 @@ This pattern mirrors [mabl's published architecture](https://www.mabl.com/blog/h
 | **1. Analysis** | Read ticket, scan `CLAUDE.md`, identify affected files, surface open questions | Interactive Claude Code (orchestrator subagent) | No — agent autonomous |
 | **2. Planning** | Detect blast radius (path-based + LOC); for high-risk changes, emit a structured plan to Jira and pause | Interactive Claude Code + `scripts/orchestrator-plan/` | **Yes for high-blast-radius changes** |
 | **3. Implementation** | Code changes, pre-PR DoD (coverage gate, mabl impact analysis), commit, push, PR opened, auto-merge armed | Interactive Claude Code → GHA pipeline | No — gated by CI |
-| **4. Review** | 5 required CI checks (lint, security, unit, build, T1, mabl), AI code review, **mandatory human approval at merge** | GHA pipeline + branch protection + reviewer policy | **Yes at merge** |
+| **4. Review** | 7 required CI checks (lint, security, unit, build, T1 newman, mabl smoke, regression rollup), AI code review, **mandatory human approval at merge**. See [`docs/MERGE-POLICY.md`](MERGE-POLICY.md). | GHA pipeline + branch protection + reviewer policy | **Yes at merge** |
 
 ## Tier-4 area routing — risk-driven mabl test selection
 
 When the orchestrator detector classifies a PR's blast radius, it ALSO emits a `touched_mabl_areas` array — the unique set of mabl test areas (e.g. `["auth", "checkout"]`) corresponding to which files the PR actually changed. Two GHA jobs use this:
 
-- **`mabl-cli-pr-regression`** runs on every PR for each touched area. Free `mabl tests run --labels type-rt,area-<X> --headless` in the runner — single-browser, no cloud-credit consumption, results published back to mabl app via `--reporter mabl`.
+- **`mabl-cli-pr-regression`** runs on every PR for each touched area. Free `mabl tests run --labels type-rt,area-<X> --headless` in the runner — single-browser, no cloud-credit consumption, results published back to mabl app via `--reporter mabl` (Unified Reporting, GA 2026-01).
 - **`mabl-cloud-regression-high-blast`** fires only when blast_radius is `high`. Dispatches a mabl cloud plan run per touched area with `--labels type-rt,area-<X>` filter — cross-browser parallel + smart locators + full diagnostics. Gated by the `MABL_CLOUD_GATE` repo variable for cost control.
+- **`regression-rollup`** is the static-named required gate that collapses both matrix jobs into a single check branch protection can enforce. Passes when all matrix legs succeed or are legitimately skipped (no touched areas); fails when any leg failed or was cancelled. This is the row in branch protection's required-checks list — the dynamic per-area names are advisory matrix legs.
 
 Plus the nightly drift catch (`.github/workflows/mabl-nightly.yml`): scheduled cron runs full regression suite via free CLI vs production, single-browser, results to mabl app. Replaces the every-15-min cloud heartbeat pattern with a $0 alternative.
 

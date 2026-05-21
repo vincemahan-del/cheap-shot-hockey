@@ -117,7 +117,7 @@ and branch).
 *What will happen, automated, observable here:*
 1. PR opens → T1 pre-push newman on laptop
 2. GHA runs: lint → unit → build → T1 newman (Preview) → mabl CSH-SMOKE-PR
-3. Branch protection gates merge on 5 required checks
+3. Branch protection gates merge on 7 required checks (see docs/MERGE-POLICY.md)
 4. Merge → Vercel prod deploy → T1 newman (Prod) → mabl CSH-SMOKE-POSTDEPLOY
 5. Live site verified
 
@@ -202,7 +202,7 @@ Preview API tests all green against the PR's Vercel URL.
 ```
 :white_check_mark: *[TICKET-XX] Passed: Merge-ready* — <PR_URL|PR #N>
 
-All 5 required PR checks are green — merge button is live.
+All 7 required PR checks are green — merge button is live.
 mabl's Slack app posted the plan-run result separately in this channel.
 
 :arrow_forward: *Next up:* Merge allowed — branch protection unblocked.
@@ -285,7 +285,7 @@ click required to merge a green PR. The pattern:
    gh pr merge <N> --auto --merge --delete-branch
    ```
 3. **GitHub waits** for every required status check to pass (branch
-   protection = the 5 required checks). When they all go green, the PR
+   protection = the 7 required checks; see docs/MERGE-POLICY.md). When they all go green, the PR
    auto-merges with a merge commit, branch auto-deletes, main-push CI
    fires, T3 chain runs.
 4. **If any check fails**, the PR sits blocked. No auto-merge, no

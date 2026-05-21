@@ -191,20 +191,23 @@ A find-replace IDE pass typically takes ~5 min.
 In GitHub: Settings → Branches → Branch protection rules → Add rule
 for `main`.
 
-Required status checks (the 5-check gate that makes auto-merge wait
+Required status checks (the 7-check gate that makes auto-merge wait
 for everything green):
 
 - `lint (eslint)`
+- `security (npm audit)` — high/critical CVE blocks merge
 - `unit tests + coverage`
 - `build (next)`
 - `T1 — newman smoke (Preview)`
 - `mabl — <YOUR-PREFIX>-SMOKE-PR (Preview)`
+- `regression rollup` — static-named gate over the area-regression matrix jobs
 
-Optional but recommended:
+See [`docs/MERGE-POLICY.md`](MERGE-POLICY.md) for the rationale per gate.
+
+Optional but recommended (advisory by design):
 
 - `Claude — definition of done`
 - `Analyze (javascript-typescript)` (CodeQL)
-- `security (npm audit)` — once any baseline findings are triaged
 
 Enable: **Allow auto-merge**, **Automatically delete head branches**.
 

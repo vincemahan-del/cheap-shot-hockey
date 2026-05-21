@@ -54,7 +54,7 @@ trade. If the LLM is wrong (bad API key, rate limit, hallucinated
 finding) the team is stuck waiting on a meaningless gate.
 
 The required-vs-advisory split keeps the gating story simple to
-defend: **five deterministic gates block merge, agentic checks
+defend: **seven deterministic gates block merge, agentic checks
 inform**.
 
 ## When advisory checks fail

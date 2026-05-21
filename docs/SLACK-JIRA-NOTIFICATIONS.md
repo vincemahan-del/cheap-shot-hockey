@@ -21,7 +21,7 @@ Each gate fires two possible notifications: success OR failure.
 | build | ✅ Stage 1 passed (PR only) | 🚨 build failed |
 | T1 newman (Preview) | ✅ T1 Preview green + preview URL | 🚨 T1 Preview failed |
 | T1 newman (Prod) | ✅ T1 Prod green, commit verified | 🚨 T1 Prod failed |
-| mabl CSH-SMOKE-PR (Preview) | ✅ all 5 required checks green, merge unblocked | 🚨 merge blocked |
+| mabl CSH-SMOKE-PR (Preview) | ✅ all 7 required checks green, merge unblocked | 🚨 merge blocked |
 | mabl CSH-SMOKE-POSTDEPLOY (Prod) | 🚀 shipped to prod | 🚨 prod post-deploy failed |
 
 Notifications are best-effort: if the Slack/Jira APIs are flaky, the
@@ -120,8 +120,8 @@ Slack post:
 by vincemahan on `a672f8a` (branch `TAMD-83/richer-ci-notifications`)
 
 📦 Code changes: 3 files, +68/-5 lines
-🧪 Unit tests: 73/73 passed
-📊 Coverage: 97.97% lines (gate 90% ✅)
+🧪 Unit tests: 90/90 passed
+📊 Coverage: 97.93% lines (gate 90% ✅)
 
 Lint ok, unit tests green, build succeeded. Ticket moving to **In Progress**.
 
@@ -151,7 +151,7 @@ Preview API tests all green against the PR's Vercel URL.
 ```
 ✅ Passed: Merge-ready — PR #8 TAMD-83 …
 
-All 5 required PR checks are green — merge button is live.
+All 7 required PR checks are green — merge button is live.
 mabl Slack app posted the plan-run result separately with
 screenshots + assertion details.
 
@@ -180,7 +180,7 @@ screenshots + assertion details.
 ```
 🚨 BLOCKED: Unit tests + coverage — PR #9 …
 
-🧪 Unit tests: 68/73 passed, 5 failed ❌
+🧪 Unit tests: 85/90 passed, 5 failed ❌
 📊 Coverage: 87.2% lines (gate 90% ❌)
 
 Fix failing tests or raise coverage before merge can be unblocked.

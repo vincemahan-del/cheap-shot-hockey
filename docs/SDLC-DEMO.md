@@ -34,7 +34,7 @@ autonomous past the initial prompt.
 │        → test-impact-analysis (advisory PR comment)                  │
 │        → claude-code-action DoD                                      │
 │                                                                      │
-│   Branch protection: 5 required checks · auto-merge armed per PR     │
+│   Branch protection: 7 required checks · auto-merge armed per PR     │
 │                                                                      │
 │   main push (after auto-merge) →                                     │
 │        → Vercel prod deploy (auto)                                   │
@@ -114,13 +114,18 @@ Set these as repo secrets:
 | `SLACK_WEBHOOK_URL` | Slack Workflow Builder webhook (no admin needed) — autonomous notifications |
 | `JIRA_USER_EMAIL` · `JIRA_API_TOKEN` | Atlassian account → Security → API tokens |
 
-Branch protection on `main`: require these 5 checks before merge:
+Branch protection on `main`: require these 7 checks before merge:
 
 - `lint (eslint)`
+- `security (npm audit)`
 - `unit tests + coverage`
 - `build (next)`
 - `T1 — newman smoke (Preview)`
 - `mabl — CSH-SMOKE-PR (Preview)`
+- `regression rollup`
+
+See [`docs/MERGE-POLICY.md`](MERGE-POLICY.md) for the rationale per gate
+and the advisory-vs-required split.
 
 Repo settings: enable "Allow auto-merge" + "Automatically delete head branches".
 
@@ -182,7 +187,7 @@ This act mirrors the four-phase pattern mabl uses internally to ship code across
 | **1. Analysis** | Orchestrator reads the ticket, scans `CLAUDE.md`, identifies affected files | No — agent autonomous |
 | **2. Planning** | If the change is **high-blast-radius** (auth, API contract, > 200 LOC, etc.), orchestrator emits a plan to Jira and pauses | **Yes for high-blast** — human approves before code is written |
 | **3. Implementation** | Code changes, pre-PR DoD (coverage gate, mabl impact), commit, push, PR opened, auto-merge armed | No — gated by CI |
-| **4. Review** | 5 required CI checks (lint, security, unit, build, T1, mabl), AI code review (`pr-reviewer`), human approval at merge | **Yes at merge** — required reviewer policy |
+| **4. Review** | 7 required CI checks (lint, security, unit, build, T1 newman, mabl smoke, regression rollup), AI code review (`pr-reviewer`), human approval at merge | **Yes at merge** — required reviewer policy |
 
 ### Demo flow
 
@@ -223,10 +228,10 @@ This act mirrors the four-phase pattern mabl uses internally to ship code across
    - mabl's native Slack app posts the `CSH-SMOKE-PR` plan run with
      screenshots and assertion details (sits alongside our `[TAMD-NN]`
      posts naturally)
-   - `:white_check_mark: [TAMD-NN] Passed: Merge-ready` — all 5 required
+   - `:white_check_mark: [TAMD-NN] Passed: Merge-ready` — all 7 required
      checks green, merge button live
 
-5. **Phase 4 (Review) → Auto-merge fires.** Once all 5 required checks
+5. **Phase 4 (Review) → Auto-merge fires.** Once all 7 required checks
    green, auto-merge fires. Branch deletes, prod deploy starts. Slack
    posts:
    - `:white_check_mark: [TAMD-NN] Passed: T1 newman smoke (Prod)`
@@ -342,7 +347,7 @@ Important honesty for customer demos:
 | `pr-reviewer` convention audit | Yes (when invoked) | No |
 | Post-deploy failure alert (deterministic Slack/Jira) | Yes | No |
 | Triaging a post-deploy failure (decide revert vs forward-fix, act) | No — v1 has no autonomous LLM diagnosis | Yes |
-| **Security gate** (`npm audit` + CodeQL) — advisory in v1 | Yes (every PR + main push, plus weekly CodeQL cron) | No |
+| **Security gate** (`npm audit`) — **required as of 2026-05-21** (PR #82); CodeQL stays advisory | Yes (every PR + main push, plus weekly CodeQL cron) | No |
 | **Dependabot** weekly dep PRs (npm + github-actions) | Yes (PRs go through full SDLC pipeline) | No |
 
 The Claude Code subagents run in an interactive session — they need
