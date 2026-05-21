@@ -78,14 +78,13 @@ jobs:
         run: |
           bash scripts/ci-notify.sh fail "lint" "eslint or tool-surface contract failed"
 
-  # Advisory security gate — npm audit at high+critical only. Doesn't
-  # block merge in v1 (continue-on-error: true at job level). Promote
-  # to a required check via branch protection after baseline findings
-  # are addressed. CodeQL runs in a separate workflow (.github/workflows/codeql.yml).
+  # Required security gate — npm audit at high+critical only. Blocks
+  # merge when high/critical vulnerabilities are found. Promoted from
+  # advisory in 2026-05 once the tighten-gating audit landed.
+  # CodeQL runs in a separate workflow (.github/workflows/codeql.yml).
   security:
     name: security (npm audit)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -98,7 +97,7 @@ jobs:
       - name: notify (failure)
         if: failure()
         run: |
-          bash scripts/ci-notify.sh fail "Security advisory" "npm audit found high or critical vulnerabilities. Job is advisory in v1 — merge is not blocked, but please triage."
+          bash scripts/ci-notify.sh fail "Security advisory" "npm audit found high or critical vulnerabilities — merge blocked until fixed."
 
   unit:
     name: unit tests + coverage
@@ -765,6 +764,58 @@ jobs:
             echo "---"
             echo "_Run \`npm run test:mabl:local\` to run the mabl API gate locally. UI tests run in mabl cloud against the Preview deploy._"
           } | gh pr comment "${{ github.event.pull_request.number }}" --body-file -
+
+  # ─────────────────────────────────────────────────────────────────
+  # Regression rollup — single static-named gate over the matrix jobs.
+  #
+  # Branch protection can't reference matrix legs directly because
+  # their names are dynamic (`area=${{ matrix.area }}`). This rollup
+  # collapses both matrix jobs into one fixed name that *can* be
+  # required. Result handling:
+  #
+  #   - All legs success     → rollup passes (merge allowed)
+  #   - Any leg failure      → rollup fails  (merge blocked)
+  #   - Any leg cancelled    → rollup fails  (merge blocked)
+  #   - All legs skipped     → rollup passes (no touched areas; fine)
+  #
+  # Uses `if: always()` so it runs even when upstream matrix jobs
+  # were skipped (no touched_mabl_areas) — otherwise it wouldn't
+  # run and branch protection would block merge indefinitely.
+  # ─────────────────────────────────────────────────────────────────
+
+  regression-rollup:
+    name: regression rollup
+    needs: [mabl-cli-pr-regression, mabl-cloud-regression-high-blast]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: check matrix results
+        env:
+          CLI_RESULT: ${{ needs.mabl-cli-pr-regression.result }}
+          CLOUD_RESULT: ${{ needs.mabl-cloud-regression-high-blast.result }}
+        run: |
+          echo "mabl-cli-pr-regression       : $CLI_RESULT"
+          echo "mabl-cloud-regression-high-blast: $CLOUD_RESULT"
+
+          fail=0
+          for r in "$CLI_RESULT" "$CLOUD_RESULT"; do
+            case "$r" in
+              success|skipped) ;;
+              failure|cancelled)
+                fail=1
+                ;;
+              *)
+                echo "::error::Unexpected result value: $r"
+                fail=1
+                ;;
+            esac
+          done
+
+          if [ "$fail" = "1" ]; then
+            echo "::error::One or more area-regression matrix jobs failed or were cancelled — blocking merge."
+            exit 1
+          fi
+          echo "All regression matrix jobs passed or were skipped (no touched areas)."
 
   # NOTE: the regression gate is intentionally not wired yet.
   # Re-add a `mabl-regression` job dispatching `type-rt,exec-nightly`
