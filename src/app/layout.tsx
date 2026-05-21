@@ -6,6 +6,7 @@ import "./globals.css";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 import { DemoBanner } from "@/components/DemoBanner";
+import { MemorialDayBanner } from "@/components/MemorialDayBanner";
 import { PromoStrip } from "@/components/PromoStrip";
 
 const geistSans = Geist({
@@ -38,6 +39,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <DemoBanner />
+        <MemorialDayBanner />
         <PromoStrip />
         <Nav />
         <main className="flex-1">{children}</main>
