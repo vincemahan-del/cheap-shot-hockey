@@ -65,6 +65,31 @@ pipeline {
       }
     }
 
+    stage('2.5 Detect changes (path-awareness)') {
+      // TAMD-133: mirror TAMD-132's GHA pattern. Use the shared
+      // detect-changes.sh as the single source of truth for "what
+      // kind of change is this?" Sets pipeline env vars that
+      // downstream stages gate on, so docs-only / workflow-only /
+      // config-only changes don't burn Jenkins time + mabl cloud
+      // minutes on unnecessary runs.
+      steps {
+        script {
+          // On main, compare against the parent commit. On feature
+          // branches, compare against origin/main (PR-like semantics).
+          def baseRef = env.GIT_BRANCH_NAME == 'main' ? 'HEAD~1' : 'origin/main'
+          def result = sh(
+            script: "./scripts/pipeline-awareness/detect-changes.sh ${baseRef} HEAD",
+            returnStdout: true,
+          ).trim()
+          env.HAS_APP_CHANGES = (result =~ /has_app_changes=true/) ? 'true' : 'false'
+          env.HAS_LIB_CHANGES = (result =~ /has_lib_changes=true/) ? 'true' : 'false'
+          env.HAS_API_CHANGES = (result =~ /has_api_changes=true/) ? 'true' : 'false'
+          echo "Path-awareness flags: app=${env.HAS_APP_CHANGES} lib=${env.HAS_LIB_CHANGES} api=${env.HAS_API_CHANGES}"
+          echo "Stages 4 (unit), 5 (build), 7 (mabl PR), 9 (mabl postdeploy) will skip if their required flag is false."
+        }
+      }
+    }
+
     stage('3. Lint (eslint)') {
       steps {
         sh 'npm run lint'
@@ -72,6 +97,12 @@ pipeline {
     }
 
     stage('4. Unit tests + coverage') {
+      // TAMD-133: skip when no src/lib/** or vitest.config.ts changed.
+      // Unit tests are scoped to src/lib/** so changes outside that
+      // surface can't move the needle. Mirrors the GHA gate.
+      when {
+        expression { env.HAS_LIB_CHANGES == 'true' }
+      }
       steps {
         sh 'npm run test:coverage'
       }
@@ -84,6 +115,12 @@ pipeline {
     }
 
     stage('5. Build (Next.js)') {
+      // TAMD-133: skip when no app-affecting paths changed
+      // (src/**, public/**, package*.json, next.config, tsconfig,
+      // postcss.config, eslint.config, tailwind.config).
+      when {
+        expression { env.HAS_APP_CHANGES == 'true' }
+      }
       steps {
         sh 'npm run build'
       }
@@ -105,7 +142,15 @@ pipeline {
       // Dispatches type-smk,exec-pr — targets plan CSH-SMOKE-PR in mabl
       // (Preview env only, API + UI stages). The split-plan design means
       // one dispatch can only fire one plan run — no fan-out possible.
-      when { not { branch 'main' } }
+      //
+      // TAMD-133: also gate on has_app_changes so docs-only / config-only
+      // branches don't burn mabl cloud minutes. Mirrors the GHA gate.
+      when {
+        allOf {
+          not { branch 'main' }
+          expression { env.HAS_APP_CHANGES == 'true' }
+        }
+      }
       steps {
         sh """
           ./scripts/mabl-deployment.sh \\
@@ -142,7 +187,17 @@ pipeline {
       // CSH-SMOKE-POSTDEPLOY in mabl (Prod env only). Waits for Vercel
       // to reflect the new commit before firing so the smoke actually
       // validates the just-deployed code.
-      when { branch 'main' }
+      //
+      // TAMD-133: also gate on has_app_changes. This is the original
+      // pain point — without this, every docs-only main merge fired
+      // a mabl postdeploy run, bypassing TAMD-132's GHA + Vercel
+      // path-awareness work.
+      when {
+        allOf {
+          branch 'main'
+          expression { env.HAS_APP_CHANGES == 'true' }
+        }
+      }
       steps {
         script {
           def url = env.PRODUCTION_URL ?: "https://cheap-shot-hockey.vercel.app"
