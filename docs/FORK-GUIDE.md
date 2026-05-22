@@ -1,3 +1,8 @@
+---
+last-verified: 2026-05-22
+verifies: [".github/workflows/mabl-sdlc.yml", ".github/dependabot.yml"]
+---
+
 # Fork guide — deploy this agentic SDLC on your own stack
 
 Audience: an engineering team that wants to adapt this pattern to their

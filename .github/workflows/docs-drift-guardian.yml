@@ -1,0 +1,103 @@
+# docs-drift-guardian — advisory PR check that detects drift between
+# documentation and actual repo enforcement.
+#
+# Fires on PR changes to enforcement files OR docs. Runs four
+# deterministic checks (see scripts/docs-sync/check-drift.mjs):
+#   1. docs/MERGE-POLICY.md required-check table vs live branch protection
+#   2. Workflow job-name index (informational)
+#   3. Per-doc last-verified staleness (>= 90 days AND tracked files changed)
+#   4. Enforcement file changed in PR without doc touch
+#
+# Output: PR comment with a stable marker — re-runs update in place
+# instead of stacking duplicate comments.
+#
+# Advisory by design per docs/MERGE-POLICY.md: never blocks merge.
+#
+# Spec: TAMD-130.
+
+name: docs-drift-guardian
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+      - ".github/dependabot.yml"
+      - "vitest.config.ts"
+      - "eslint.config.mjs"
+      - "tsconfig.json"
+      - "Jenkinsfile"
+      - "scripts/**.sh"
+      - "scripts/**.mjs"
+      - "scripts/orchestrator-plan/**"
+      - "scripts/llm/**"
+      - "**.md"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  drift:
+    name: docs-drift-guardian
+    # Same-repo PRs only — fork heads can't reliably write PR comments
+    # and we don't want adversarial diff content driving the check anyway.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: run drift checks
+        id: drift
+        run: |
+          set -euo pipefail
+          node scripts/docs-sync/check-drift.mjs \
+            --base-ref "${{ github.event.pull_request.base.sha }}" \
+            --head-ref "${{ github.event.pull_request.head.sha }}" \
+            > /tmp/drift-report.md 2>&1 || true
+
+          # Always show the report in the workflow log too
+          echo "===== drift-report.md ====="
+          cat /tmp/drift-report.md
+
+          # Capture for the PR-comment step
+          {
+            echo "report<<DRIFT_REPORT_EOF"
+            cat /tmp/drift-report.md
+            echo "DRIFT_REPORT_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: post or update PR comment
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPORT: ${{ steps.drift.outputs.report }}
+        run: |
+          set -euo pipefail
+          MARKER="<!-- docs-drift-guardian -->"
+          BODY="$MARKER
+          $REPORT"
+
+          existing=$(gh api \
+            "/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" \
+            | head -1)
+
+          if [ -n "$existing" ]; then
+            gh api -X PATCH \
+              "/repos/${GITHUB_REPOSITORY}/issues/comments/$existing" \
+              -f body="$BODY" > /dev/null
+            echo "Updated existing comment $existing."
+          else
+            gh pr comment "$PR_NUMBER" --body "$BODY"
+            echo "Posted new docs-drift-guardian comment."
+          fi

@@ -1,3 +1,8 @@
+---
+last-verified: 2026-05-22
+verifies: [".github/workflows/mabl-sdlc.yml", ".github/workflows/mabl-nightly.yml", "Jenkinsfile"]
+---
+
 # The Agentic mabl Shift-Left Workflow
 
 The classic four-phase mabl lifecycle stays. What changes is **what

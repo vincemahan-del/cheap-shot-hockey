@@ -1,3 +1,8 @@
+---
+last-verified: 2026-05-22
+verifies: ["scripts/mabl-local-gate.sh", "scripts/install-git-hooks.sh"]
+---
+
 # T1 Local Gate — mabl-aligned smoke via newman
 
 The **T1 gate** is the first of three agentic-shift-left quality gates.

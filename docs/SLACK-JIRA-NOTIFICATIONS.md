@@ -1,3 +1,8 @@
+---
+last-verified: 2026-05-22
+verifies: ["scripts/ci-notify.sh", ".github/workflows/mabl-sdlc.yml"]
+---
+
 # Slack + Jira notifications from CI
 
 The mabl SDLC gate workflow posts a clean, human-readable Slack

@@ -1,3 +1,8 @@
+---
+last-verified: 2026-05-22
+verifies: [".github/workflows/claude.yml", ".github/workflows/claude-agentic-dod.yml"]
+---
+
 # Cheap Shot Hockey
 
 > Fake hockey equipment store. Real demo value. Built to showcase mabl against both UI and API surfaces — *and* to serve as a forkable reference architecture for an agentic SDLC.

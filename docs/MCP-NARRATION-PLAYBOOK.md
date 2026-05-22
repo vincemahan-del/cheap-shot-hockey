@@ -1,3 +1,8 @@
+---
+last-verified: 2026-05-22
+verifies: [".github/workflows/mabl-sdlc.yml", "scripts/ci-notify.sh"]
+---
+
 # MCP Narration Playbook — Claude-in-the-loop CI observability
 
 Canonical rules for how Claude should narrate ticket-to-prod CI events
