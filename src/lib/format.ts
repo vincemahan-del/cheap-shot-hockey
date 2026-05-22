@@ -1,3 +1,4 @@
+// Format a price in cents as a dollar string with two decimals.
 export function formatPrice(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
