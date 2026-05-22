@@ -53,11 +53,58 @@ env:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────
+  # Stage 0: change detector — single source of truth for "what kind
+  # of changes are in this PR?" Emits boolean flags consumed by every
+  # expensive downstream job. See scripts/pipeline-awareness/
+  # detect-changes.sh and docs/REFERENCE-ARCHITECTURE.md.
+  #
+  # Spec: TAMD-132.
+  # ─────────────────────────────────────────────────────────────────
+
+  change-detector:
+    name: change-detector
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      has_app_changes:       ${{ steps.detect.outputs.has_app_changes }}
+      has_lib_changes:       ${{ steps.detect.outputs.has_lib_changes }}
+      has_api_changes:       ${{ steps.detect.outputs.has_api_changes }}
+      has_deps_changes:      ${{ steps.detect.outputs.has_deps_changes }}
+      has_workflows_changes: ${{ steps.detect.outputs.has_workflows_changes }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: detect changes
+        id: detect
+        run: |
+          set -euo pipefail
+          # workflow_dispatch (manual trigger) forces every flag true so
+          # a full pipeline run is achievable on demand.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger — forcing all flags to true."
+            for flag in has_app_changes has_lib_changes has_api_changes has_deps_changes has_workflows_changes; do
+              echo "${flag}=true" >> "$GITHUB_OUTPUT"
+              echo "${flag}=true"
+            done
+            exit 0
+          fi
+          # PR event: diff against the PR base SHA. Push event: diff
+          # against the parent commit (HEAD~1).
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="HEAD~1"
+          fi
+          bash scripts/pipeline-awareness/detect-changes.sh "$BASE" HEAD
+
+  # ─────────────────────────────────────────────────────────────────
   # Stage 1: code quality (lint → unit → build)
   # ─────────────────────────────────────────────────────────────────
 
   lint:
     name: lint (eslint)
+    needs: change-detector
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -84,6 +131,11 @@ jobs:
   # CodeQL runs in a separate workflow (.github/workflows/codeql.yml).
   security:
     name: security (npm audit)
+    needs: change-detector
+    # Skip when no dependency files changed — npm audit only meaningful
+    # against changes in package*.json. Skipped jobs report success to
+    # branch protection (TAMD-132).
+    if: needs.change-detector.outputs.has_deps_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -101,7 +153,11 @@ jobs:
 
   unit:
     name: unit tests + coverage
-    needs: lint
+    needs: [lint, change-detector]
+    # Skip when no src/lib/** or vitest.config.ts changed — unit tests
+    # are scoped to src/lib/**. Skipped jobs report success to branch
+    # protection (TAMD-132).
+    if: needs.change-detector.outputs.has_lib_changes == 'true'
     runs-on: ubuntu-latest
     outputs:
       test_total: ${{ steps.metrics.outputs.test_total }}
@@ -172,7 +228,10 @@ jobs:
 
   build:
     name: build (next)
-    needs: unit
+    needs: [unit, change-detector]
+    # Skip when no app-affecting paths changed (src/**, public/**, build
+    # configs). Skipped jobs report success to branch protection (TAMD-132).
+    if: needs.change-detector.outputs.has_app_changes == 'true'
     runs-on: ubuntu-latest
     outputs:
       diff_files: ${{ steps.diff.outputs.files }}
@@ -254,8 +313,11 @@ jobs:
 
   t1-smoke-preview:
     name: T1 — newman smoke (Preview)
-    needs: build
-    if: github.event_name == 'pull_request'
+    needs: [build, change-detector]
+    # Skip when no API-affecting paths changed (src/app/api/**,
+    # src/lib/**, mabl/postman/**). Skipped jobs report success to
+    # branch protection (TAMD-132).
+    if: github.event_name == 'pull_request' && needs.change-detector.outputs.has_api_changes == 'true'
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -331,8 +393,10 @@ jobs:
 
   t1-smoke-prod:
     name: T1 — newman smoke (Prod)
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build, change-detector]
+    # Skip when no API-affecting paths changed. Post-deploy gate, so
+    # only fires on main pushes. (TAMD-132)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-detector.outputs.has_api_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -394,8 +458,11 @@ jobs:
 
   mabl-smoke:
     name: mabl — CSH-SMOKE-PR (Preview)
-    needs: t1-smoke-preview
-    if: github.event_name == 'pull_request'
+    needs: [t1-smoke-preview, change-detector]
+    # Skip when no app-affecting paths changed. mabl smoke tests
+    # exercise the Preview deploy — no point firing when the deploy
+    # itself wasn't rebuilt. (TAMD-132) — saves mabl cloud minutes.
+    if: github.event_name == 'pull_request' && needs.change-detector.outputs.has_app_changes == 'true'
     runs-on: ubuntu-latest
     env:
       MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
@@ -602,8 +669,11 @@ jobs:
 
   post-deploy-smoke:
     name: mabl — CSH-SMOKE-POSTDEPLOY (Prod)
-    needs: t1-smoke-prod
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [t1-smoke-prod, change-detector]
+    # Skip when no app-affecting paths changed — same reasoning as
+    # mabl-smoke. Saves mabl cloud minutes on docs-only main merges.
+    # (TAMD-132)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-detector.outputs.has_app_changes == 'true'
     runs-on: ubuntu-latest
     env:
       MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
