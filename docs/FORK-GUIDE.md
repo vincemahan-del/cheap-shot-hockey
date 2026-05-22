@@ -162,6 +162,58 @@ The full catalogue (with comments and example values) is in
 
 **Time:** ~5 min.
 
+### Dependabot passthrough (also required)
+
+GitHub treats Dependabot as a **separate security context** — your repo
+secrets above are NOT available to Dependabot's PR workflows by default.
+Without this step, every Dependabot PR fails the `mabl — CSH-SMOKE-PR
+(Preview)` gate with `MABL_API_TOKEN env var is required`, and the Jira
+poster + Slack notifier silently no-op for the same reason.
+
+Re-set the operational secrets into the Dependabot store. Same names,
+same values, different actor:
+
+```bash
+gh secret set --app dependabot MABL_API_TOKEN       --body "..." --repo OWNER/REPO
+gh secret set --app dependabot MABL_WORKSPACE_ID    --body "..." --repo OWNER/REPO
+gh secret set --app dependabot MABL_APPLICATION_ID  --body "..." --repo OWNER/REPO
+gh secret set --app dependabot MABL_ENV_PREVIEW_ID  --body "..." --repo OWNER/REPO
+gh secret set --app dependabot SLACK_WEBHOOK_URL    --body "..." --repo OWNER/REPO
+gh secret set --app dependabot JIRA_USER_EMAIL      --body "..." --repo OWNER/REPO
+gh secret set --app dependabot JIRA_API_TOKEN       --body "..." --repo OWNER/REPO
+```
+
+For real secret values (tokens, webhook URLs), omit `--body` and `gh`
+opens `$EDITOR` so the value never touches shell history.
+
+**Deliberately omitted:** `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`,
+and `MABL_ENV_PROD_ID`. The Claude agent workflows fail fast on bot PRs
+(advisory only — doesn't block merge), and Dependabot PRs never deploy
+to prod (they merge to `main`, which then auto-deploys), so the prod env
+id isn't reachable from a Dependabot context.
+
+**Verify:**
+
+```bash
+gh secret list --app dependabot
+```
+
+Expected: 7 entries.
+
+**Test it actually works:** trigger a fresh Dependabot rebase on any open
+Dependabot PR and watch the next CI run:
+
+```bash
+gh pr comment <pr-number> --body "@dependabot rebase"
+gh pr checks <pr-number> --watch
+```
+
+The `mabl — CSH-SMOKE-PR (Preview)` step should run a real plan instead
+of erroring on the missing env var (or short-circuiting with "paused"
+if `MABL_CLOUD_GATE` is `disabled`).
+
+**Time:** ~2 min.
+
 ---
 
 ## Step 6 — Find-and-replace the hardcoded demo values
