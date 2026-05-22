@@ -36,7 +36,7 @@ smoke plan on the preview → full regression on approval → merge to main
 
 ```bash
 npm install -g @mablhq/mabl-cli
-mabl auth activate-key   # paste Z9AUlteEadFAmlHqqxYqVQ (the API token)
+mabl auth activate-key   # paste your mabl API token (Settings → APIs → "Create API token")
 mabl config --workspace pXXgThbNi4HfQOpiZptHfw-w
 ```
 
