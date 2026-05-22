@@ -31,6 +31,30 @@ and verified via `gh api repos/.../branches/main/protection`.
 
 Seven gates. If any of them fails, auto-merge does not fire. Period.
 
+### Conditional execution (TAMD-132)
+
+A `change-detector` job at the top of `mabl-sdlc.yml` emits boolean
+flags about what changed. Several required checks gate on those flags
+and **skip** when the change doesn't warrant them. Skipped jobs report
+**success** to branch protection — the contract above is intact.
+
+| Check | Runs when |
+|---|---|
+| `lint (eslint)` | Always (cheap, catches workflow YAML errors via plugins) |
+| `security (npm audit)` | `package*.json` changed |
+| `unit tests + coverage` | `src/lib/**` or `vitest.config.ts` changed |
+| `build (next)` | `src/**`, `public/**`, or build config changed |
+| `T1 — newman smoke (Preview)` | `src/app/api/**`, `src/lib/**`, or `mabl/postman/**` changed |
+| `mabl — CSH-SMOKE-PR (Preview)` | `src/**`, `public/**`, or build config changed |
+| `regression rollup` | Always (cheap aggregator) |
+
+`workflow_dispatch` (manual trigger) forces every flag to `true` so a
+full pipeline run is always achievable on demand.
+
+This pattern saves mabl cloud minutes + Vercel build minutes + GHA
+runner time on docs-only / workflow-only / config-only PRs without
+weakening any gate that has signal to provide.
+
 ## Advisory checks (post signal, do not block)
 
 | Check | Workflow | Role |

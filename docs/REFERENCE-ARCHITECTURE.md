@@ -86,6 +86,16 @@ Plus the nightly drift catch (`.github/workflows/mabl-nightly.yml`): scheduled c
 
 Customers fork → edit `MABL_AREA_PATTERNS` in `detect-blast-radius.js` to match their codebase's surfaces → label their mabl tests with matching `area-<X>` → routing works end-to-end without further code changes.
 
+## Pipeline path-awareness — skip gates when changes don't warrant them
+
+A `change-detector` job at the top of `mabl-sdlc.yml` runs `scripts/pipeline-awareness/detect-changes.sh` once and emits boolean flags about what kind of files the PR touched: `has_app_changes`, `has_lib_changes`, `has_api_changes`, `has_deps_changes`, `has_workflows_changes`. Every expensive downstream job gates on the appropriate flag and **skips** when its change category isn't relevant. Skipped jobs report **success** to branch protection — the seven-gate contract from `docs/MERGE-POLICY.md` remains intact.
+
+Concrete effect on a docs-only PR: `security`, `unit`, `build`, `t1-smoke-preview`, `mabl-smoke` all skip. Only `lint` and `regression-rollup` actually run. Saves ~3 min CI runner + mabl cloud minutes per docs PR.
+
+Layer 2 — Vercel side: `scripts/pipeline-awareness/vercel-should-build.sh` is set as Vercel's "Ignored Build Step" in project settings. Vercel calls it before every potential build; the script invokes `detect-changes.sh` and exits 0 (skip) when no app paths changed. Saves Vercel build minutes on docs-only main merges.
+
+Spec: TAMD-132. Conservative path patterns deliberately err toward "run when uncertain" — false positives cost minutes, false negatives cost reliability.
+
 ## Plan-mode signal sources
 
 Plan-mode (Phase 2) combines four signal sources:
