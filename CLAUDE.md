@@ -127,7 +127,25 @@ Wraps `mabl tests run --headless --reporter mabl --allow-billable-features --lab
 
 Why this exists: when `MABL_CLOUD_GATE` is set to `disabled` (cost-control mode), the cloud `CSH-SMOKE-PR` plan short-circuits with "paused" and the tier-4 `mabl-cli-pr-regression` job only fires if `touched_mabl_areas` matches a configured path pattern. PRs that don't touch a categorized area get **zero browser-layer verification** in CI. This local gate is the compensating control. Advisory when the cloud gate is `enabled`; required when paused. See TAMD-128 for context.
 
-These four steps are what "done" means for this repo. The GHA `test-impact` job runs the same analysis automatically and posts results as a PR comment — Claude's pre-PR check and the CI job should agree.
+**5. Docs sync check (when changing enforcement files)**
+
+If your change touches any of these "enforcement files" — `.github/workflows/*`, `.github/dependabot.yml`, `vitest.config.ts`, `eslint.config.mjs`, `tsconfig.json`, `Jenkinsfile`, `scripts/orchestrator-plan/*`, `scripts/llm/*`, `scripts/ci-notify.sh`, `scripts/mabl-deployment.sh`, or `scripts/mabl-local-*.sh` — review the relevant doc(s) **in the same PR**:
+
+```bash
+# See what the docs-drift-guardian will flag:
+node scripts/docs-sync/check-drift.mjs --base-ref main --head-ref HEAD
+```
+
+The most-touched docs by enforcement changes are:
+- `docs/MERGE-POLICY.md` — required-vs-advisory check list
+- `docs/REFERENCE-ARCHITECTURE.md` — pipeline shape + tool-surface
+- `docs/AGENTIC-SHIFT-LEFT.md` — phase model + label vocabulary
+- `docs/FORK-GUIDE.md` — fork-time secrets + branch protection setup
+- `CLAUDE.md` (this file) — DoD list + workspace IDs + plan labels
+
+Also bump the `last-verified:` date in each updated doc's front matter to today's ISO date. This is the preempt; the GHA `docs-drift-guardian` workflow (TAMD-130) is the safety net that catches misses.
+
+These five steps are what "done" means for this repo. The GHA `test-impact` job runs the same analysis automatically and posts results as a PR comment — Claude's pre-PR check and the CI job should agree.
 
 ## Common PR patterns the user will ask for
 

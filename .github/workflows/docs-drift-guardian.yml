@@ -101,3 +101,27 @@ jobs:
             gh pr comment "$PR_NUMBER" --body "$BODY"
             echo "Posted new docs-drift-guardian comment."
           fi
+
+      - name: Slack notify (only on drift)
+        # Fires only when ⚠️ or 🕒 markers are present in the report.
+        # A clean ✅-only report carries no Slack noise — the PR comment
+        # is the surface for clean runs.
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || 'C0A321B477Y' }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          GIT_BRANCH_NAME: ${{ github.head_ref }}
+          GIT_COMMIT_SHORT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if grep -qE "^(⚠️|🕒)" /tmp/drift-report.md; then
+            # The literal `<@U07CGN5UMFZ>` resolves to a user mention at
+            # Slack render time.
+            DRIFT_COUNT=$(grep -cE "^(⚠️|🕒)" /tmp/drift-report.md || true)
+            bash scripts/ci-notify.sh fail "docs-drift-guardian" \
+              "<@U07CGN5UMFZ> docs-drift-guardian found ${DRIFT_COUNT} drift item(s) in PR #${PR_NUMBER} (${PR_TITLE}). Review the PR comment for specifics: ${PR_URL}"
+          else
+            echo "No drift detected — skipping Slack notification."
+          fi
