@@ -44,7 +44,7 @@ blockers) that you can post as a PR review comment.
 **What it checks:**
 - Ticket hygiene (branch name, commit format, parent-link if
   follow-up)
-- Coverage gate (90% lines, 85% branches)
+- Coverage gate (90% on lines, statements, functions, and branches — see [`vitest.config.ts:26-31`](../vitest.config.ts))
 - Tiered assertion policy (no marketing copy / nav category lists /
   dynamic-ID equality)
 - Code change scope (one ticket, one logical change)

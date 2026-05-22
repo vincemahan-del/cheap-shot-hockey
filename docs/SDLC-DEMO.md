@@ -101,7 +101,7 @@ Then don't talk — let the agent run. Tab-switch as each gate fires.
 
 Workflows in `.github/workflows/`:
 
-- **`mabl-sdlc.yml`** — the canonical gate sequence (lint → unit + 90% coverage → build → T1 newman Preview → mabl CSH-SMOKE-PR → on main push, T1 newman Prod → mabl CSH-SMOKE-POSTDEPLOY → deterministic Slack alert on post-deploy failure). Also runs an advisory `security` job (`npm audit --audit-level=high`) in parallel with `lint`.
+- **`mabl-sdlc.yml`** — the canonical gate sequence (lint → security (npm audit) → unit + 90% coverage → build → T1 newman Preview → mabl CSH-SMOKE-PR → regression rollup → on main push, T1 newman Prod → mabl CSH-SMOKE-POSTDEPLOY → deterministic Slack alert on post-deploy failure). Security and regression rollup were promoted to required in PR #82 (2026-05-21).
 - **`codeql.yml`** — GitHub-native static analysis on every PR + push to main + a weekly Monday cron, with results in the Security tab. Uses the `security-extended` query suite.
 - **Dependabot** (`.github/dependabot.yml`) — weekly dep-update PRs for npm and `github-actions`. Each PR runs the full SDLC pipeline.
 
