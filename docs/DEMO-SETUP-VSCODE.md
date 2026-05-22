@@ -157,10 +157,12 @@ pass in ~300ms.
 In the GitHub PR sidebar (or `gh pr checks --watch` in terminal):
 
 - lint (eslint) ✓
+- security (npm audit) ✓ — high/critical CVE check
 - unit tests + coverage ✓ — show the coverage line (97.97% vs 90% gate)
 - build (next) ✓
 - T1 — newman smoke (Preview) ✓
 - mabl — CSH-SMOKE-PR (Preview) ✓ — flip to Slack: mabl's native post appears, Claude forwards into the ticket thread
+- regression rollup ✓ — area-targeted regression matrix collapsed to one check
 - **Auto-merge fires** — branch auto-deletes, main advances
 
 ### 5. T3 chain fires automatically (1 min)

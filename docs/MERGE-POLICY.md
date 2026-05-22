@@ -18,7 +18,7 @@ and verified via `gh api repos/.../branches/main/protection`.
 |---|---|---|
 | `lint (eslint)` | `mabl-sdlc.yml` | Style + correctness; cheap to fix, cheap to fail |
 | `security (npm audit)` | `mabl-sdlc.yml` | High/critical CVE in dependency tree blocks merge |
-| `unit tests + coverage` | `mabl-sdlc.yml` | Vitest gate at 90% functions; fails fast on regression |
+| `unit tests + coverage` | `mabl-sdlc.yml` | Vitest gate at 90% on lines, statements, functions, and branches (see [`vitest.config.ts:26-31`](../vitest.config.ts)); fails fast on regression |
 | `build (next)` | `mabl-sdlc.yml` | Type-check + bundle; broken build = broken deploy |
 | `T1 — newman smoke (Preview)` | `mabl-sdlc.yml` | Postman API journeys against the Vercel Preview deploy |
 | `mabl — CSH-SMOKE-PR (Preview)` | `mabl-sdlc.yml` | Browser-layer smoke against Preview; the UI gate |

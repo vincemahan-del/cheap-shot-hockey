@@ -43,10 +43,13 @@ and **API journey** layer. Everything else is still in play.
 rollup). Everything else is advisory — see [`docs/MERGE-POLICY.md`](MERGE-POLICY.md)
 for the full split.
 
-Each row runs as a stage in `Jenkinsfile` and as a job in
-`.github/workflows/mabl-sdlc.yml`. **Mabl lives right where it adds
-the most value — end-to-end journeys across real browsers** — and the
-fast deterministic gates (lint, unit, build) run first so a broken
+Every row runs as a job in `.github/workflows/mabl-sdlc.yml` (canonical
+CI). The `Jenkinsfile` mirrors the lint → unit → build → mabl smoke
+subset for customers who run Jenkins; it intentionally omits the 2026-05
+additions (security gate, regression rollup, blast-radius detector,
+cycle-time receipt) — GHA is the reference. **Mabl lives right where it
+adds the most value — end-to-end journeys across real browsers** — and
+the fast deterministic gates (lint, unit, build) run first so a broken
 commit is caught in seconds rather than minutes of cloud test time.
 
 Customers often ask "but why run mabl if you already have unit
@@ -145,9 +148,9 @@ Files a defect if so. Fixes. Rerun. Merge when green.
 
 ### T2 (agent-assisted, works today — this repo shows it)
 
-- `Jenkinsfile` dispatches mabl deployment events on branch push.
-- `mabl api-smoke` + `mabl pr-gate` plans run against the Vercel
-  preview URL, in parallel across Chrome / Firefox / Webkit.
+- GHA (`mabl-sdlc.yml`) dispatches mabl deployment events on PR push.
+- `CSH-SMOKE-PR` (labels `type-smk,exec-pr`) runs against the Vercel
+  preview URL in mabl cloud, in parallel across Chrome / Firefox / Webkit.
 - **On failure:** a triage agent (Claude) calls `analyze_failure` with
   the plan run id, reads the DOM state + failure message, then either
   (a) files a linked Jira defect via the Atlassian MCP, or (b) if the
@@ -215,8 +218,12 @@ PagerDuty. Triages manually. Files a ticket. Fixes later.
 
 ### T2 (agent-assisted, works today — this repo shows it)
 
-- `mabl post-deploy-smoke` runs after every prod deploy.
-- Scheduled `regression` plan runs every 15 min against production.
+- `CSH-SMOKE-POSTDEPLOY` (labels `type-smk,exec-postdeploy`) runs after
+  every prod deploy.
+- `.github/workflows/mabl-nightly.yml` runs the full `type-rt` regression
+  tier headlessly via mabl CLI vs production once a day at 06:17 UTC
+  ($0; no cloud-minute consumption). Replaces the every-15-min cloud
+  heartbeat — see the workflow header for rationale.
 - On failure, the triage agent:
   1. Calls `analyze_failure`.
   2. Cross-references known conditions (is there a `?demo=` toggle

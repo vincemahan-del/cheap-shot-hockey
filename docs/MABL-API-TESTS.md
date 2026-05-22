@@ -286,10 +286,11 @@ These exact label intersections are wired up in:
 plan has exactly one env attached, the dispatch maps to exactly one
 plan run — no fan-out, no phantom cross-env runs.
 
-Full regression (`type-rt,exec-nightly`) is intentionally unwired
-until the CSH-REGRESSION plan exists. Adding that plan later doesn't
-require CI changes — just add a matching `mabl-regression` job when
-ready.
+Nightly regression is wired at `.github/workflows/mabl-nightly.yml`
+(daily 06:17 UTC) dispatching `type-rt` against Prod via free mabl CLI.
+Pre-merge area-targeted regression is wired at `mabl-sdlc.yml`'s
+`mabl-cli-pr-regression` matrix dispatching `type-rt,area-<X>`. The
+`CSH-Regression` plan exists in mabl (id `jQvMb041R8mCj22jKIGX5w-p`).
 
 ---
 

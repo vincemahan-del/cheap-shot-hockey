@@ -39,8 +39,10 @@ is the GHA equivalent.
   BrandRow, Footer, PromoStrip, DemoBanner, StarRating
 - `public/product-photos/*.jpg` — real Wikimedia/Pexels photography
   (NOT AI — keep them real)
-- `Jenkinsfile` — 8-stage SDLC pipeline (build → mabl API smoke → mabl
-  UI PR gate → mabl regression → promote → post-deploy smoke)
+- `Jenkinsfile` — 9-stage SDLC pipeline (lint → unit + coverage → build →
+  mabl PR smoke → promote → mabl post-deploy). Older than `mabl-sdlc.yml`;
+  does NOT mirror the GHA's security gate, regression rollup, blast-radius
+  detector, or cycle-time receipt. The GHA workflow is canonical.
 - `scripts/mabl-deployment.sh` — POSTs to mabl `/events/deployment` and
   polls `/execution/result/event/<id>` with a 60s grace for no-plan-match
 - `scripts/demo-toggle.sh` — flip prod into slow/flaky/broken
@@ -68,7 +70,7 @@ is the GHA equivalent.
 ```bash
 npm run dev     # http://localhost:3000
 npm run build   # Next.js production build (used by Jenkinsfile stage 2)
-npm run lint    # eslint (currently optional — dropped from Jenkins stage)
+npm run lint    # eslint (required gate in GHA + Jenkinsfile stage 3)
 ```
 
 Deploys are **automatic** on every push to `main` via Vercel. The
@@ -145,8 +147,14 @@ MABL_ENV_PREVIEW_ID  TpuarWvfj1hOREDT0JGvjA-e
 MABL_ENV_LOCAL_ID    DmlIvADtF8jPDm9J7Bpshw-e
 ```
 
-Plan labels Jenkins dispatches against: `api-smoke`, `pr-gate`,
-`regression`, `post-deploy-smoke`.
+Plan-label intersections Jenkins/GHA dispatch (see [`docs/MABL-API-TESTS.md`](docs/MABL-API-TESTS.md)):
+
+```
+PR smoke         → type-smk,exec-pr           → CSH-SMOKE-PR (Preview)
+Post-deploy      → type-smk,exec-postdeploy   → CSH-SMOKE-POSTDEPLOY (Prod)
+Area regression  → type-rt,area-<X>           → matching regression tests
+Nightly          → type-rt                    → all regression tier
+```
 
 ## Custom Claude Code subagents
 
@@ -235,8 +243,10 @@ Mabl test catalog must have `area-*` labels applied (`area-auth`,
 `MABL_AREA_PATTERNS` in `detect-blast-radius.js` to update the
 file→area mapping when the codebase grows new product surfaces.
 
-Required CI secrets: `MABL_API_KEY` (for CLI auth, separate from the
-cloud-API `MABL_API_TOKEN`). Skips gracefully when missing.
+Optional CI secret: `MABL_API_KEY` (separate from the cloud-API
+`MABL_API_TOKEN`) unlocks the mabl-cli regression + nightly jobs.
+Currently NOT set (per `gh secret list`) — those jobs run but skip
+with a warning.
 
 ## Cost + cycle-time receipt per ticket
 
