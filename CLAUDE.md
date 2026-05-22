@@ -110,7 +110,17 @@ If the change adds new UI flows, pages, or API routes that have no existing mabl
 - Cut a Jira ticket in TAMD to track the new test (link it to the feature ticket)
 - Note the gap and the new ticket in the PR description
 
-These three steps are what "done" means for this repo. The GHA `test-impact` job runs the same analysis automatically and posts results as a PR comment — Claude's pre-PR check and the CI job should agree.
+**4. Local mabl browser smoke (required when `MABL_CLOUD_GATE=disabled`)**
+```bash
+npm run test:mabl:browser:local        # against the local dev server
+npm run test:mabl:browser:preview      # against the Vercel preview URL
+npm run test:mabl:browser:prod         # against prod (post-deploy verification)
+```
+Wraps `mabl tests run --headless --reporter mabl --allow-billable-features --labels type-rt`. The `--allow-billable-features` flag is required so GenAI assertions in mabl tests actually execute in CLI runs (otherwise they fail with `AI assertions are not available in CLI runs by default`).
+
+Why this exists: when `MABL_CLOUD_GATE` is set to `disabled` (cost-control mode), the cloud `CSH-SMOKE-PR` plan short-circuits with "paused" and the tier-4 `mabl-cli-pr-regression` job only fires if `touched_mabl_areas` matches a configured path pattern. PRs that don't touch a categorized area get **zero browser-layer verification** in CI. This local gate is the compensating control. Advisory when the cloud gate is `enabled`; required when paused. See TAMD-128 for context.
+
+These four steps are what "done" means for this repo. The GHA `test-impact` job runs the same analysis automatically and posts results as a PR comment — Claude's pre-PR check and the CI job should agree.
 
 ## Common PR patterns the user will ask for
 
@@ -274,6 +284,8 @@ gh variable set MABL_CLOUD_GATE --body "enabled" --repo OWNER/REPO
 (Or unset entirely — default is `enabled` when missing.)
 
 When disabled, you lose: browser-layer UI verification on every PR, post-deploy mabl verification, and mabl's native Slack screenshots. Acceptable for build-out; reenable for release-candidate runs.
+
+**Compensating local control:** when paused, the DoD pass MUST run `npm run test:mabl:browser:local` (or `:preview`) — that wraps `mabl tests run --headless --allow-billable-features --labels type-rt` and exercises the browser layer locally. See step 4 of the *Definition of done* above. The script is `scripts/mabl-local-cli.sh`.
 
 ## Plan-mode for high-blast-radius changes
 
