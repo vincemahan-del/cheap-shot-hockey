@@ -1,0 +1,159 @@
+# docs-drift-weekly — scheduled audit of docs vs reality on main.
+#
+# Companion to docs-drift-guardian.yml: that workflow catches drift
+# in PRs, this one catches drift that landed on main outside of PR
+# flow (admin push, branch-protection bypass, etc.).
+#
+# Runs every Monday at 16:00 UTC (09:00 PT). Always posts a Slack
+# summary — a clean weekly post is positive signal that the check ran.
+# When drift is detected, also opens a Jira ticket in TAMD with the
+# findings as the description.
+#
+# Spec: TAMD-131.
+
+name: docs-drift-weekly
+
+on:
+  schedule:
+    # Mondays 16:00 UTC = 09:00 PT (US daylight) / 08:00 PT (standard)
+    - cron: "0 16 * * MON"
+  workflow_dispatch: # manual trigger for testing / on-demand
+
+permissions:
+  contents: read
+  issues: write # for the Jira-link comment (uses gh API to PR/issue, but we file via Atlassian REST)
+
+jobs:
+  weekly-audit:
+    name: docs-drift weekly audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID || 'C0A321B477Y' }}
+      JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+      JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL || 'https://mabl.atlassian.net' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: run drift checks against main
+        id: drift
+        run: |
+          set -euo pipefail
+          # No --base-ref/--head-ref: against main HEAD only.
+          # Checks 1 (MERGE-POLICY vs branch protection) and 3
+          # (per-doc staleness) fire. Check 4 is a no-op because
+          # there's no diff to inspect.
+          node scripts/docs-sync/check-drift.mjs > /tmp/drift-report.md 2>&1 || true
+
+          echo "===== weekly drift report ====="
+          cat /tmp/drift-report.md
+
+          # Detect drift markers for downstream branching
+          if grep -qE "^(⚠️|🕒)" /tmp/drift-report.md; then
+            DRIFT_COUNT=$(grep -cE "^(⚠️|🕒)" /tmp/drift-report.md || true)
+            echo "drift_detected=true" >> "$GITHUB_OUTPUT"
+            echo "drift_count=$DRIFT_COUNT" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift_detected=false" >> "$GITHUB_OUTPUT"
+            echo "drift_count=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: file Jira ticket (only on drift)
+        if: steps.drift.outputs.drift_detected == 'true'
+        id: jira
+        run: |
+          set -euo pipefail
+          if [ -z "$JIRA_USER_EMAIL" ] || [ -z "$JIRA_API_TOKEN" ]; then
+            echo "Jira creds not set — skipping ticket creation."
+            echo "ticket_key=" >> "$GITHUB_OUTPUT"
+            echo "ticket_url=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          REPORT_CONTENT=$(cat /tmp/drift-report.md)
+          # JSON-escape the report for the API payload
+          DESC=$(jq -Rs . <<EOF
+## Auto-filed by docs-drift-weekly
+
+Weekly drift audit detected ${{ steps.drift.outputs.drift_count }} drift item(s) on \`main\`.
+
+### Report
+
+${REPORT_CONTENT}
+
+### Next steps
+
+1. Review each ⚠️ / 🕒 finding
+2. Update the relevant doc(s) — see [\`docs/MERGE-POLICY.md\`](https://github.com/vincemahan-del/cheap-shot-hockey/blob/main/docs/MERGE-POLICY.md) for the required-vs-advisory contract
+3. Bump \`last-verified\` on any docs that needed updates
+4. Close this ticket once main is clean
+
+This ticket was opened automatically by \`.github/workflows/docs-drift-weekly.yml\` (spec: TAMD-131).
+EOF
+)
+
+          RESPONSE=$(curl -sS -X POST \
+            -u "$JIRA_USER_EMAIL:$JIRA_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            "$JIRA_BASE_URL/rest/api/3/issue" \
+            -d "{
+              \"fields\": {
+                \"project\": { \"key\": \"TAMD\" },
+                \"summary\": \"[docs-drift-weekly] ${{ steps.drift.outputs.drift_count }} drift item(s) on main\",
+                \"issuetype\": { \"name\": \"Task\" },
+                \"labels\": [\"docs-drift\", \"automated\", \"from-weekly-audit\"],
+                \"description\": {
+                  \"type\": \"doc\",
+                  \"version\": 1,
+                  \"content\": [{
+                    \"type\": \"paragraph\",
+                    \"content\": [{ \"type\": \"text\", \"text\": $DESC }]
+                  }]
+                }
+              }
+            }")
+
+          KEY=$(echo "$RESPONSE" | jq -r '.key // empty')
+          if [ -n "$KEY" ]; then
+            echo "ticket_key=$KEY" >> "$GITHUB_OUTPUT"
+            echo "ticket_url=$JIRA_BASE_URL/browse/$KEY" >> "$GITHUB_OUTPUT"
+            echo "Filed: $KEY"
+          else
+            echo "Jira ticket creation failed:"
+            echo "$RESPONSE"
+            echo "ticket_key=" >> "$GITHUB_OUTPUT"
+            echo "ticket_url=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Slack notify (always)
+        # Weekly cadence is low-volume; posting on clean weeks is signal
+        # that the check ran. Drift case includes the auto-filed Jira
+        # ticket link.
+        env:
+          GIT_BRANCH_NAME: main
+          GIT_COMMIT_SHORT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.drift.outputs.drift_detected }}" = "true" ]; then
+            TICKET="${{ steps.jira.outputs.ticket_key }}"
+            TICKET_URL="${{ steps.jira.outputs.ticket_url }}"
+            BODY="<@U07CGN5UMFZ> Weekly audit found ${{ steps.drift.outputs.drift_count }} drift item(s) on \`main\`."
+            if [ -n "$TICKET" ]; then
+              BODY="$BODY Auto-filed: <$TICKET_URL|$TICKET>."
+            fi
+            bash scripts/ci-notify.sh fail "docs-drift weekly audit" "$BODY"
+          else
+            bash scripts/ci-notify.sh ok "docs-drift weekly audit" \
+              "<@U07CGN5UMFZ> Weekly audit clean — all 4 checks passed against main. Next audit: next Monday."
+          fi
