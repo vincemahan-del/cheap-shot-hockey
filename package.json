@@ -13,6 +13,9 @@
     "test:coverage": "vitest run --coverage",
     "test:mabl:local": "./scripts/mabl-local-gate.sh",
     "test:mabl:local:preview": "./scripts/mabl-local-gate.sh --base https://cheap-shot-hockey-git-main-vincemahan-1163s-projects.vercel.app/api",
+    "test:mabl:browser:local": "./scripts/mabl-local-cli.sh",
+    "test:mabl:browser:preview": "./scripts/mabl-local-cli.sh --url https://cheap-shot-hockey-git-main-vincemahan-1163s-projects.vercel.app",
+    "test:mabl:browser:prod": "./scripts/mabl-local-cli.sh --url https://cheap-shot-hockey.vercel.app",
     "demo:preflight": "./scripts/demo-preflight.sh"
   },
   "dependencies": {
