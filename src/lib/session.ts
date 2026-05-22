@@ -150,6 +150,9 @@ export async function login(userId: string): Promise<void> {
   jar.set(AUTH_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
+    // Always set in code; Next strips `secure` on non-HTTPS dev requests
+    // automatically, so this is safe in `next dev` against localhost:3000.
+    secure: true,
     path: "/",
     maxAge: AUTH_TTL_MS / 1000,
   });

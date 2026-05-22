@@ -15,7 +15,7 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "America/Los_Angeles"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     labels:
       - "dependencies"
       - "npm"
@@ -23,6 +23,10 @@ updates:
       prefix: "deps"
       include: "scope"
     groups:
+      # Package-family groups — must move together for peer-dep / version-skew
+      # reasons. These catch both minor/patch AND major bumps for the listed
+      # packages so a major upgrade of e.g. `vitest` doesn't strand its peer
+      # `@vitest/coverage-v8`.
       next-and-react:
         patterns:
           - "next"
@@ -47,6 +51,17 @@ updates:
           - "vitest"
           - "@vitest/*"
           - "@vitejs/plugin-react"
+      # Catch-all for major bumps of packages NOT covered by the family
+      # groups above (e.g. `eslint`, `typescript`, `eslint-config-next`).
+      # First-matching-group-wins ordering means this only catches what
+      # the families above don't. Per TAMD-105: major bumps need careful
+      # human review for breaking changes, so we bundle them into a single
+      # PR per cadence instead of 1 PR per major-leap dep.
+      major-bumps:
+        patterns:
+          - "*"
+        update-types:
+          - "version-update:semver-major"
 
 
   # GitHub Actions used in workflows
@@ -57,9 +72,17 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "America/Los_Angeles"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     labels:
       - "dependencies"
       - "github-actions"
     commit-message:
       prefix: "ci"
+    groups:
+      # Same major-bumps strategy for action versions (e.g. actions/checkout
+      # going v4 → v5 needs careful human review).
+      major-bumps:
+        patterns:
+          - "*"
+        update-types:
+          - "version-update:semver-major"
