@@ -1,3 +1,8 @@
+---
+last-verified: 2026-05-22
+verifies: [".github/workflows/claude.yml", ".github/workflows/claude-agentic-dod.yml", "scripts/llm/check-tool-surface.mjs"]
+---
+
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 

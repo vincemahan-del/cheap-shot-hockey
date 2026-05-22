@@ -1,3 +1,8 @@
+---
+last-verified: 2026-05-22
+verifies: [".github/workflows/mabl-sdlc.yml", ".github/workflows/codeql.yml", ".github/dependabot.yml"]
+---
+
 # Cheap Shot Hockey — mabl agentic-SDLC demo runbook
 
 A stage-by-stage script for demoing mabl's value across an **agentic-by-default**

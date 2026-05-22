@@ -1,3 +1,8 @@
+---
+last-verified: 2026-05-22
+verifies: [".github/workflows/mabl-sdlc.yml", ".github/workflows/auto-fix.yml", "scripts/llm/check-tool-surface.mjs"]
+---
+
 # Reference architecture — agentic SDLC
 
 This is the architectural pattern. The walkthrough is in

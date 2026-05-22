@@ -1,3 +1,8 @@
+---
+last-verified: 2026-05-22
+verifies: [".github/workflows/mabl-sdlc.yml"]
+---
+
 # VS Code as the demo cockpit
 
 Setup + layout for running the Cheap Shot Hockey ticket-to-prod demo

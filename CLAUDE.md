@@ -1,3 +1,8 @@
+---
+last-verified: 2026-05-22
+verifies: [".github/workflows/mabl-sdlc.yml", ".github/workflows/auto-fix.yml", "vitest.config.ts", "scripts/orchestrator-plan/detect-blast-radius.js", "scripts/ci-notify.sh", "Jenkinsfile"]
+---
+
 @AGENTS.md
 
 # Claude context — cheap-shot-hockey
