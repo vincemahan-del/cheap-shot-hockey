@@ -3,6 +3,7 @@ import { hashPassword } from "@/lib/auth-crypto";
 import { createUser, getUserByEmail } from "@/lib/store";
 import { login } from "@/lib/session";
 import { badRequest, created } from "@/lib/api";
+import { isValidEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   let body: { email?: string; password?: string; name?: string };
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
     return badRequest("invalid JSON body");
   }
   const { email, password, name } = body;
-  if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!isValidEmail(email)) {
     return badRequest("a valid email is required");
   }
   if (typeof password !== "string" || password.length < 8) {
