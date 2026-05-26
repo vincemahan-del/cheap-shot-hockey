@@ -206,6 +206,39 @@ const SPEC = {
         },
       },
     },
+    "/api/team-orders": {
+      post: {
+        summary: "Submit a team-orders quote request",
+        description:
+          "Accepts a quote-request payload from a club, school, or league; returns a quote ID for follow-up.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["orgName", "contactEmail", "sport", "estPlayers"],
+                properties: {
+                  orgName: { type: "string", minLength: 2, maxLength: 200 },
+                  contactEmail: { type: "string", format: "email" },
+                  sport: {
+                    type: "string",
+                    enum: ["hockey", "lacrosse", "field-hockey", "other"],
+                  },
+                  estPlayers: { type: "integer", minimum: 1, maximum: 500 },
+                  message: { type: "string", maxLength: 2000 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": { description: "Created" },
+          "400": { description: "Validation failed" },
+          "503": { description: "Demo failure" },
+        },
+      },
+    },
   },
 };
 

@@ -69,7 +69,11 @@ export function Footer() {
                   Size guide
                 </Link>
               </li>
-              <li>Team orders</li>
+              <li>
+                <Link href="/team-orders" className="hover:text-[color:var(--accent)]" data-testid="footer-team-orders-link">
+                  Team orders
+                </Link>
+              </li>
               <li>Contact us</li>
             </ul>
           </div>
