@@ -451,7 +451,20 @@ jobs:
     # Skip when no app-affecting paths changed — same reasoning as
     # mabl-smoke. Saves mabl cloud minutes on docs-only main merges.
     # (TAMD-132)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-detector.outputs.has_app_changes == 'true'
+    #
+    # `!cancelled() && needs.t1-smoke-prod.result != 'failure'` mirrors
+    # TAMD-136's PR-time cascade-skip fix. Lets post-deploy run when t1
+    # was *legitimately skipped* (UI-only changes don't touch the API
+    # surface so newman has nothing to assert, but the deploy still
+    # needs browser-layer verification). Without this guard, the
+    # default `success()` rule cascades skipped-upstream through the
+    # chain and UI-only main pushes bypass mabl postdeploy + receipt.
+    if: |
+      !cancelled() &&
+      needs.t1-smoke-prod.result != 'failure' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.change-detector.outputs.has_app_changes == 'true'
     runs-on: ubuntu-latest
     env:
       MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
