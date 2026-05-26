@@ -30,7 +30,18 @@ jobs:
     name: Claude — definition of done
     # Same-repo PRs only. Fork PRs do not have secrets and could plant
     # adversarial files; skip them entirely.
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    #
+    # TAMD-137: also skip Dependabot PRs. Dependabot uses a separate
+    # secrets bucket that doesn't have CLAUDE_CODE_OAUTH_TOKEN, and the
+    # value DoD adds on a dep bump is marginal — `build (next)`, `lint`,
+    # and `mabl — CSH-SMOKE-PR (Preview)` already cover what a dep bump
+    # can break. Asking an LLM to "look for missing mabl test coverage"
+    # against a package-lock.json diff is mostly theater. The path-
+    # awareness fix in TAMD-136 makes those concrete gates actually
+    # run on Dependabot PRs, which is what matters.
+    if: |
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -86,15 +97,11 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # TAMD-136: allow Dependabot to invoke this DoD check. Without
-          # this, every dep-bump PR's DoD failed with "Workflow initiated
-          # by non-human actor" — making Dependabot PRs un-mergeable
-          # under branch protection. Action is analysis-only (no Edit/
-          # Write tools), so the security risk surface is narrow: the
-          # bot would have to craft a malicious package.json diff and
-          # rely on the model to exfil via the read-only PR comment,
-          # which the existing tool allowlist already constrains.
-          allowed_bots: "dependabot[bot]"
+          # TAMD-137: `allowed_bots` (added in TAMD-136) is no longer
+          # needed — the job-level `if:` skips Dependabot entirely. The
+          # only way to re-enable DoD on Dependabot PRs would be to add
+          # CLAUDE_CODE_OAUTH_TOKEN to the Dependabot secrets bucket and
+          # remove the bot skip.
           # NOTE: intentionally NOT passing `settings: ".claude/settings.json"`.
           # See claude.yml for rationale.
           claude_args: >-
