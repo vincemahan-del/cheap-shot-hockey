@@ -1,0 +1,148 @@
+# blast-radius gate — CI enforcement of the high-blast-radius human
+# checkpoint that previously lived ONLY inside the orchestrator subagent
+# prompt (.claude/agents/demo-orchestrator + docs/MCP-NARRATION-PLAYBOOK).
+# Spec: TAMD-143.
+#
+# What it does: runs the existing deterministic detector
+# (scripts/orchestrator-plan/detect-blast-radius.js) against the PR base
+# SHA. The detector flags `blast_radius: "high"` when the diff touches a
+# high-risk surface (auth, API contract, CI infra, agent prompts, shared
+# data layer), exceeds the 200-LOC threshold, removes TS/TSX exports,
+# spans > 5 files, or adds a new dependency.
+#
+#   - low blast radius  → gate passes immediately. Low-risk PRs are
+#     completely unaffected by this gate.
+#   - high blast radius + `blast-radius-approved` label present →
+#     gate passes (a maintainer has reviewed and signed off).
+#   - high blast radius + label absent → gate is RED (exit 1). This
+#     holds auto-merge until a maintainer reviews the diff and applies
+#     the `blast-radius-approved` label. Applying the label re-runs this
+#     workflow (via the `labeled` trigger) and flips the check green with
+#     no manual re-run.
+#
+# This is the "AI proposes, human disposes" checkpoint enforced by the
+# pipeline rather than by prompt convention. Detection is local and
+# deterministic — no LLM call.
+
+name: blast-radius gate
+
+on:
+  pull_request:
+    branches: [main]
+    # `labeled`/`unlabeled` are REQUIRED: applying the approval label
+    # must re-trigger this gate so it flips red→green without a manual
+    # re-run. `unlabeled` re-arms the hold if the label is removed.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+  SLACK_CHANNEL_ID: C0A321B477Y
+  JIRA_BASE_URL: https://mabl.atlassian.net
+  JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+  JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PR_NUMBER: ${{ github.event.pull_request.number }}
+  PR_TITLE: ${{ github.event.pull_request.title }}
+
+jobs:
+  # Job id `gate`, check-context name `blast-radius`. This exact name is
+  # what branch protection will reference once promoted to required —
+  # keep it stable and simple.
+  gate:
+    name: blast-radius
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the detector can `git diff` against the base SHA.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: run blast-radius detector against PR base
+        id: detect
+        run: |
+          set -euo pipefail
+          node scripts/orchestrator-plan/detect-blast-radius.js \
+            --base "${{ github.event.pull_request.base.sha }}" > /tmp/blast.json
+          echo "── detector output ─────────────────────────────────"
+          cat /tmp/blast.json
+          echo "────────────────────────────────────────────────────"
+          blast=$(jq -r '.blast_radius' /tmp/blast.json)
+          echo "blast_radius=$blast" >> "$GITHUB_OUTPUT"
+
+      - name: gate decision
+        env:
+          # Determined from the event payload — no API round-trip.
+          LABEL_PRESENT: ${{ contains(github.event.pull_request.labels.*.name, 'blast-radius-approved') }}
+          BLAST: ${{ steps.detect.outputs.blast_radius }}
+        run: |
+          set -euo pipefail
+
+          if [ "$BLAST" = "low" ]; then
+            echo "blast radius low — gate passes"
+            exit 0
+          fi
+
+          if [ "$LABEL_PRESENT" = "true" ]; then
+            echo "high blast radius — human-approved via blast-radius-approved label"
+            exit 0
+          fi
+
+          # high blast radius, no approval label → hold auto-merge.
+          echo "::warning::high blast radius and no 'blast-radius-approved' label — holding auto-merge"
+
+          # Build the reasons list as a markdown bullet block.
+          reasons_md=$(jq -r '.reasons[] | "- " + .' /tmp/blast.json)
+          reasons_slack=$(jq -r '.reasons | join("; ")' /tmp/blast.json)
+
+          # Compose the sticky comment body into a file. The leading HTML
+          # marker lets re-runs UPDATE the same comment instead of spamming.
+          # Built with printf (not a flush-left heredoc) so this stays
+          # correctly indented under the YAML block scalar.
+          {
+            printf '%s\n'   '<!-- blast-radius-gate -->'
+            printf '%s\n\n' '### :hockey: blast-radius gate — auto-merge held'
+            printf '%s\n'   'This PR touches a **high-blast-radius** surface, so auto-merge is held'
+            printf '%s\n'   'until a maintainer reviews the diff and applies the'
+            printf '%s\n\n' '`blast-radius-approved` label.'
+            printf '%s\n\n' '**Why this PR is high blast radius (from the deterministic detector):**'
+            printf '%s\n\n' "$reasons_md"
+            printf '%s\n'   '**To proceed:** a maintainer reviews the change and applies the'
+            printf '%s\n'   '`blast-radius-approved` label. Applying the label re-runs this gate'
+            printf '%s\n\n' 'and flips it green automatically — no manual re-run needed.'
+            printf '%s\n'   'This is the CI enforcement of the blast-radius checkpoint that'
+            printf '%s\n'   'previously lived only inside the orchestrator subagent prompt (TAMD-143).'
+            printf '%s\n'   'Low-risk PRs pass this gate automatically.'
+          } > /tmp/blast-comment.md
+
+          # Sticky update: find an existing marked comment and PATCH it,
+          # otherwise create a new one.
+          comment_id=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --jq '.[] | select(.body | contains("<!-- blast-radius-gate -->")) | .id' \
+            2>/dev/null | head -1 || true)
+
+          if [ -n "$comment_id" ]; then
+            gh api --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" \
+              -F body=@/tmp/blast-comment.md >/dev/null
+            echo "updated existing sticky comment ($comment_id)"
+          else
+            gh pr comment "$PR_NUMBER" --body-file /tmp/blast-comment.md
+            echo "created sticky comment"
+          fi
+
+          # One Slack line via the canonical notifier.
+          bash scripts/ci-notify.sh info "blast-radius gate — auto-merge held" \
+            ":hockey: PR #${PR_NUMBER} (${PR_TITLE}) touches a high-blast-radius surface. Auto-merge is held until a maintainer applies the \`blast-radius-approved\` label. Reasons: ${reasons_slack}"
+
+          # Red check holds auto-merge.
+          exit 1
