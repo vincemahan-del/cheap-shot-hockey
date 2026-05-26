@@ -66,6 +66,13 @@ jobs:
         if: steps.precheck.outputs.skipped == 'false'
         run: npm install -g @mablhq/mabl-cli
 
+      - name: authenticate mabl CLI
+        if: steps.precheck.outputs.skipped == 'false'
+        # The CLI does not auto-read MABL_API_KEY; it must be activated
+        # explicitly before `tests run` (per mabl CI docs). Without this
+        # the run dies with "Please supply an API key or authenticate".
+        run: mabl auth activate-key "$MABL_API_KEY"
+
       - name: run nightly regression vs production
         if: steps.precheck.outputs.skipped == 'false'
         run: |
