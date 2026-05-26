@@ -175,8 +175,8 @@ See `docs/CLAUDE-AGENTS.md` for examples + invocation patterns.
 
 ## Security + supply-chain gate
 
-Three pieces. `npm audit` is now required (PR #82, 2026-05-21); CodeQL
-and Dependabot are advisory:
+Three pieces. `npm audit` is required (PR #82, 2026-05-21) and CodeQL
+is required (2026-05-26, TAMD-139); Dependabot is advisory:
 
 - **`npm audit --audit-level=high`** runs as the `security` job in
   `.github/workflows/mabl-sdlc.yml`, alongside `lint`. **Blocks merge
@@ -186,15 +186,21 @@ and Dependabot are advisory:
 - **CodeQL** runs as a separate workflow at
   `.github/workflows/codeql.yml` — on every PR + push to main, plus a
   weekly Monday cron. Uploads SARIF to the GitHub Security tab. Uses
-  the `security-extended` query suite. Advisory — findings appear in
-  the Security tab, not as a merge gate.
+  the `security-extended` query suite. **Required (2026-05-26,
+  TAMD-139)**: the `CodeQL` check (github-advanced-security app, id
+  57789) is in branch protection; a high-severity code-scanning alert
+  blocks merge. Promoted after a ReDoS shipped to prod under the prior
+  advisory regime (TAMD-138).
 - **Dependabot** (`.github/dependabot.yml`) opens weekly dep-update
   PRs for npm and `github-actions`. Each PR goes through the same SDLC
   pipeline as a human PR.
 
-Promoting CodeQL to required-check status is a branch-protection
-change (manual on the GitHub repo), not a workflow change. Document
-that decision and the date it lands in this file when it happens.
+CodeQL was promoted from advisory to required on 2026-05-26 (TAMD-139).
+The baseline was cleared first: two ReDoS findings fixed (TAMD-138 +
+TAMD-139) and one weak-hash finding (`auth-crypto.ts`) dismissed as
+risk-accepted-by-design (fake-auth demo, no real user data) with a
+justification in the Security tab. Accepted findings are dismissed
+with documentation, not left to block.
 
 ## Auto-fix workflow (v1 — deterministic)
 
