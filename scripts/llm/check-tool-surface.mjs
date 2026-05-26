@@ -2,26 +2,25 @@
 // Static contract check on the agentic surface — runs on every PR so the
 // hardening can't silently regress.
 //
+// Scope: the agentic DoD action (claude-agentic-dod.yml). The interactive
+// @claude action was retired in chore/cut-claude-action — re-add the
+// matching assertions here if you bring claude.yml back.
+//
 // What this asserts (and why each one matters):
 //
-//   1. claude.yml / claude-agentic-dod.yml use a SHA-pinned action reference
-//      (40-char hex), not a floating @beta or @v1 tag. Floating tags break
-//      reproducibility and let the action's behavior shift under our feet.
+//   1. claude-agentic-dod.yml uses a SHA-pinned action reference (40-char
+//      hex), not a floating @beta or @v1 tag. Floating tags break
+//      reproducibility and let the action's behavior shift under us.
 //
-//   2. Every LLM invocation passes --model with an explicit pinned model ID.
+//   2. The LLM invocation passes --model with an explicit pinned model ID.
 //      No -latest, no missing flag.
 //
-//   3. claude.yml's READ_ONLY_TOOLS env var contains none of the forbidden
+//   3. DOD_ANALYSIS_TOOLS env var contains none of the forbidden
 //      "side-effect" tools — no Edit/Write, no mcp__*__create_*, no Bash
 //      without arg restriction, no run_mabl_test_cloud.
 //
-//   4. claude-agentic-dod.yml's DOD_ANALYSIS_TOOLS env var likewise.
-//
-//   5. claude.yml's authorize job gates on author_association ∈
-//      {OWNER, MEMBER, COLLABORATOR} — the abuse mitigation for the
-//      public-repo @claude trigger.
-//
-//   6. claude-agentic-dod.yml restricts to same-repo PRs (no fork heads).
+//   4. The DoD job restricts to same-repo PRs (no fork heads can run the
+//      analysis with our secrets in scope).
 //
 // Exit code: 0 = clean, 1 = at least one violation. Run from repo root.
 
@@ -44,7 +43,7 @@ const FORBIDDEN_IN_READ_ONLY = [
   /mcp__atlassian__create_/,
   /mcp__atlassian__add_jira_comment/,
   /mcp__atlassian__update_/,
-  /Bash(?!\()/,  // bare "Bash" (no paren-arg restriction)
+  /Bash(?!\()/, // bare "Bash" (no paren-arg restriction)
 ];
 
 async function loadFile(path) {
@@ -72,20 +71,11 @@ function checkForbidden(label, value, forbidden) {
   }
 }
 
-const claudeYml = await loadFile(".github/workflows/claude.yml");
 const dodYml = await loadFile(".github/workflows/claude-agentic-dod.yml");
 
 // --- 1. Action SHA pinning ---------------------------------------------------
-const claudeActionLine = claudeYml.match(/uses:\s*anthropics\/claude-code-action@\S+/);
 const dodActionLine = dodYml.match(/uses:\s*anthropics\/claude-code-action@\S+/);
-assert(claudeActionLine, "claude.yml: no anthropics/claude-code-action reference");
 assert(dodActionLine, "claude-agentic-dod.yml: no anthropics/claude-code-action reference");
-if (claudeActionLine) {
-  assert(
-    PINNED_SHA_RE.test(claudeActionLine[0]),
-    `claude.yml: action ref must be a 40-char SHA, got "${claudeActionLine[0]}"`
-  );
-}
 if (dodActionLine) {
   assert(
     PINNED_SHA_RE.test(dodActionLine[0]),
@@ -94,19 +84,9 @@ if (dodActionLine) {
 }
 
 // --- 2. Model pinning -------------------------------------------------------
-// Both layers checked: the env CLAUDE_MODEL value is a pinned ID, AND
-// --model is actually used in claude_args (otherwise the env is decorative).
-assert(
-  PINNED_MODEL_ENV_RE.test(claudeYml),
-  "claude.yml: env.CLAUDE_MODEL must be a pinned model ID like claude-opus-4-7 (no -latest)"
-);
-assert(
-  PINNED_MODEL_FLAG_RE.test(claudeYml),
-  "claude.yml: --model flag missing from claude_args"
-);
 assert(
   PINNED_MODEL_ENV_RE.test(dodYml),
-  "claude-agentic-dod.yml: env.CLAUDE_MODEL must be a pinned model ID"
+  "claude-agentic-dod.yml: env.CLAUDE_MODEL must be a pinned model ID like claude-opus-4-7 (no -latest)"
 );
 assert(
   PINNED_MODEL_FLAG_RE.test(dodYml),
@@ -116,35 +96,16 @@ assert(
 // `runs-on: ubuntu-latest`.
 const MODEL_LATEST_RE = /claude-[a-z-]+-latest|--model[^\n]+latest/;
 assert(
-  !MODEL_LATEST_RE.test(claudeYml),
-  "claude.yml: -latest model alias detected near --model"
-);
-assert(
   !MODEL_LATEST_RE.test(dodYml),
   "claude-agentic-dod.yml: -latest model alias detected near --model"
 );
-// Action ref must not use floating tags. Check the action line specifically
-// rather than the whole file (the README/comments may legitimately mention
-// "@beta" historically).
 const actionFloatRe = /anthropics\/claude-code-action@(latest|beta|v\d+\b)/;
 assert(
-  !actionFloatRe.test(claudeYml),
-  "claude.yml: action ref uses a floating tag (@latest/@beta/@v1)"
-);
-assert(
   !actionFloatRe.test(dodYml),
-  "claude-agentic-dod.yml: action ref uses a floating tag"
+  "claude-agentic-dod.yml: action ref uses a floating tag (@latest/@beta/@v1)"
 );
 
-// --- 3. READ_ONLY_TOOLS forbidden patterns ----------------------------------
-const readOnlyMatch = claudeYml.match(/READ_ONLY_TOOLS:\s*"([^"]+)"/);
-checkForbidden(
-  "claude.yml READ_ONLY_TOOLS",
-  readOnlyMatch?.[1],
-  FORBIDDEN_IN_READ_ONLY
-);
-
-// --- 4. DOD_ANALYSIS_TOOLS forbidden patterns -------------------------------
+// --- 3. DOD_ANALYSIS_TOOLS forbidden patterns -------------------------------
 const dodToolsMatch = dodYml.match(/DOD_ANALYSIS_TOOLS:\s*"([^"]+)"/);
 checkForbidden(
   "claude-agentic-dod.yml DOD_ANALYSIS_TOOLS",
@@ -152,66 +113,7 @@ checkForbidden(
   FORBIDDEN_IN_READ_ONLY
 );
 
-// --- 5. Author allowlist on @claude -----------------------------------------
-assert(
-  /author_association/.test(claudeYml),
-  "claude.yml: missing author_association gate (the public-repo abuse mitigation)"
-);
-assert(
-  /\bOWNER\b/.test(claudeYml) &&
-    /\bMEMBER\b/.test(claudeYml) &&
-    /\bCOLLABORATOR\b/.test(claudeYml),
-  "claude.yml: author_association allowlist must include OWNER, MEMBER, and COLLABORATOR"
-);
-assert(
-  /\/claude write/.test(claudeYml),
-  "claude.yml: write-mode escalation phrase '/claude write' not found"
-);
-
-// --- 5b. Write-mode escalation must be gated tighter than the trigger ------
-// Trigger allowlist is OWNER/MEMBER/COLLABORATOR. Write mode must drop
-// COLLABORATOR — anyone with COLLABORATOR write-mode could `/claude write`
-// their way to Edit/Write/Bash(gh *) tools. Asserts the shell loop's
-// allowlist variable contains OWNER + MEMBER but not COLLABORATOR.
-// Surfaced by a real LLM run against the static contract — see
-// vincemahan-del/cheap-shot-hockey#51 comment 4432485056.
-const writeAllowlistMatch = claudeYml.match(/assoc_write\s*=\s*"([^"]+)"/);
-assert(
-  writeAllowlistMatch,
-  "claude.yml: write-mode allowlist variable (assoc_write=\"...\") not found near the /claude write gate"
-);
-if (writeAllowlistMatch) {
-  const writeAllowlist = writeAllowlistMatch[1];
-  assert(
-    /\bOWNER\b/.test(writeAllowlist) && /\bMEMBER\b/.test(writeAllowlist),
-    `claude.yml: write-mode allowlist must include OWNER and MEMBER (got "${writeAllowlist}")`
-  );
-  assert(
-    !/\bCOLLABORATOR\b/.test(writeAllowlist),
-    `claude.yml: write-mode allowlist must NOT include COLLABORATOR — that's a privilege-escalation path; got "${writeAllowlist}"`
-  );
-  assert(
-    !/\bNONE\b/.test(writeAllowlist) && !/\bCONTRIBUTOR\b/.test(writeAllowlist),
-    `claude.yml: write-mode allowlist must not include NONE/CONTRIBUTOR; got "${writeAllowlist}"`
-  );
-}
-
-// --- 5c. WRITE_MODE_TOOLS must use paren-restricted Bash, not bare ----------
-// WRITE_MODE_TOOLS intentionally includes Edit/Write/Bash — that's the
-// point. But every Bash entry must be paren-arg-restricted (Bash(npm run *)
-// etc), not bare. Bare Bash would unlock arbitrary shell.
-const writeToolsMatch = claudeYml.match(/WRITE_MODE_TOOLS:\s*"([^"]+)"/);
-if (writeToolsMatch) {
-  const writeTools = writeToolsMatch[1];
-  // Find every "Bash" occurrence and ensure each is followed by "(".
-  const bareBash = writeTools.split(",").some((t) => /^Bash$/.test(t.trim()));
-  assert(
-    !bareBash,
-    `claude.yml WRITE_MODE_TOOLS contains bare Bash (unrestricted shell). Every Bash entry must use paren args, e.g. Bash(npm run *).`
-  );
-}
-
-// --- 6. DoD same-repo PRs only ---------------------------------------------
+// --- 4. Same-repo PR restriction --------------------------------------------
 assert(
   /github\.event\.pull_request\.head\.repo\.full_name\s*==\s*github\.repository/.test(dodYml),
   "claude-agentic-dod.yml: missing fork-PR exclusion (head.repo.full_name == github.repository)"
@@ -227,8 +129,7 @@ if (failures.length > 0) {
 }
 
 console.log("✓ tool-surface check passed");
-console.log("  • action SHA-pinned in claude.yml and claude-agentic-dod.yml");
+console.log("  • action SHA-pinned in claude-agentic-dod.yml");
 console.log("  • --model flag present and looks pinned");
-console.log("  • READ_ONLY_TOOLS and DOD_ANALYSIS_TOOLS free of side-effect tools");
-console.log("  • author_association gate present with OWNER/MEMBER/COLLABORATOR");
+console.log("  • DOD_ANALYSIS_TOOLS free of side-effect tools");
 console.log("  • DoD restricted to same-repo PRs");

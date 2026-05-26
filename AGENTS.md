@@ -1,6 +1,6 @@
 ---
 last-verified: 2026-05-22
-verifies: [".github/workflows/claude.yml", ".github/workflows/claude-agentic-dod.yml", "scripts/llm/check-tool-surface.mjs"]
+verifies: [".github/workflows/claude-agentic-dod.yml", "scripts/llm/check-tool-surface.mjs"]
 ---
 
 <!-- BEGIN:nextjs-agent-rules -->
@@ -59,34 +59,22 @@ Key invariants: one thread per Jira ticket, kickoff at channel level only, all s
 
 ## Agentic surface — hardened gates
 
-Three Claude-driven jobs run on this repo. They are intentionally narrow.
+One Claude-driven job runs on this repo. It is intentionally narrow.
 `scripts/llm/check-tool-surface.mjs` runs in the lint gate on every PR and
-fails the merge if any of these contracts regress.
+fails the merge if the contract regresses.
 
-### 1. `@claude` action (`.github/workflows/claude.yml`)
-- Trigger: a comment containing `@claude` on an issue, PR, or review.
-- **Author gate**: only `OWNER`, `MEMBER`, or `COLLABORATOR` associations
-  pass the `authorize` job. Drive-by comments from random GitHub users
-  silently no-op.
-- **Default tools**: read-only (`Read,Glob,Grep,WebFetch,WebSearch` plus
-  read-only `mcp__mabl__*` and `mcp__atlassian__*`).
-- **Write mode**: requires the comment to contain `/claude write` AND the
-  commenter to be `OWNER` or `MEMBER`. Adds `Edit,Write,Bash(npm run *),
-  Bash(git *),Bash(gh *)` and the mabl/atlassian *create_* tools.
-- **Model**: `claude-opus-4-7` pinned via `--model` in `claude_args`.
-- **Action**: SHA-pinned to `anthropics/claude-code-action@<40-char SHA>`,
-  never `@beta` or `@v1`.
-
-### 2. Definition-of-done check (`.github/workflows/claude-agentic-dod.yml`)
+### Definition-of-done check (`.github/workflows/claude-agentic-dod.yml`)
 - Trigger: PR opened, synchronized, or reopened against `main`.
 - **Same-repo only**: fork-head PRs are skipped (no secrets exposure).
 - **Analysis-only**: tools are `Read,Glob,Grep` + tightly scoped
   `Bash(npm run *)`, `Bash(git diff *)`, `Bash(./scripts/mabl-suggest-tests.sh *)`
   + read-only `mcp__mabl__*` / `mcp__atlassian__*`. No `Edit`, no `Write`,
   no `*_create_*` — gaps are listed in the PR comment, not fixed in place.
-- Same model and action pinning as `@claude`.
+- **Model**: `claude-opus-4-7` pinned via `--model` in `claude_args`.
+- **Action**: SHA-pinned to `anthropics/claude-code-action@<40-char SHA>`,
+  never `@beta` or `@v1`.
 
-### 3. No autonomous post-deploy recovery agent in v1
+### No autonomous post-deploy recovery agent in v1
 v1 deliberately does NOT include an LLM-driven recovery agent on
 post-deploy failure. A real prod-side failure fires the deterministic
 "Prod post-deploy failed" Slack notification and stops; humans
@@ -96,13 +84,11 @@ preserved at git tag `archive/recovery-agent-and-receipts-v1` and can
 be reinstated by a fork that has an `ANTHROPIC_API_KEY` available.
 
 ### What `scripts/llm/check-tool-surface.mjs` enforces
-- Action references are SHA-pinned (40-char hex).
+- The action reference is SHA-pinned (40-char hex).
 - `--model` is present and looks pinned (no `@latest`, `@beta`, `@v1`).
-- `READ_ONLY_TOOLS` and `DOD_ANALYSIS_TOOLS` contain no `Edit`, `Write`,
-  `mcp__*__create_*`, `mcp__*__add_jira_comment`, `mcp__mabl__plan_new_test`,
+- `DOD_ANALYSIS_TOOLS` contains no `Edit`, `Write`, `mcp__*__create_*`,
+  `mcp__*__add_jira_comment`, `mcp__mabl__plan_new_test`,
   `mcp__mabl__run_mabl_test_cloud`, or bare `Bash` (without paren-restricted args).
-- `claude.yml` has an `author_association` gate with `OWNER`, `MEMBER`,
-  `COLLABORATOR`, and the `/claude write` escalation phrase.
 - `claude-agentic-dod.yml` restricts to same-repo PRs.
 
 **If you intentionally widen the surface, update `check-tool-surface.mjs`
