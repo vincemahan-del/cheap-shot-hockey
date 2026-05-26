@@ -1,6 +1,6 @@
 ---
-last-verified: 2026-05-22
-verifies: [".github/workflows/mabl-sdlc.yml", "vitest.config.ts"]
+last-verified: 2026-05-26
+verifies: [".github/workflows/mabl-sdlc.yml", ".github/workflows/blast-radius-gate.yml", "vitest.config.ts"]
 ---
 
 # Merge policy — required vs advisory checks
@@ -28,8 +28,14 @@ and verified via `gh api repos/.../branches/main/protection`.
 | `T1 — newman smoke (Preview)` | `mabl-sdlc.yml` | Postman API journeys against the Vercel Preview deploy |
 | `mabl — CSH-SMOKE-PR (Preview)` | `mabl-sdlc.yml` | Browser-layer smoke against Preview; the UI gate |
 | `CodeQL` | `codeql.yml` | Static security analysis; a high-severity code-scanning alert blocks merge. Promoted from advisory 2026-05-26 (TAMD-139) after a ReDoS shipped to prod under the advisory regime (TAMD-138). |
+| `blast-radius` | `blast-radius-gate.yml` | Holds auto-merge on high-blast-radius diffs (auth, API contract, CI infra, agent prompts, shared data layer, >200 LOC, removed exports, new deps) until a maintainer applies the `blast-radius-approved` label. Passes automatically on low-risk diffs. |
 
-Seven gates. If any of them fails, auto-merge does not fire. Period.
+Seven gates today; eight required contexts once branch protection is
+updated to include `blast-radius`. That branch-protection update is a
+separate, deliberate step (repo admin), tracked in TAMD-143 and applied
+after this PR merges — until then `blast-radius` runs and reports status
+but does not yet block. If any required check fails, auto-merge does not
+fire. Period.
 
 ### Conditional execution (TAMD-132)
 
@@ -47,6 +53,7 @@ and **skip** when the change doesn't warrant them. Skipped jobs report
 | `T1 — newman smoke (Preview)` | `src/app/api/**`, `src/lib/**`, or `mabl/postman/**` changed |
 | `mabl — CSH-SMOKE-PR (Preview)` | `src/**`, `public/**`, or build config changed |
 | `CodeQL` | Always (every PR + push to main); the security baseline |
+| `blast-radius` | Always (every PR) |
 
 `workflow_dispatch` (manual trigger) forces every flag to `true` so a
 full pipeline run is always achievable on demand.
@@ -54,6 +61,44 @@ full pipeline run is always achievable on demand.
 This pattern saves mabl cloud minutes + Vercel build minutes + GHA
 runner time on docs-only / workflow-only / config-only PRs without
 weakening any gate that has signal to provide.
+
+### Blast-radius auto-merge gate (TAMD-143)
+
+`blast-radius-gate.yml` is the CI enforcement of the high-blast-radius
+human checkpoint that previously lived **only** inside the orchestrator
+subagent prompt (`.claude/agents/demo-orchestrator`,
+`docs/MCP-NARRATION-PLAYBOOK.md`). It reuses the existing deterministic
+detector at `scripts/orchestrator-plan/detect-blast-radius.js` as-is —
+no LLM call, no new dependencies.
+
+On every PR the gate runs the detector against the PR base SHA:
+
+- **Low blast radius** → the gate passes immediately. Low-risk PRs are
+  unaffected.
+- **High blast radius + `blast-radius-approved` label present** → the
+  gate passes. A maintainer has reviewed the diff and signed off.
+- **High blast radius + label absent** → the gate is **red** (exit 1),
+  which holds auto-merge. It posts a sticky PR comment listing the
+  detector's reasons and one Slack line via `scripts/ci-notify.sh`.
+
+The label mechanism is what flips the gate green. The workflow's
+`pull_request` trigger includes the `labeled`/`unlabeled` event types,
+so applying the `blast-radius-approved` label **re-runs the gate
+automatically** — it goes red→green with no manual re-run. Removing the
+label re-arms the hold.
+
+A diff is "high blast radius" when the detector flags any of: a
+high-risk path (auth, API contract, CI infra, agent prompts, shared
+data layer), > 200 LOC added+removed, a removed TS/TSX export, > 5
+files touched, or a new `package.json` dependency.
+
+**Promotion to required is a separate step.** This PR adds the
+workflow; it does not modify branch protection or create the
+`blast-radius-approved` GitHub label. Both are deliberate, repo-wide
+admin actions tracked in TAMD-143 and applied after merge. Until branch
+protection is updated, `blast-radius` runs and reports status but does
+not yet block — at which point the required-context count goes from
+seven to eight.
 
 ## Advisory checks (post signal, do not block)
 
