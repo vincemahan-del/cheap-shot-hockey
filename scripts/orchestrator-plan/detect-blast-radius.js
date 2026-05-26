@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 // detect-blast-radius.js — pure deterministic blast-radius detector for
-// orchestrator plan-mode. Reads `git diff --numstat <base>` and a
-// (optional) orchestrator-supplied intent.json, then categorizes the
-// change by:
+// orchestrator plan-mode. Reads `git diff --numstat <base>` and categorizes
+// the change by:
 //
 //   PATH-BASED SIGNALS (deterministic, from diff alone)
 //     1. High-risk path patterns (auth, API contract, CI infra, agent
@@ -15,26 +14,19 @@
 //     4. Wide scope — > 5 distinct files modified
 //     5. New dependency added in package.json
 //
-//   ORCHESTRATOR-REPORTED SIGNALS (from intent.json)
-//     6. Open questions count > 0
-//     7. is_workaround === true
-//     8. adds_abstraction === true
-//     9. architectural_review_requested === true
-//
 // Outputs structured JSON to stdout. The orchestrator (interactive
 // Claude Code subagent) calls this before opening a PR; if blast_radius
 // is "high", it pauses, builds a plan, and posts the plan to Jira via
 // post-plan.sh for human review.
 //
 // Usage:
-//   node scripts/orchestrator-plan/detect-blast-radius.js [--base main] [--loc-threshold 200] [--intent ./intent.json] [--scope-threshold 5]
+//   node scripts/orchestrator-plan/detect-blast-radius.js [--base main] [--loc-threshold 200] [--scope-threshold 5]
 //
 // Exit codes:
 //   0 — detection ran (regardless of high vs low)
 //   1 — git diff failed (not a git repo, base ref invalid, etc.)
 
 import { execSync } from "node:child_process";
-import { readFileSync, existsSync } from "node:fs";
 
 function parseFlag(name, fallback) {
   const i = process.argv.indexOf(`--${name}`);
@@ -44,7 +36,6 @@ function parseFlag(name, fallback) {
 const BASE = parseFlag("base", "main");
 const LOC_THRESHOLD = parseInt(parseFlag("loc-threshold", "200"), 10);
 const SCOPE_THRESHOLD = parseInt(parseFlag("scope-threshold", "5"), 10);
-const INTENT_PATH = parseFlag("intent", "./intent.json");
 
 const HIGH_BLAST_PATTERNS = {
   auth: {
@@ -259,30 +250,6 @@ if (fullDiff) {
   }
 }
 
-// ── Orchestrator-reported signals: intent.json ────────────────────
-let intent = null;
-let intentError = null;
-if (existsSync(INTENT_PATH)) {
-  try {
-    const raw = readFileSync(INTENT_PATH, "utf8");
-    intent = JSON.parse(raw);
-  } catch (e) {
-    intentError = `failed to parse ${INTENT_PATH}: ${e.message}`;
-  }
-}
-
-// Normalize intent fields with safe defaults
-const intentSummary = {
-  open_questions_count: Array.isArray(intent?.open_questions) ? intent.open_questions.length : 0,
-  is_workaround: intent?.is_workaround === true,
-  workaround_reason: intent?.workaround_reason || null,
-  adds_abstraction: intent?.adds_abstraction === true,
-  introduces_new_dependency: intent?.introduces_new_dependency === true,
-  architectural_review_requested: intent?.architectural_review_requested === true,
-  intent_file_path: existsSync(INTENT_PATH) ? INTENT_PATH : null,
-  parse_error: intentError,
-};
-
 // ── Compose all reasons ───────────────────────────────────────────
 const reasons = [];
 
@@ -318,25 +285,6 @@ if (newDependencyCount > 0) {
   reasons.push(`${depLabel} added in package.json (${names}${newDependencyNames.length > 3 ? ", …" : ""})`);
 }
 
-// Orchestrator signals
-if (intentSummary.open_questions_count > 0) {
-  const qLabel = intentSummary.open_questions_count === 1 ? "1 open question" : `${intentSummary.open_questions_count} open questions`;
-  reasons.push(`${qLabel} flagged by orchestrator — needs human resolution before merge`);
-}
-if (intentSummary.is_workaround) {
-  const reason = intentSummary.workaround_reason ? ` (${intentSummary.workaround_reason})` : "";
-  reasons.push(`marked as workaround / defensive fix${reason} — proper fix should follow`);
-}
-if (intentSummary.adds_abstraction) {
-  reasons.push("adds new abstraction or refactors > 1 module — architectural review recommended");
-}
-if (intentSummary.architectural_review_requested) {
-  reasons.push("orchestrator self-flagged architectural review needed");
-}
-if (intentSummary.parse_error) {
-  reasons.push(`intent.json parse error — defaulting to high blast radius for safety: ${intentSummary.parse_error}`);
-}
-
 const blastRadius = reasons.length > 0 ? "high" : "low";
 
 // Tier-4 routing: which mabl `area-*` labels should the regression
@@ -367,7 +315,6 @@ const result = {
     new_dependencies: newDependencyCount,
     new_dependency_names: newDependencyNames,
   },
-  orchestrator_signals: intentSummary,
 };
 
 console.log(JSON.stringify(result, null, 2));

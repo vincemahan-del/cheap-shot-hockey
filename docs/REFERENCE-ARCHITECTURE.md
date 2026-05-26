@@ -98,14 +98,13 @@ Spec: TAMD-132. Conservative path patterns deliberately err toward "run when unc
 
 ## Plan-mode signal sources
 
-Plan-mode (Phase 2) combines four signal sources:
+Plan-mode (Phase 2) combines three signal sources:
 
 - **Path-based** — matches `src/lib/auth/**`, `src/app/api/openapi/**`, `.github/workflows/**`, agent system prompts, shared data layer
 - **LOC threshold** — > 200 lines added+removed
 - **Breaking-change signals** (deterministic from diff parsing) — removed exports in TS/TSX, scope > 5 files, new `package.json` dependencies
-- **Orchestrator-reported signals** (from `intent.json`) — open questions count, workaround flag, architectural review request
 
-Combined detection mirrors mabl's published confidence-signal pattern. The orchestrator writes `intent.json` (runtime metadata, gitignored) before running the detector — it's the agent's structured self-assessment surface, kept honest by the deterministic diff-parsing checks alongside it.
+Combined detection mirrors mabl's published confidence-signal pattern — all signals are deterministic from the diff alone, no agent self-report required.
 
 ## Where workflows end and agents begin
 
