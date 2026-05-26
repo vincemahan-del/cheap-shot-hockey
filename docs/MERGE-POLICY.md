@@ -27,9 +27,8 @@ and verified via `gh api repos/.../branches/main/protection`.
 | `build (next)` | `mabl-sdlc.yml` | Type-check + bundle; broken build = broken deploy |
 | `T1 — newman smoke (Preview)` | `mabl-sdlc.yml` | Postman API journeys against the Vercel Preview deploy |
 | `mabl — CSH-SMOKE-PR (Preview)` | `mabl-sdlc.yml` | Browser-layer smoke against Preview; the UI gate |
-| `regression rollup` | `mabl-sdlc.yml` | Single static-named gate over the area-regression matrix jobs (CLI runner + high-blast cloud). Branch protection can't reference matrix legs directly because their names are dynamic (`area=<X>`); this rollup collapses them into one required name. Fails if any matrix leg failed or was cancelled; passes when all legs succeed or were legitimately skipped (no touched areas). |
 
-Seven gates. If any of them fails, auto-merge does not fire. Period.
+Six gates. If any of them fails, auto-merge does not fire. Period.
 
 ### Conditional execution (TAMD-132)
 
@@ -46,7 +45,6 @@ and **skip** when the change doesn't warrant them. Skipped jobs report
 | `build (next)` | `src/**`, `public/**`, or build config changed |
 | `T1 — newman smoke (Preview)` | `src/app/api/**`, `src/lib/**`, or `mabl/postman/**` changed |
 | `mabl — CSH-SMOKE-PR (Preview)` | `src/**`, `public/**`, or build config changed |
-| `regression rollup` | Always (cheap aggregator) |
 
 `workflow_dispatch` (manual trigger) forces every flag to `true` so a
 full pipeline run is always achievable on demand.
@@ -62,8 +60,6 @@ weakening any gate that has signal to provide.
 | `Claude — definition of done` | `claude-agentic-dod.yml` | LLM reviews diff, coverage, mabl gaps; posts a single PR comment |
 | `auto-fix (eslint --fix)` | `auto-fix.yml` | Deterministic auto-formatting commit on PR branches |
 | `CodeQL` (`Analyze (javascript-typescript)`) | `codeql.yml` | Security analysis; results posted to the Security tab |
-| `mabl cloud regression — high-blast (area=*)` | `mabl-sdlc.yml` | Area-targeted regression dispatch (matrix leg). Rolls up into the required `regression rollup` check. |
-| `mabl CLI regression (area=*)` | `mabl-sdlc.yml` | CI-runner regression dispatch (matrix leg). Rolls up into the required `regression rollup` check. |
 | `test impact analysis` | `mabl-sdlc.yml` | Heuristic mapping of changed files → affected mabl tests |
 | `T1 — newman smoke (Prod)` | `mabl-sdlc.yml` | Skipped on PR; runs post-merge against Production |
 | `mabl — CSH-SMOKE-POSTDEPLOY (Prod)` | `mabl-sdlc.yml` | Skipped on PR; runs post-merge against Production |

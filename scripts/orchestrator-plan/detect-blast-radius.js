@@ -78,66 +78,11 @@ const HIGH_BLAST_PATTERNS = {
   },
 };
 
-// Mapping of changed file paths → mabl test `area-*` labels. Used by the
-// tier-4 routing layer (see `.github/workflows/mabl-sdlc.yml` job
-// `mabl-cli-pr-regression`) to filter regression-tier mabl tests to only
-// the areas a PR actually touched. A file can contribute to multiple
-// areas (e.g. `src/lib/store.ts` is referenced by both catalog and
-// checkout flows). The detector outputs the unique set of touched areas
-// as `touched_mabl_areas` in its JSON output.
-//
-// Customers forking this pattern: edit these regexes to match their
-// codebase's risk surfaces, then label their mabl tests with `area-<X>`
-// to match.
-const MABL_AREA_PATTERNS = {
-  auth: [
-    /^src\/lib\/auth/,
-    /^src\/lib\/session/,
-    /^src\/app\/api\/auth\//,
-    /^src\/app\/login\//,
-    /^src\/app\/register\//,
-    /^src\/app\/account\//,
-  ],
-  checkout: [
-    /^src\/app\/checkout\//,
-    /^src\/app\/cart\//,
-    /^src\/app\/orders\//,
-    /^src\/app\/api\/orders\//,
-    /^src\/lib\/cart-cookie/,
-    /^src\/lib\/order-cookie/,
-  ],
-  catalog: [
-    /^src\/app\/page\.tsx$/,
-    /^src\/app\/products\//,
-    /^src\/app\/api\/products\//,
-    /^src\/lib\/seed/,
-    /^src\/lib\/store/,
-    /^src\/components\/ProductCard/,
-    /^src\/components\/CategoryTile/,
-    /^src\/components\/BrandRow/,
-  ],
-};
-
 function categorize(path) {
   for (const [cat, def] of Object.entries(HIGH_BLAST_PATTERNS)) {
     if (def.patterns.some((p) => p.test(path))) return cat;
   }
   return "other";
-}
-
-// A file can map to MULTIPLE mabl areas (e.g., src/lib/store.ts is
-// referenced by both catalog and checkout flows). Returns a sorted
-// unique array of area names. Always sorted for deterministic output.
-function computeTouchedMablAreas(filePaths) {
-  const areas = new Set();
-  for (const path of filePaths) {
-    for (const [area, patterns] of Object.entries(MABL_AREA_PATTERNS)) {
-      if (patterns.some((p) => p.test(path))) {
-        areas.add(area);
-      }
-    }
-  }
-  return [...areas].sort();
 }
 
 // ── Diff numstat (file list + LOC counts) ────────────────────────
@@ -287,14 +232,6 @@ if (newDependencyCount > 0) {
 
 const blastRadius = reasons.length > 0 ? "high" : "low";
 
-// Tier-4 routing: which mabl `area-*` labels should the regression
-// dispatcher filter on? Computed independently of blast-radius — a PR
-// can be "low blast" but still touch one or more areas (typo in
-// checkout copy → area-checkout). The PR-time CLI regression job runs
-// for every touched area regardless of blast. Cloud regression only
-// fires for high-blast PRs.
-const touchedMablAreas = computeTouchedMablAreas(files.map((f) => f.path));
-
 const result = {
   blast_radius: blastRadius,
   reasons,
@@ -308,7 +245,6 @@ const result = {
     scope_threshold: SCOPE_THRESHOLD,
   },
   files_by_category: filesByCategory,
-  touched_mabl_areas: touchedMablAreas,
   breaking_change_signals: {
     removed_exports: removedExportLines,
     wide_scope: files.length > SCOPE_THRESHOLD,
