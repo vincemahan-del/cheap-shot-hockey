@@ -46,8 +46,8 @@ is the GHA equivalent.
   (NOT AI — keep them real)
 - `Jenkinsfile` — 9-stage SDLC pipeline (lint → unit + coverage → build →
   mabl PR smoke → promote → mabl post-deploy). Older than `mabl-sdlc.yml`;
-  does NOT mirror the GHA's security gate, regression rollup, blast-radius
-  detector, or cycle-time receipt. The GHA workflow is canonical.
+  does NOT mirror the GHA's security gate or cycle-time receipt. The
+  GHA workflow is canonical.
 - `scripts/mabl-deployment.sh` — POSTs to mabl `/events/deployment` and
   polls `/execution/result/event/<id>` with a 60s grace for no-plan-match
 - `scripts/demo-toggle.sh` — flip prod into slow/flaky/broken
@@ -125,7 +125,7 @@ npm run test:mabl:browser:prod         # against prod (post-deploy verification)
 ```
 Wraps `mabl tests run --headless --reporter mabl --allow-billable-features --labels type-rt`. The `--allow-billable-features` flag is required so GenAI assertions in mabl tests actually execute in CLI runs (otherwise they fail with `AI assertions are not available in CLI runs by default`).
 
-Why this exists: when `MABL_CLOUD_GATE` is set to `disabled` (cost-control mode), the cloud `CSH-SMOKE-PR` plan short-circuits with "paused" and the tier-4 `mabl-cli-pr-regression` job only fires if `touched_mabl_areas` matches a configured path pattern. PRs that don't touch a categorized area get **zero browser-layer verification** in CI. This local gate is the compensating control. Advisory when the cloud gate is `enabled`; required when paused. See TAMD-128 for context.
+Why this exists: when `MABL_CLOUD_GATE` is set to `disabled` (cost-control mode), the cloud `CSH-SMOKE-PR` plan short-circuits with "paused" and PRs get **zero browser-layer verification** in CI. This local gate is the compensating control. Advisory when the cloud gate is `enabled`; required when paused. See TAMD-128 for context.
 
 These four steps are what "done" means for this repo. The GHA `test-impact` job runs the same analysis automatically and posts results as a PR comment — Claude's pre-PR check and the CI job should agree.
 
@@ -222,36 +222,17 @@ breaker pattern.
 
 Mirrors mabl's published auto-fix-agent pattern with circuit breakers.
 
-## Tier-4 routing — area-targeted regression dispatch
+## Regression coverage
 
-The plan-mode detector (`scripts/orchestrator-plan/detect-blast-radius.js`)
-emits a `touched_mabl_areas` array based on which product surfaces the
-PR's diff actually touched (e.g. `["auth", "checkout"]`). The mabl-sdlc
-workflow uses this to route mabl regression tier-4 dispatch:
-
-- **`mabl-cli-pr-regression` GHA job** runs every PR (where touched
-  areas exist). For each touched area, runs `mabl tests run --labels
-  type-rt,area-<X> --headless --reporter mabl` in the GHA runner. Free
-  CLI execution; results published to mabl app for traceability.
-- **`mabl-cloud-regression-high-blast` GHA job** fires only when the
-  detector flags `blast_radius: "high"` — auth · API contract · CI
-  infra · agents · data layer · breaking change · >200 LOC. Dispatches
-  a cloud plan run per touched area for cross-browser parallel + smart
-  locators + diagnostics. Gated on `MABL_CLOUD_GATE` repo variable.
-- **`mabl-nightly.yml`** scheduled workflow runs the full
-  regression-tier suite headlessly vs production every night via mabl
-  CLI. Free, single-browser, catches drift. Skips gracefully without
-  `MABL_API_KEY`.
-
-Mabl test catalog must have `area-*` labels applied (`area-auth`,
-`area-checkout`, `area-catalog`) plus the tier label `type-rt`. Edit
-`MABL_AREA_PATTERNS` in `detect-blast-radius.js` to update the
-file→area mapping when the codebase grows new product surfaces.
+PR-time tier-4 area-targeted regression was removed in
+`chore/collapse-tier4-matrix`. The PR-time mabl gate (`CSH-SMOKE-PR`
+Preview) covers browser-layer smoke; the nightly workflow
+(`.github/workflows/mabl-nightly.yml`) runs the full `type-rt` suite
+against production via mabl CLI for drift detection.
 
 Optional CI secret: `MABL_API_KEY` (separate from the cloud-API
-`MABL_API_TOKEN`) unlocks the mabl-cli regression + nightly jobs.
-Currently NOT set (per `gh secret list`) — those jobs run but skip
-with a warning.
+`MABL_API_TOKEN`) unlocks the nightly CLI job. Currently NOT set (per
+`gh secret list`) — the nightly runs but skips with a warning.
 
 ## Cost + cycle-time receipt per ticket
 
