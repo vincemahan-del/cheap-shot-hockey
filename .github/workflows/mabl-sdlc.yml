@@ -375,18 +375,36 @@ jobs:
         if: steps.gate.outputs.skipped != 'true'
       - run: sudo apt-get update && sudo apt-get install -y jq
         if: steps.gate.outputs.skipped != 'true'
-      - name: lookup Vercel preview URL from GitHub Deployments
+      - name: wait for Vercel Preview deployment + capture URL
+        # Mirrors the t1-smoke-preview wait loop. On PRs where
+        # t1-smoke-preview also runs, this is usually a no-op because t1
+        # already waited. On UI-only PRs (no API/lib changes), t1 is
+        # correctly skipped by path-awareness and mabl-smoke becomes the
+        # first job that needs Vercel — so the wait belongs here too.
         if: steps.gate.outputs.skipped != 'true'
         id: preview
         run: |
           repo="${GITHUB_REPOSITORY}"
           sha="${{ github.event.pull_request.head.sha }}"
-          status_url=$(gh api "repos/$repo/deployments?sha=$sha" \
-            --jq 'map(select(.environment=="Preview")) | .[0].statuses_url')
-          env_url=$(gh api "$status_url" \
-            --jq '[.[] | select(.state=="success")] | .[0].environment_url')
-          echo "url=$env_url" >> "$GITHUB_OUTPUT"
-          echo "Preview URL: $env_url"
+          echo "Waiting for Vercel Preview deployment on sha $sha ..."
+          for i in $(seq 1 60); do
+            status_url=$(gh api "repos/$repo/deployments?sha=$sha" \
+              --jq 'map(select(.environment=="Preview")) | .[0].statuses_url' 2>/dev/null)
+            if [ -n "$status_url" ] && [ "$status_url" != "null" ]; then
+              env_url=$(gh api "$status_url" \
+                --jq '[.[] | select(.state=="success")] | .[0].environment_url' 2>/dev/null)
+              if [ -n "$env_url" ] && [ "$env_url" != "null" ]; then
+                if curl -fsS -m 5 "$env_url/api/health" >/dev/null 2>&1; then
+                  echo "Preview ready: $env_url"
+                  echo "url=$env_url" >> "$GITHUB_OUTPUT"
+                  exit 0
+                fi
+              fi
+            fi
+            sleep 10
+          done
+          echo "Vercel Preview never posted a success status for $sha" >&2
+          exit 1
       - name: trigger CSH-SMOKE-PR against Preview
         if: steps.gate.outputs.skipped != 'true'
         run: |
