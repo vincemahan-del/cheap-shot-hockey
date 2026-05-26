@@ -231,7 +231,17 @@ jobs:
     needs: [unit, change-detector]
     # Skip when no app-affecting paths changed (src/**, public/**, build
     # configs). Skipped jobs report success to branch protection (TAMD-132).
-    if: needs.change-detector.outputs.has_app_changes == 'true'
+    #
+    # TAMD-136: `!cancelled() && needs.unit.result != 'failure'` lets build
+    # run when unit was *legitimately skipped* (e.g., Dependabot dep bump
+    # touches only package-lock.json — has_app_changes=true but
+    # has_lib_changes=false). Without this, the default success() rule
+    # cascades skipped-upstream through the chain and every dep bump bypasses
+    # build + type-check.
+    if: |
+      !cancelled() &&
+      needs.unit.result != 'failure' &&
+      needs.change-detector.outputs.has_app_changes == 'true'
     runs-on: ubuntu-latest
     outputs:
       diff_files: ${{ steps.diff.outputs.files }}
@@ -317,7 +327,15 @@ jobs:
     # Skip when no API-affecting paths changed (src/app/api/**,
     # src/lib/**, mabl/postman/**). Skipped jobs report success to
     # branch protection (TAMD-132).
-    if: github.event_name == 'pull_request' && needs.change-detector.outputs.has_api_changes == 'true'
+    #
+    # TAMD-136: allow build.result == 'skipped' so this doesn't cascade-
+    # skip on Dependabot dep bumps. Newman needs a Preview deploy URL,
+    # which Vercel provides regardless of whether the local build job ran.
+    if: |
+      !cancelled() &&
+      needs.build.result != 'failure' &&
+      github.event_name == 'pull_request' &&
+      needs.change-detector.outputs.has_api_changes == 'true'
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -396,7 +414,13 @@ jobs:
     needs: [build, change-detector]
     # Skip when no API-affecting paths changed. Post-deploy gate, so
     # only fires on main pushes. (TAMD-132)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-detector.outputs.has_api_changes == 'true'
+    # TAMD-136: tolerate build.result == 'skipped' (Dependabot bumps).
+    if: |
+      !cancelled() &&
+      needs.build.result != 'failure' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.change-detector.outputs.has_api_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -462,7 +486,15 @@ jobs:
     # Skip when no app-affecting paths changed. mabl smoke tests
     # exercise the Preview deploy — no point firing when the deploy
     # itself wasn't rebuilt. (TAMD-132) — saves mabl cloud minutes.
-    if: github.event_name == 'pull_request' && needs.change-detector.outputs.has_app_changes == 'true'
+    # TAMD-136: tolerate t1-smoke-preview.result == 'skipped' (Dependabot
+    # bumps don't touch API surface so newman has nothing to assert against
+    # — but the Preview deploy still happens via Vercel, and a dep bump
+    # could break the UI, so the smoke test is still meaningful).
+    if: |
+      !cancelled() &&
+      needs.t1-smoke-preview.result != 'failure' &&
+      github.event_name == 'pull_request' &&
+      needs.change-detector.outputs.has_app_changes == 'true'
     runs-on: ubuntu-latest
     env:
       MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
