@@ -22,6 +22,14 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
+    # TAMD-136: pin @types/node to the current major. Its major versions
+    # track Node.js majors — bumping to a Node version that CI/Vercel
+    # don't actually run (we're on Node 22) lets TS accept APIs that
+    # break at runtime. Revisit this when we coordinate a Node major
+    # upgrade across CI/Vercel/Jenkins.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       # Package-family groups — must move together for peer-dep / version-skew
       # reasons. These catch both minor/patch AND major bumps for the listed
