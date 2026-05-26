@@ -1,0 +1,61 @@
+# Scheduled npm-audit sweep — closes a P1 gap found in the SDLC
+# hardening review (TAMD-142).
+#
+# The gap: the `security (npm audit)` job in mabl-sdlc.yml only runs
+# when dependency files change (it's gated on `has_deps_changes` from
+# the change-detector). There is no scheduled sweep. CodeQL has a
+# weekly Monday cron (17 6 * * 1), but `npm audit` does NOT — so a CVE
+# newly disclosed against an *unchanged* dependency in the lockfile
+# won't surface at PR time until the next package.json touch.
+# Dependabot opens version-bump PRs weekly but does not re-audit the
+# existing lockfile against fresh advisories on a schedule.
+#
+# The fix: a standalone weekly cron that runs the existing
+# `npm run check:security` script (`npm audit --audit-level=high`)
+# against the current lockfile, plus manual dispatch. This is a
+# dedicated workflow on purpose — adding a `schedule:` trigger to
+# mabl-sdlc.yml would run the entire SDLC pipeline weekly, which is
+# wasteful and not the intent. On failure it posts a Slack alert via
+# the repo's canonical notifier (scripts/ci-notify.sh).
+
+name: security audit cron
+
+on:
+  schedule:
+    # Weekly, Monday 06:30 UTC — deliberately offset from CodeQL's
+    # "17 6 * * 1" to avoid the on-the-hour stampede.
+    - cron: "30 6 * * 1"
+  workflow_dispatch: {}
+
+jobs:
+  audit:
+    name: scheduled npm audit (high+critical)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      SLACK_CHANNEL_ID: C0A321B477Y
+      JIRA_BASE_URL: https://mabl.atlassian.net
+      JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: install dependencies
+        run: npm ci
+
+      - name: npm audit (high+critical only)
+        run: npm run check:security
+
+      - name: notify (failure — advisories found)
+        if: failure()
+        run: |
+          bash scripts/ci-notify.sh fail "Scheduled npm audit found high/critical advisories" ":shield: The weekly scheduled \`npm audit --audit-level=high\` sweep found high/critical advisories against the current lockfile (a CVE may have been disclosed against an *unchanged* dependency). Investigate the failing run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
