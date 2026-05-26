@@ -127,9 +127,12 @@ fi
 human_touches_line=""
 if [ -n "$pr_num" ]; then
   reviews_json=$(gh api "repos/${repo}/pulls/${pr_num}/reviews" 2>/dev/null || echo '[]')
-  review_count=$(echo "$reviews_json" | jq -r 'length // 0')
+  # Bot-authored reviews (e.g. github-advanced-security[bot] code-scanning
+  # annotations) are NOT human touches — filter them out so a bot comment
+  # doesn't suppress the "fully autonomous" line. See TAMD-141.
+  review_count=$(echo "$reviews_json" | jq -r '[.[] | select(.user.type != "Bot")] | length')
   approver_handles=$(echo "$reviews_json" \
-    | jq -r '[.[] | select(.state=="APPROVED") | .user.login] | unique | join(", ")')
+    | jq -r '[.[] | select(.user.type != "Bot" and .state=="APPROVED") | .user.login] | unique | join(", ")')
 
   # Manual reruns = workflow_dispatch events OR UI-driven reruns
   # (run_attempt > 1). GitHub's "Re-run failed jobs" button does NOT fire
