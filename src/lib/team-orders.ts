@@ -2,6 +2,8 @@
 // quote ID, store in-memory for the demo (matches the rest of the app's
 // ephemeral data layer; no persistence required for a one-screen demo flow).
 
+import { isValidEmail } from "./email";
+
 export type Sport = "hockey" | "lacrosse" | "field-hockey" | "other";
 
 export const SUPPORTED_SPORTS: ReadonlyArray<Sport> = [
@@ -34,14 +36,6 @@ export interface ValidationFailure {
   message: string;
 }
 
-// ReDoS-safe email check. The domain labels use a dot-excluding class
-// (`[^\s@.]`) so the literal `.` separators are unambiguous — no two
-// adjacent unbounded quantifiers can straddle the same character, which
-// is what made the previous /^[^\s@]+@[^\s@]+\.[^\s@]+$/ polynomial
-// (CodeQL js/polynomial-redos, TAMD-138). Paired with MAX_EMAIL below,
-// which bounds the input before the regex ever runs.
-const EMAIL_RE = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
-const MAX_EMAIL = 254; // RFC 5321 max total length
 const MAX_ORG_NAME = 200;
 const MAX_MESSAGE = 2000;
 const MIN_PLAYERS = 1;
@@ -61,10 +55,7 @@ export function validateTeamOrderInput(raw: unknown): ValidationFailure[] {
     errors.push({ field: "orgName", message: `orgName must be ${MAX_ORG_NAME} characters or fewer` });
   }
 
-  const email = typeof r.contactEmail === "string" ? r.contactEmail.trim() : "";
-  // Length-cap first: bounds the input before the regex runs, so even a
-  // pathological string can't drive backtracking (defense-in-depth).
-  if (email.length === 0 || email.length > MAX_EMAIL || !EMAIL_RE.test(email)) {
+  if (!isValidEmail(r.contactEmail)) {
     errors.push({ field: "contactEmail", message: "contactEmail must be a valid email address" });
   }
 

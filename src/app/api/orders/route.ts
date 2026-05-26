@@ -12,6 +12,7 @@ import { rememberOrderInCookie } from "@/lib/order-cookie";
 import { rememberGuestOrder } from "@/lib/guest-orders";
 import { badRequest, created, ok, serviceUnavailable, unauthorized } from "@/lib/api";
 import { applyDemoDelay, readDemoMode, shouldDemoFail } from "@/lib/demo";
+import { isValidEmail } from "@/lib/email";
 
 const SHIPPING_CENTS = 999;
 const FREE_SHIP_THRESHOLD_CENTS = 9900;
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
   let guestEmail: string | null = null;
   if (!user) {
     const rawEmail = body.customerEmail?.trim() ?? "";
-    if (!rawEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
+    if (!isValidEmail(rawEmail)) {
       return badRequest(
         "customerEmail is required for guest checkout (must be a valid email)",
       );
