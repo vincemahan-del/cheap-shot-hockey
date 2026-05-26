@@ -187,7 +187,6 @@ Every shipped ticket gets a final `:receipt:` Slack message at the end of the po
 
 - **Lead time** — PR open → merged.
 - **GHA minutes** — total across all workflow runs for this ticket.
-- **mabl minutes** — captured via the mabl plan-runs API (paused when `MABL_CLOUD_GATE=disabled`).
 - **CI attempts** — count of `pull_request` workflow runs on the PR head, split by failure vs success.
 - **Human touches** — review count + approver handles + manual reruns (counts both `workflow_dispatch` events AND UI-driven `run_attempt > 1` re-runs).
 

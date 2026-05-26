@@ -181,40 +181,17 @@ fi
 # ──────────────────────────────────────────────────────────────────
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-mabl_line=""
-case "${MABL_CLOUD_GATE:-enabled}" in
-  disabled)
-    mabl_line="• mabl minutes: paused (toggle disabled)"
-    ;;
-  *)
-    # v1.1 — best-effort capture via mabl-cloud-minutes.sh helper.
-    # Window starts at PR creation time so we count both PR-time and
-    # post-deploy mabl runs for this ticket.
-    if [ -n "$pr_created_at" ]; then
-      mabl_helper_output=$(MABL_API_TOKEN="${MABL_API_TOKEN:-}" \
-        MABL_APPLICATION_ID="${MABL_APPLICATION_ID:-}" \
-        bash "${script_dir}/mabl-cloud-minutes.sh" "$pr_created_at" 2>/dev/null \
-        || echo "MABL_CLOUD_MINUTES=n/a")
-      mabl_value=$(echo "$mabl_helper_output" | grep "^MABL_CLOUD_MINUTES=" | head -1 | sed 's/^MABL_CLOUD_MINUTES=//')
-      if [ -n "$mabl_value" ] && [ "$mabl_value" != "n/a" ]; then
-        mabl_line="• mabl minutes: ${mabl_value}"
-      else
-        mabl_line="• mabl minutes: n/a (verify MABL_LIST_ENDPOINT in scripts/mabl-cloud-minutes.sh against your tier)"
-      fi
-    else
-      mabl_line="• mabl minutes: unknown — could not determine PR window"
-    fi
-    ;;
-esac
-
 # The body — bullets in plain text (no `*bold*`). The Slack Workflow
 # Builder webhook renders mid-body `*` markers as literal characters,
 # so the asterisks were showing in the channel.
+#
+# Note: a "mabl minutes" bullet was removed alongside scripts/mabl-cloud-minutes.sh
+# in chore/cut-mabl-cloud-minutes — the mabl REST list-endpoint shape varies
+# by tier and the bullet was rendering "n/a" on every receipt.
 receipt_body="• Lead time: ${lead_time_human:-unknown} (PR open → merged)"$'\n'
 receipt_body+="• GHA minutes: ${gha_human:-unknown}"
 [ "$runs_counted" -gt 0 ] && receipt_body+=" across ${runs_counted} workflow runs"
 receipt_body+=$'\n'
-receipt_body+="${mabl_line}"$'\n'
 [ -n "$ci_attempts_line" ] && receipt_body+="${ci_attempts_line}"$'\n'
 [ -n "$human_touches_line" ] && receipt_body+="${human_touches_line}"$'\n'
 
