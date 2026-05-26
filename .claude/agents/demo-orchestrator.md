@@ -97,44 +97,7 @@ in the codebase. Run `npm run dev` if needed to verify locally.
 
 ### 3.5. Plan-mode gate — pause for human review on high-blast-radius changes
 
-After code changes are made but **before** commit/push, do two things:
-
-**(a) Compose `intent.json`** at the repo root capturing your
-self-assessment of the change. The detector reads this file to combine
-your reported signals with deterministic diff analysis. Schema:
-
-```bash
-cat > intent.json <<'EOF'
-{
-  "open_questions": [],
-  "is_workaround": false,
-  "workaround_reason": null,
-  "adds_abstraction": false,
-  "introduces_new_dependency": false,
-  "architectural_review_requested": false
-}
-EOF
-```
-
-Set fields based on the change you just made:
-
-- **`open_questions`** — array of strings. Any unresolved design
-  decisions you would have asked a human about ("should we cache
-  this?", "does this need a feature flag?"). Non-empty array → plan-mode fires.
-- **`is_workaround`** — `true` if this is a tactical/defensive fix
-  rather than the proper structural fix. Set `workaround_reason` to a
-  short string explaining why.
-- **`adds_abstraction`** — `true` if you introduced a new class,
-  interface, or abstraction layer (especially in `src/lib/`).
-- **`introduces_new_dependency`** — `true` if you added an entry to
-  `package.json`. (The detector also catches this from the diff, but
-  set it explicitly for clarity.)
-- **`architectural_review_requested`** — `true` if you think a senior
-  engineer should look at the design choices regardless of size.
-
-`intent.json` is gitignored — it's runtime metadata, not committed.
-
-**(b) Run the blast-radius detector:**
+After code changes are made but **before** commit/push, run the blast-radius detector:
 
 ```bash
 node scripts/orchestrator-plan/detect-blast-radius.js --base main
@@ -146,8 +109,6 @@ The detector combines:
 - *LOC threshold* (default 200)
 - *Breaking-change signals* (deterministic): removed exports in
   TS/TSX, scope > 5 files, new package.json dependencies
-- *Orchestrator-reported signals* (from intent.json): open questions,
-  workaround flag, architectural review request
 
 The detector emits structured JSON. Inspect `blast_radius`:
 
