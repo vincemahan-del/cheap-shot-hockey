@@ -77,11 +77,23 @@ const ENFORCEMENT_EXACT = new Set([
 ]);
 
 // ─── Finding collector ──────────────────────────────────────────────
+// Signal levels (TAMD-135):
+//   🚨 drift  — high-signal: real divergence between docs and reality
+//               (only checks 1 + 3 emit these; Slack fires on these).
+//   🕒 stale  — high-signal: tracked docs past their staleness budget
+//               while the files they verify have moved. Slack fires.
+//   ⚠️ warn   — low-signal: heuristic nudge, false-positive rate > 0.
+//               Appears in the PR comment, does NOT fire Slack.
+//   ℹ️ info   — informational: a check couldn't run (permissions,
+//               missing file, parse error). Not drift evidence.
+//   ✅ ok     — clean.
 const findings = [];
 const note = (icon, msg) => findings.push(`${icon} ${msg}`);
 const ok = (msg) => note("✅", msg);
+const drift = (msg) => note("🚨", msg);
 const warn = (msg) => note("⚠️", msg);
 const stale = (msg) => note("🕒", msg);
+const info = (msg) => note("ℹ️", msg);
 
 // ─── Helpers ────────────────────────────────────────────────────────
 function getRepoSlug() {
@@ -138,7 +150,8 @@ function isEnforcementPath(p) {
 function checkPolicyVsBranchProtection() {
   const repo = getRepoSlug();
   if (!repo) {
-    warn("Skipping branch-protection check: cannot determine repo slug.");
+    // Can't validate — not drift evidence.
+    info("Skipping branch-protection check: cannot determine repo slug.");
     return;
   }
   let liveChecks;
@@ -149,7 +162,10 @@ function checkPolicyVsBranchProtection() {
     const live = JSON.parse(liveJson);
     liveChecks = new Set(live.required_status_checks?.contexts || []);
   } catch (e) {
-    warn(`Could not query branch protection: ${e.message.split("\n")[0]}`);
+    // Almost always a token-scope issue (HTTP 403 from GITHUB_TOKEN
+    // without `administration: read`). The check didn't run, so we have
+    // no evidence either way — not drift.
+    info(`Could not query branch protection: ${e.message.split("\n")[0]}`);
     return;
   }
 
@@ -166,7 +182,9 @@ function checkPolicyVsBranchProtection() {
     /## Required checks[\s\S]*?(?=## Advisory|## Why)/
   );
   if (!reqSectionMatch) {
-    warn("Could not locate the 'Required checks' section in `docs/MERGE-POLICY.md`.");
+    // Doc exists but we couldn't parse the section — not drift evidence
+    // about checks; just a parse failure to surface for a human to look at.
+    info("Could not locate the 'Required checks' section in `docs/MERGE-POLICY.md`.");
     return;
   }
   const policyChecks = new Set(
@@ -176,7 +194,8 @@ function checkPolicyVsBranchProtection() {
   let diverged = false;
   for (const c of liveChecks) {
     if (!policyChecks.has(c)) {
-      warn(
+      // Real divergence: high-signal drift.
+      drift(
         `Branch protection requires \`${c}\` but \`docs/MERGE-POLICY.md\` doesn't list it.`
       );
       diverged = true;
@@ -184,7 +203,8 @@ function checkPolicyVsBranchProtection() {
   }
   for (const c of policyChecks) {
     if (!liveChecks.has(c)) {
-      warn(
+      // Real divergence: high-signal drift.
+      drift(
         `\`docs/MERGE-POLICY.md\` lists \`${c}\` as required, but branch protection doesn't enforce it.`
       );
       diverged = true;

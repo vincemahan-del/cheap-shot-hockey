@@ -102,8 +102,14 @@ jobs:
             echo "Posted new docs-drift-guardian comment."
           fi
 
-      - name: Slack notify (only on drift)
-        # Fires only when ⚠️ or 🕒 markers are present in the report.
+      - name: Slack notify (only on high-signal drift)
+        # TAMD-135: Fires only on 🚨 (real divergence) or 🕒 (staleness
+        # with tracked-file movement). Low-signal ⚠️ heuristic nudges
+        # (e.g., enforcement file touched without docs in same PR) and
+        # ℹ️ "couldn't run the check" lines stay in the PR comment but
+        # don't escalate to Slack — they have false-positive rate > 0
+        # and were training the channel to be ignored.
+        #
         # A clean ✅-only report carries no Slack noise — the PR comment
         # is the surface for clean runs.
         env:
@@ -116,12 +122,12 @@ jobs:
           GIT_COMMIT_SHORT: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          if grep -qE "^(⚠️|🕒)" /tmp/drift-report.md; then
+          if grep -qE "^(🚨|🕒)" /tmp/drift-report.md; then
             # The literal `<@U07CGN5UMFZ>` resolves to a user mention at
             # Slack render time.
-            DRIFT_COUNT=$(grep -cE "^(⚠️|🕒)" /tmp/drift-report.md || true)
+            DRIFT_COUNT=$(grep -cE "^(🚨|🕒)" /tmp/drift-report.md || true)
             bash scripts/ci-notify.sh fail "docs-drift-guardian" \
-              "<@U07CGN5UMFZ> docs-drift-guardian found ${DRIFT_COUNT} drift item(s) in PR #${PR_NUMBER} (${PR_TITLE}). Review the PR comment for specifics: ${PR_URL}"
+              "<@U07CGN5UMFZ> docs-drift-guardian found ${DRIFT_COUNT} high-signal drift item(s) in PR #${PR_NUMBER} (${PR_TITLE}). Review the PR comment for specifics: ${PR_URL}"
           else
-            echo "No drift detected — skipping Slack notification."
+            echo "No high-signal drift detected — skipping Slack notification."
           fi

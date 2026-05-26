@@ -59,9 +59,13 @@ jobs:
           echo "===== weekly drift report ====="
           cat /tmp/drift-report.md
 
-          # Detect drift markers for downstream branching
-          if grep -qE "^(⚠️|🕒)" /tmp/drift-report.md; then
-            DRIFT_COUNT=$(grep -cE "^(⚠️|🕒)" /tmp/drift-report.md || true)
+          # TAMD-135: only 🚨 (real divergence) and 🕒 (staleness with
+          # tracked-file movement) count toward "drift item(s)" and
+          # ticket-filing. Low-signal ⚠️ hygiene nudges still appear in
+          # the report but don't escalate to Jira/Slack alarm. Matches
+          # the per-PR guardian's semantics.
+          if grep -qE "^(🚨|🕒)" /tmp/drift-report.md; then
+            DRIFT_COUNT=$(grep -cE "^(🚨|🕒)" /tmp/drift-report.md || true)
             echo "drift_detected=true" >> "$GITHUB_OUTPUT"
             echo "drift_count=$DRIFT_COUNT" >> "$GITHUB_OUTPUT"
           else
