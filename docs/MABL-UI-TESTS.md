@@ -85,6 +85,68 @@ covers the gaps.
 
 ---
 
+### 2. `CSH-SMK-TEAMORDERS-UI-SubmitInquiryReturnsQuote`
+
+**Why:** The `/team-orders` page (shipped in TAMD-136) is a guest sales-
+intake flow with no browser-layer coverage. The T1 newman gate covers
+`POST /api/team-orders` (valid + invalid payloads), but the customer
+journey — reach the page from the Footer, fill the form, submit, and
+land on the success screen with a real quote reference — is unverified
+by mabl. This smoke test closes that gap (TAMD-137).
+
+**Intent-document** (used to drive mabl cloud test generation):
+- Target env for authoring: **Preview** (`TpuarWvfj1hOREDT0JGvjA-e`).
+- Base URL: `https://cheap-shot-hockey.vercel.app`.
+- No auth required — team orders is a guest flow.
+- Quote IDs are minted server-side as `TQ-<6 hex>-<counter>`
+  (`src/lib/team-orders.ts`), so they're dynamic and must be matched by
+  pattern, never equality.
+
+**Flow (3 tasks):**
+
+1. **Reach Team Orders from the Footer**
+   - Navigate to `/`
+   - Click `[data-testid="footer-team-orders-link"]`
+   - Assert URL contains `/team-orders`
+   - Assert `[data-testid="team-orders-page"]` exists
+2. **Fill the inquiry form**
+   - `[data-testid="team-orders-org-name"]` → `Eagles Hockey Club`
+   - `[data-testid="team-orders-contact-email"]` → `coach@eaglesclub.test`
+   - `[data-testid="team-orders-sport"]` → select `hockey`
+   - `[data-testid="team-orders-est-players"]` → `18`
+   - `[data-testid="team-orders-message"]` → `Need jerseys by October.`
+3. **Submit and verify the quote**
+   - Click `[data-testid="team-orders-submit"]`
+   - Assert `[data-testid="team-orders-success"]` exists
+   - Assert `[data-testid="team-orders-quote-id"]` exists
+   - Assert `[data-testid="team-orders-quote-id"]` text matches regex
+     `TQ-[0-9a-f]{6}-\d+` *(business-logic — the load-bearing check)*
+
+**Assertion tiering (matches API layer policy):**
+- STRUCTURAL: `/team-orders` URL, page container present, success
+  container present, quote-id element present. Won't fail on copy edits
+  or layout reflows.
+- BUSINESS-LOGIC: the quote-id regex match. This is the one strict
+  assertion — it proves the end-to-end intake actually minted a quote.
+  A break here means the submit pipeline (validation → quote creation)
+  regressed, which is the point of the smoke.
+
+**Rejected (forbidden categories per `MABL-AI-ASSERTION-PROMPT.md`):**
+- Headline `Gear up the whole bench.` — marketing copy.
+- Success headline `Got it. We'll be in touch.` — marketing copy.
+- Quote ID as an equality check — dynamic ID (use regex).
+- The `Team & League Orders` eyebrow text — CMS-driven copy.
+
+**Labels:** `type-smk, type-ui, exec-pr, feat-teamorders`
+
+> `type-smk` + `exec-pr` is the intersection the PR gate dispatches
+> (`CSH-SMOKE-PR`, Preview). `feat-teamorders` follows the `feat-<area>`
+> convention used by the CHP test. **mabl's MCP exposes no label-write
+> tool** — apply these in the mabl UI (Test → Add label) after the test
+> is saved.
+
+---
+
 ## Plans
 
 The UI CHP test is included as **Stage 2** in both split plans
@@ -323,6 +385,75 @@ Preview automatically.
   into mabl.
 - **mabl cloud retry:** revisit in a week — mabl's cloud-gen stability
   changes over time.
+
+---
+
+## Authoring playbook — `CSH-SMK-TEAMORDERS-UI-SubmitInquiryReturnsQuote`
+
+Every selector below is confirmed against the running app
+(`src/app/team-orders/page.tsx`, `src/components/Footer.tsx`), not
+guessed. Author against **Preview**; the flow needs no login.
+
+### Setup
+
+1. **Tests → Create new → Browser test** (NOT API test)
+2. Application: **Cheap Shot Hockey**
+3. Environment: **Preview**
+4. Starting URL: `https://cheap-shot-hockey.vercel.app/`
+5. Name: `CSH-SMK-TEAMORDERS-UI-SubmitInquiryReturnsQuote`
+
+### Step-by-step
+
+Selectors are CSS — paste into the Trainer's "Use selector" dialog.
+
+#### 1. Reach Team Orders from the Footer
+
+| Action | Selector / Value |
+| --- | --- |
+| Navigate | `https://cheap-shot-hockey.vercel.app/` |
+| Click | `[data-testid="footer-team-orders-link"]` (href `/team-orders`) |
+| Assert URL | contains `/team-orders` |
+| Assert element exists | `[data-testid="team-orders-page"]` *(structural)* |
+
+#### 2. Fill the inquiry form
+
+| Action | Selector / Value |
+| --- | --- |
+| Fill | `[data-testid="team-orders-org-name"]` → `Eagles Hockey Club` |
+| Fill | `[data-testid="team-orders-contact-email"]` → `coach@eaglesclub.test` |
+| Select | `[data-testid="team-orders-sport"]` → `hockey` *(options: `hockey`, `lacrosse`, `field-hockey`, `other`)* |
+| Fill | `[data-testid="team-orders-est-players"]` → `18` *(number, min 1 max 500)* |
+| Fill | `[data-testid="team-orders-message"]` → `Need jerseys by October.` *(optional field)* |
+
+#### 3. Submit + verify quote
+
+| Action | Selector / Value |
+| --- | --- |
+| Click | `[data-testid="team-orders-submit"]` |
+| Wait for render | (mabl auto-waits; the form is replaced by the success view) |
+| Assert element exists | `[data-testid="team-orders-success"]` *(structural)* |
+| Assert element exists | `[data-testid="team-orders-quote-id"]` *(structural)* |
+| Assert element text matches regex | `[data-testid="team-orders-quote-id"]` → `TQ-[0-9a-f]{6}-\d+` *(business-logic — the load-bearing check; dynamic id, pattern not equality)* |
+
+### Gotchas
+
+| Thing | Actual value | What you might have written instead |
+| --- | --- | --- |
+| Quote reference | dynamic `TQ-3f9a1c-7` | equality on a literal `TQ-...` |
+| Submit button label | `Request a quote` (becomes `Sending…` while submitting) | asserting on the label text |
+| Success view | the form is **replaced** by `[data-testid="team-orders-success"]`, not a toast | looking for a toast/snackbar |
+| Demo-mode flakiness | `?demo=flaky` makes `POST /api/team-orders` fail ~15% (`src/app/api/team-orders/route.ts`) | author/run against `?demo=normal` |
+
+### Labels (apply after saving)
+
+```
+type-smk
+type-ui
+exec-pr
+feat-teamorders
+```
+
+Then add the test to the `CSH-SMOKE-PR` plan so it fires on PR push.
 
 ---
 
