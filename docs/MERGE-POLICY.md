@@ -68,7 +68,6 @@ weakening any gate that has signal to provide.
 | `T1 — newman smoke (Prod)` | `mabl-sdlc.yml` | Skipped on PR; runs post-merge against Production |
 | `mabl — CSH-SMOKE-POSTDEPLOY (Prod)` | `mabl-sdlc.yml` | Skipped on PR; runs post-merge against Production |
 | `Vercel`, `Vercel Preview Comments` | Vercel app | Deploy status; not a quality gate |
-| `docs-drift-guardian` | `docs-drift-guardian.yml` | Posts a PR comment if `docs/MERGE-POLICY.md` disagrees with live branch protection, any enforcement file changed without doc updates, or any tracked doc is stale (>90 days since `last-verified` AND tracked files changed since). Advisory by design — see TAMD-130. |
 
 ## Why advisory matters
 
