@@ -65,6 +65,31 @@ describe("validateTeamOrderInput", () => {
     ).toBe(true);
   });
 
+  it("accepts multi-label domains", () => {
+    expect(
+      validateTeamOrderInput({ ...validInput, contactEmail: "coach@team.sub.example.test" }),
+    ).toEqual([]);
+  });
+
+  it("rejects an over-length email (RFC 5321 254 cap)", () => {
+    const tooLong = `${"a".repeat(250)}@example.test`;
+    expect(
+      validateTeamOrderInput({ ...validInput, contactEmail: tooLong })
+        .some((e) => e.field === "contactEmail"),
+    ).toBe(true);
+  });
+
+  it("rejects a ReDoS-style payload in linear time (TAMD-138 guard)", () => {
+    // The old /^[^\s@]+@[^\s@]+\.[^\s@]+$/ regex backtracked catastrophically
+    // on a long no-dot domain. Assert this is both rejected AND fast.
+    const malicious = `a@${"a".repeat(50000)}`;
+    const start = performance.now();
+    const errors = validateTeamOrderInput({ ...validInput, contactEmail: malicious });
+    const elapsedMs = performance.now() - start;
+    expect(errors.some((e) => e.field === "contactEmail")).toBe(true);
+    expect(elapsedMs).toBeLessThan(50);
+  });
+
   it("flags an unknown sport", () => {
     const errors = validateTeamOrderInput({ ...validInput, sport: "underwater-basketweaving" });
     expect(errors.some((e) => e.field === "sport")).toBe(true);
