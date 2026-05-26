@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint src",
     "check:tool-surface": "node scripts/llm/check-tool-surface.mjs",
+    "check:security": "npm audit --audit-level=high",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
