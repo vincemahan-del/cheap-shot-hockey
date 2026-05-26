@@ -307,6 +307,72 @@
           }
         }
       ]
+    },
+    {
+      "name": "CSH-SMK-TEAM-ORDERS-API-AcceptsValidQuoteRequest",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"orgName\":\"Newman Eagles HC\",\"contactEmail\":\"newman@eagles.test\",\"sport\":\"hockey\",\"estPlayers\":18,\"message\":\"Postman/newman smoke probe\"}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/team-orders",
+          "host": ["{{baseUrl}}"],
+          "path": ["team-orders"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 201', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test('quote.id present', () => pm.expect(body.quote.id).to.match(/^TQ-[0-9a-f]{6}-\\d+$/));",
+              "pm.test('contactEmail normalized to lowercase', () => pm.expect(body.quote.contactEmail).to.eql('newman@eagles.test'));",
+              "pm.test('orgName trimmed', () => pm.expect(body.quote.orgName).to.eql('Newman Eagles HC'));",
+              "pm.test('receivedAt is ISO-8601', () => pm.expect(body.quote.receivedAt).to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}/));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CSH-SMK-TEAM-ORDERS-API-RejectsInvalidPayload",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"orgName\":\"\",\"contactEmail\":\"not-an-email\",\"sport\":\"curling\",\"estPlayers\":0}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/team-orders",
+          "host": ["{{baseUrl}}"],
+          "path": ["team-orders"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 400', () => pm.response.to.have.status(400));",
+              "const body = pm.response.json();",
+              "pm.test('error code is bad_request', () => pm.expect(body.error).to.eql('bad_request'));",
+              "pm.test('per-field errors present', () => pm.expect(body.details.errors).to.be.an('array').and.not.empty);"
+            ]
+          }
+        }
+      ]
     }
   ],
   "variable": [
