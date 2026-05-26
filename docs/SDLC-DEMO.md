@@ -383,8 +383,8 @@ Agent SDK `query()` call invoked from a webhook handler (Phase 2).
   ships at 0%, then a follow-up "ramp" PR moves to 100% after a soak
   window. Operational maturity story.
 - **LLM cost aggregation in the cycle-time receipt** — v1's receipt
-  covers lead time, GHA minutes, mabl minutes, CI attempts, and
-  human touches. Per-LLM-run cost capture is preserved at git tag
+  covers lead time, GHA minutes, CI attempts, and human touches.
+  Per-LLM-run cost capture is preserved at git tag
   `archive/recovery-agent-and-receipts-v1` for forks that want it.
 - **Autonomous recovery agent** — Agent SDK loop that runs on
   post-deploy failure, emits a structured `revert` / `forward-fix` /
