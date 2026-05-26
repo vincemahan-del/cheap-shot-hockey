@@ -27,8 +27,9 @@ and verified via `gh api repos/.../branches/main/protection`.
 | `build (next)` | `mabl-sdlc.yml` | Type-check + bundle; broken build = broken deploy |
 | `T1 — newman smoke (Preview)` | `mabl-sdlc.yml` | Postman API journeys against the Vercel Preview deploy |
 | `mabl — CSH-SMOKE-PR (Preview)` | `mabl-sdlc.yml` | Browser-layer smoke against Preview; the UI gate |
+| `CodeQL` | `codeql.yml` | Static security analysis; a high-severity code-scanning alert blocks merge. Promoted from advisory 2026-05-26 (TAMD-139) after a ReDoS shipped to prod under the advisory regime (TAMD-138). |
 
-Six gates. If any of them fails, auto-merge does not fire. Period.
+Seven gates. If any of them fails, auto-merge does not fire. Period.
 
 ### Conditional execution (TAMD-132)
 
@@ -45,6 +46,7 @@ and **skip** when the change doesn't warrant them. Skipped jobs report
 | `build (next)` | `src/**`, `public/**`, or build config changed |
 | `T1 — newman smoke (Preview)` | `src/app/api/**`, `src/lib/**`, or `mabl/postman/**` changed |
 | `mabl — CSH-SMOKE-PR (Preview)` | `src/**`, `public/**`, or build config changed |
+| `CodeQL` | Always (every PR + push to main); the security baseline |
 
 `workflow_dispatch` (manual trigger) forces every flag to `true` so a
 full pipeline run is always achievable on demand.
@@ -59,7 +61,6 @@ weakening any gate that has signal to provide.
 |---|---|---|
 | `Claude — definition of done` | `claude-agentic-dod.yml` | LLM reviews diff, coverage, mabl gaps; posts a single PR comment |
 | `auto-fix (eslint --fix)` | `auto-fix.yml` | Deterministic auto-formatting commit on PR branches |
-| `CodeQL` (`Analyze (javascript-typescript)`) | `codeql.yml` | Security analysis; results posted to the Security tab |
 | `test impact analysis` | `mabl-sdlc.yml` | Heuristic mapping of changed files → affected mabl tests |
 | `T1 — newman smoke (Prod)` | `mabl-sdlc.yml` | Skipped on PR; runs post-merge against Production |
 | `mabl — CSH-SMOKE-POSTDEPLOY (Prod)` | `mabl-sdlc.yml` | Skipped on PR; runs post-merge against Production |
@@ -90,12 +91,14 @@ triaged:
 - `Claude — definition of done` fails on `Invalid API key` → secrets
   rotation issue, not code quality. File a `tooling` issue, fix the
   secret, re-run. Do not block PR throughput on it.
-- `CodeQL` flags a vulnerability → results appear in the
-  [Security tab](https://github.com/vincemahan-del/cheap-shot-hockey/security/code-scanning).
-  Open a follow-up PR; do not gate the current PR on it unless the
-  finding is in the diff.
 - Area regression dispatch flags a new failure → the run is post-merge
   signal. Open a Jira ticket; if a P1, revert the merge.
+
+Note: `CodeQL` moved from advisory to **required** on 2026-05-26
+(TAMD-139). A high-severity code-scanning alert now blocks merge — see
+the required-checks table above. A finding the team accepts (e.g. a
+demo-only weak hash) is dismissed with a documented justification in the
+Security tab rather than left to block indefinitely.
 
 ## Adding or removing a required check
 

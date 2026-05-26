@@ -43,7 +43,7 @@ Anthropic's published guidance on building agents.
 │        → test-impact-analysis (advisory PR comment)                  │
 │        → claude-code-action DoD                                      │
 │                                                                      │
-│   Branch protection: 6 required checks · auto-merge armed per PR     │
+│   Branch protection: 7 required checks · auto-merge armed per PR     │
 │                                                                      │
 │   main push (after auto-merge) →                                     │
 │        → Vercel prod deploy (auto)                                   │
@@ -71,7 +71,7 @@ This pattern mirrors [mabl's published architecture](https://www.mabl.com/blog/h
 | **1. Analysis** | Read ticket, scan `CLAUDE.md`, identify affected files, surface open questions | Interactive Claude Code (orchestrator subagent) | No — agent autonomous |
 | **2. Planning** | Detect blast radius (path-based + LOC); for high-risk changes, emit a structured plan to Jira and pause | Interactive Claude Code + `scripts/orchestrator-plan/` | **Yes for high-blast-radius changes** |
 | **3. Implementation** | Code changes, pre-PR DoD (coverage gate, mabl impact analysis), commit, push, PR opened, auto-merge armed | Interactive Claude Code → GHA pipeline | No — gated by CI |
-| **4. Review** | 6 required CI checks (lint, security, unit, build, T1 newman, mabl smoke), AI code review, **mandatory human approval at merge**. See [`docs/MERGE-POLICY.md`](MERGE-POLICY.md). | GHA pipeline + branch protection + reviewer policy | **Yes at merge** |
+| **4. Review** | 7 required CI checks (lint, security, unit, build, T1 newman, mabl smoke, CodeQL), AI code review, **mandatory human approval at merge**. See [`docs/MERGE-POLICY.md`](MERGE-POLICY.md). | GHA pipeline + branch protection + reviewer policy | **Yes at merge** |
 
 ## Regression coverage — PR-time smoke + nightly drift
 
