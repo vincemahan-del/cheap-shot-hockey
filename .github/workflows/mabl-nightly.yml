@@ -89,12 +89,19 @@ jobs:
           # /api URL and open a 404 (mabl bug MABL-15866). type-rt is all
           # browser tests, so a single --url is correct; revisit if an API
           # test ever gets the type-rt label. See TAMD-149 / TAMD-150.
+          #
+          # --credentials-id attaches the "Demo customer" credential so
+          # app.defaults.username / app.defaults.password resolve. CLI runs
+          # show "Credentials: None" otherwise, leaving the login email empty
+          # and failing every login-requiring test. Cloud runs attach creds
+          # automatically; the CLI must be told. See TAMD-151.
           mabl tests run \
             --labels "type-rt" \
             --headless \
             --environment-id "$MABL_ENV_PROD_ID" \
             --application-id "$MABL_APPLICATION_ID" \
             --url "https://cheap-shot-hockey.vercel.app" \
+            --credentials-id "JxWK20l5gOOFOtWjaJHfOg-c" \
             --allow-billable-features \
             --reporter mabl
 
