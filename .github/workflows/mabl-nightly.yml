@@ -1,16 +1,26 @@
 # mabl nightly drift catch — phase ⑤ of the agentic SDLC pattern.
 #
 # Runs the full regression-tier mabl suite headlessly via mabl CLI in
-# the GHA runner against production. FREE — no cloud-credit consumption,
-# single-browser, results published back to the mabl app for traceability.
+# the GHA runner against production. Low-cost — no cloud plan-run /
+# cross-browser credits — single-browser, results published back to the
+# mabl app for traceability.
+#
+# Cost note: this run passes --allow-billable-features so GenAI assertions
+# in the type-rt suite actually execute (the CLI skips them otherwise and
+# fails the assertion). AI assertions are a billable feature, so the
+# nightly is NOT zero-cost — it consumes per-assertion credits every night.
+# This is an intentional trade (TAMD-148, 2026-05-27): full AI-assertion
+# regression coverage at night was judged worth the per-assertion cost,
+# consistent with the per-PR local browser smoke (CLAUDE.md DoD step 4,
+# scripts/mabl-local-cli.sh), which already runs billable.
 #
 # Why nightly: continuous-deploy teams ship multiple times per day. A
-# scheduled "every-15-min cloud heartbeat" would burn credits; a
-# nightly CLI run catches drift, third-party regressions, and slow-burn
-# issues missed during the day for $0.
+# scheduled "every-15-min cloud heartbeat" would burn far more credits;
+# a nightly CLI run catches drift, third-party regressions, and slow-burn
+# issues missed during the day at a fraction of cloud plan-run cost.
 #
 # Why CLI not cloud:
-#   - CLI runs are unlimited per mabl's pricing surface
+#   - CLI runs avoid cloud plan-run / cross-browser credit consumption
 #   - Single-browser is acceptable for drift catching (cross-browser
 #     coverage already happens at pre-merge for high-blast PRs)
 #   - --reporter mabl publishes the run results back to the mabl app
@@ -78,6 +88,7 @@ jobs:
             --headless \
             --environment-id "$MABL_ENV_PROD_ID" \
             --application-id "$MABL_APPLICATION_ID" \
+            --allow-billable-features \
             --reporter mabl
 
       - name: notify (success — drift catch clean)
