@@ -83,11 +83,18 @@ jobs:
       - name: run nightly regression vs production
         if: steps.precheck.outputs.skipped == 'false'
         run: |
+          # --url pins the web (app.url) target. Without it the CLI
+          # "defaults to the first URL it finds" when the env has both a
+          # web and an api target, so browser tests resolve app.url to the
+          # /api URL and open a 404 (mabl bug MABL-15866). type-rt is all
+          # browser tests, so a single --url is correct; revisit if an API
+          # test ever gets the type-rt label. See TAMD-149 / TAMD-150.
           mabl tests run \
             --labels "type-rt" \
             --headless \
             --environment-id "$MABL_ENV_PROD_ID" \
             --application-id "$MABL_APPLICATION_ID" \
+            --url "https://cheap-shot-hockey.vercel.app" \
             --allow-billable-features \
             --reporter mabl
 
