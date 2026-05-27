@@ -66,6 +66,10 @@ jobs:
         if: steps.precheck.outputs.skipped == 'false'
         run: npm install -g @mablhq/mabl-cli
 
+      - name: authenticate mabl CLI
+        if: steps.precheck.outputs.skipped == 'false'
+        run: mabl auth activate-key "$MABL_API_KEY"
+
       - name: run nightly regression vs production
         if: steps.precheck.outputs.skipped == 'false'
         run: |
