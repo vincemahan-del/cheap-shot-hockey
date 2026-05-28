@@ -147,6 +147,89 @@ by mabl. This smoke test closes that gap (TAMD-137).
 
 ---
 
+### 3. `CSH-SMK-CART-UI-FreeShippingQualifiedStateTransition`
+
+**Why:** TAMD-152 (merged 2026-05-28, commit `0611a411`) extracted free-
+shipping math into `src/lib/shipping.ts` and added a persistent
+qualified-state UX. The cart now renders a
+`[data-testid="free-shipping-progress"]` wrapper with a
+`data-qualified="true|false"` attribute that flips at the $99 subtotal
+threshold. The threshold flip is on the money path — it gates whether
+the customer sees a non-zero shipping charge at checkout — but no
+browser-layer test exercised the transition. This smoke closes that
+gap (TAMD-153).
+
+**Intent-document** (used to drive mabl cloud test generation):
+- Target env for authoring: **Preview** (`TpuarWvfj1hOREDT0JGvjA-e`).
+- Base URL: `https://cheap-shot-hockey.vercel.app`.
+- Demo user: `demo@cheapshot.test / demo1234` (seeded, id `u-001`).
+- Stable seed products (from `src/lib/seed.ts`):
+  - `p-stk-004` — Coldfire Rookie Wood Stick — $19.99 (under $99)
+  - `p-stk-001` — Apex Velocity Pro Stick — $199.99 sale (over $99)
+- Cart is cookie-scoped per browser session; each run starts empty.
+
+**Flow (5 tasks — the unqualified → qualified flip is the contract):**
+
+1. **Log in as demo customer**
+   - Navigate to `/login`
+   - Fill `[data-testid="login-email"]` → `demo@cheapshot.test`
+   - Fill `[data-testid="login-password"]` → `demo1234`
+   - Click `[data-testid="login-submit"]`
+   - Assert `[data-testid="nav-account"]` exists *(structural)*
+2. **Add Coldfire stick (under threshold)**
+   - Navigate to `/products/coldfire-rookie-wood-stick`
+   - Click `[data-testid="add-to-cart-p-stk-004"]`
+   - Assert `[data-testid="add-to-cart-feedback-p-stk-004"]` exists *(structural)*
+3. **Verify UNQUALIFIED state in cart** *(the unqualified half of the contract)*
+   - Navigate to `/cart`
+   - Assert `[data-testid="free-shipping-progress"]` exists *(structural)*
+   - Assert `[data-testid="free-shipping-progress"]` attribute `data-qualified` equals `"false"` *(BUSINESS-LOGIC — the contract flag at $19.99 < $99)*
+   - Assert `[data-testid="free-shipping-remaining"]` exists *(structural — remaining surface present in unqualified state)*
+   - Assert `[data-testid="free-shipping-qualified"]` does NOT exist *(structural — qualified surface absent in unqualified state)*
+   - Assert `[data-testid="free-shipping-progress-bar"]` exists *(structural)*
+   - Assert `[data-testid="cart-subtotal"]` text equals `$19.99` *(BUSINESS-LOGIC)*
+4. **Add Apex stick (pushes over threshold)**
+   - Navigate to `/products/apex-velocity-pro-stick`
+   - Click `[data-testid="add-to-cart-p-stk-001"]`
+   - Assert `[data-testid="add-to-cart-feedback-p-stk-001"]` exists *(structural)*
+5. **Verify QUALIFIED state after re-loading cart** *(the qualified half of the contract)*
+   - Navigate to `/cart`
+   - Assert `[data-testid="free-shipping-progress"]` exists *(structural)*
+   - Assert `[data-testid="free-shipping-progress"]` attribute `data-qualified` equals `"true"` *(BUSINESS-LOGIC — the contract flag flipped at $219.98 ≥ $99; this IS the test)*
+   - Assert `[data-testid="free-shipping-qualified"]` exists *(structural — qualified surface present in qualified state)*
+   - Assert `[data-testid="free-shipping-remaining"]` does NOT exist *(structural — remaining surface absent in qualified state)*
+   - Assert `[data-testid="free-shipping-progress-bar"]` exists *(structural)*
+   - Assert `[data-testid="cart-subtotal"]` text equals `$219.98` *(BUSINESS-LOGIC — $19.99 + $199.99)*
+
+**Assertion tiering (matches API layer policy):**
+- STRUCTURAL: container existence, presence/absence of the
+  state-specific surfaces (`free-shipping-remaining` vs
+  `free-shipping-qualified`), progress-bar existence, logged-in
+  indicator. Won't fail on copy edits or layout reflows.
+- BUSINESS-LOGIC: the `data-qualified` attribute flip across the
+  threshold, and the subtotal money values that frame it. The
+  attribute flip is the load-bearing assertion — it's a direct
+  programmatic link to the shipping math in `src/lib/shipping.ts`.
+
+**Rejected (forbidden categories per `MABL-AI-ASSERTION-PROMPT.md`):**
+- `Add $X more for FREE shipping` copy as equality — dynamic
+  currency-formatted text; coupled to threshold math already
+  covered by the attribute flip.
+- `You qualify for FREE shipping` copy as equality — marketing copy.
+- Progress-bar percentage text — coupled to math the
+  `data-qualified` attribute already gates; redundant + brittle.
+- `[data-testid="free-ship-meter"]` selector — backwards-compat
+  alias on a hidden span, NOT the live wrapper. Anchor on
+  `[data-testid="free-shipping-progress"]` only.
+
+**Labels:** `type-smk, type-ui, priority-p0, feat-cart, feat-checkout, exec-pr, exec-postdeploy, exec-nightly, team-platform`
+
+> `type-smk` + `exec-pr` matches `CSH-SMOKE-PR` (Preview). Add to that
+> plan after labeling so the test gates every PR push. Apply labels
+> via mabl UI (Test → Add label) — MCP exposes no label-write tool.
+
+---
+
 ## Plans
 
 The UI CHP test is included as **Stage 2** in both split plans
