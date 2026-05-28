@@ -17,6 +17,11 @@ A real recent run for cycle-time reference: **TAMD-99** (size-guide page
 restore) shipped from PR-open to live + verified in **~8 minutes**, fully
 autonomous past the initial prompt.
 
+For a worked example with every stage clickable — Jira, PR, all CI runs,
+merge commit, Vercel deploy, Slack receipt — see
+[`EXAMPLE-RUN-TAMD-152.md`](EXAMPLE-RUN-TAMD-152.md) (free-shipping
+qualified-state UX, shipped 2026-05-28 in **5 minutes** of lead time).
+
 ---
 
 ## Architecture in one screen
