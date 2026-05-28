@@ -2,6 +2,7 @@ import Link from "next/link";
 import { currentPrice, getProduct } from "@/lib/store";
 import { readCartLines } from "@/lib/cart-cookie";
 import { formatPrice } from "@/lib/format";
+import { freeShippingProgress } from "@/lib/shipping";
 import { ProductThumb } from "@/components/ProductThumb";
 import { CartLineControls } from "@/components/CartLineControls";
 
@@ -16,8 +17,7 @@ export default async function CartPage() {
     })
     .filter((e): e is NonNullable<typeof e> => e !== null);
   const subtotal = enriched.reduce((s, e) => s + e.lineTotal, 0);
-  const progress = Math.min(100, Math.round((subtotal / 9900) * 100));
-  const freeShipGap = Math.max(0, 9900 - subtotal);
+  const shipping = freeShippingProgress(subtotal);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -42,26 +42,42 @@ export default async function CartPage() {
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_340px]">
           <div>
-            {subtotal < 9900 && (
-              <div
-                className="mb-4 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] p-3"
-                data-testid="free-ship-meter"
-              >
+            <div
+              className="mb-4 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] p-3"
+              data-testid="free-shipping-progress"
+              data-free-ship-meter
+              data-qualified={shipping.qualified ? "true" : "false"}
+              id="free-ship-meter"
+            >
+              {/* Backwards-compat alias for the prior testid */}
+              <span hidden data-testid="free-ship-meter" />
+              {shipping.qualified ? (
+                <div
+                  className="flex items-center justify-between text-xs font-bold"
+                  data-testid="free-shipping-qualified"
+                >
+                  <span className="text-[color:var(--accent)]">
+                    You qualify for FREE shipping
+                  </span>
+                  <span>100%</span>
+                </div>
+              ) : (
                 <div className="flex justify-between text-xs font-bold text-[color:var(--muted)]">
-                  <span>
-                    Add {formatPrice(freeShipGap)} more for{" "}
+                  <span data-testid="free-shipping-remaining">
+                    Add {formatPrice(shipping.remainingCents)} more for{" "}
                     <span className="text-[color:var(--accent)]">FREE shipping</span>
                   </span>
-                  <span>{progress}%</span>
+                  <span>{shipping.progressPercent}%</span>
                 </div>
-                <div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-[color:var(--surface-2)]">
-                  <div
-                    className="h-full rounded bg-[color:var(--accent)] transition-all"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
+              )}
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-[color:var(--surface-2)]">
+                <div
+                  className="h-full rounded bg-[color:var(--accent)] transition-all"
+                  data-testid="free-shipping-progress-bar"
+                  style={{ width: `${shipping.progressPercent}%` }}
+                />
               </div>
-            )}
+            </div>
             <ul className="space-y-3" data-testid="cart-lines">
               {enriched.map((e) => (
                 <li
