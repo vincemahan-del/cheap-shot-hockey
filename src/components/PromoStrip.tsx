@@ -1,3 +1,4 @@
+// Seasonal copy: rotate the desktop-only badge each season (TAMD-155).
 export function PromoStrip() {
   return (
     <div
