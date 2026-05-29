@@ -239,6 +239,57 @@ const SPEC = {
         },
       },
     },
+    "/api/deployments": {
+      post: {
+        summary: "Create a simulated deployment",
+        description:
+          "Starts a deployment that transitions queued → in_progress → successful|failure. State is derived from the returned label + elapsed time (no server-side store), so polling and label search are deterministic and serverless-safe. Use ?outcome to force the terminal result.",
+        parameters: [
+          {
+            name: "outcome",
+            in: "query",
+            description: "Force the terminal state. Defaults to success.",
+            schema: { type: "string", enum: ["success", "fail"], default: "success" },
+          },
+          {
+            name: "duration",
+            in: "query",
+            description: "Processing duration in seconds (1–180, default 10).",
+            schema: { type: "integer", minimum: 1, maximum: 180, default: 10 },
+          },
+        ],
+        responses: {
+          "201": { description: "Created — returns the initial (queued) deployment state" },
+          "503": { description: "Demo failure" },
+        },
+      },
+    },
+    "/api/deployments/{label}": {
+      get: {
+        summary: "Poll a deployment's status",
+        description:
+          "Returns the deployment's current state (queued|in_progress|successful|failure) and progress (0–100), computed from the label and the current time. Poll on an interval until the status is terminal.",
+        parameters: [{ name: "label", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "OK" },
+          "404": { description: "Deployment not found (unparseable label)" },
+          "503": { description: "Demo failure" },
+        },
+      },
+    },
+    "/api/deployments/search": {
+      get: {
+        summary: "Search for a deployment record by label",
+        description:
+          "Returns the deployment record ONLY when the deployment has succeeded; for a failed, still-running, or unknown label the record is null (nothing to show → downstream steps are skipped). Always 200.",
+        parameters: [
+          { name: "label", in: "query", required: true, schema: { type: "string" } },
+        ],
+        responses: {
+          "200": { description: "OK — { record } is the deployment record or null" },
+        },
+      },
+    },
   },
 };
 
