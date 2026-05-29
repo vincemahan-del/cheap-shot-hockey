@@ -243,14 +243,8 @@ const SPEC = {
       post: {
         summary: "Create a simulated deployment",
         description:
-          "Starts a deployment that transitions queued → in_progress → successful|failure. State is derived from the returned label + elapsed time (no server-side store), so polling and label search are deterministic and serverless-safe. Use ?outcome to force the terminal result.",
+          "Starts a deployment that transitions queued → in_progress → successful|failure. The outcome is NOT selectable: it alternates by a per-session sequence counter held in the csh_deploy_seq cookie (even → success, odd → failure), so the caller can't choose whether a deploy passes — mirroring a real deployment tool. The decided outcome is baked into the returned label, so polling and label search are deterministic and serverless-safe (no server-side store).",
         parameters: [
-          {
-            name: "outcome",
-            in: "query",
-            description: "Force the terminal state. Defaults to success.",
-            schema: { type: "string", enum: ["success", "fail"], default: "success" },
-          },
           {
             name: "duration",
             in: "query",
@@ -259,7 +253,10 @@ const SPEC = {
           },
         ],
         responses: {
-          "201": { description: "Created — returns the initial (queued) deployment state" },
+          "201": {
+            description:
+              "Created — returns the initial (queued) deployment state; Set-Cookie advances csh_deploy_seq",
+          },
           "503": { description: "Demo failure" },
         },
       },

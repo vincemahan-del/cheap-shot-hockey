@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  parseOutcome,
+  outcomeForSequence,
   clampDuration,
   encodeLabel,
   decodeLabel,
@@ -16,17 +16,18 @@ import {
 
 const T0 = 1_700_000_000_000; // fixed base time
 
-describe("parseOutcome", () => {
-  it("maps failure-ish values to 'fail'", () => {
-    for (const v of ["fail", "failed", "FAILURE", " error ", "Fail"]) {
-      expect(parseOutcome(v)).toBe("fail");
-    }
+describe("outcomeForSequence", () => {
+  it("alternates: even → success, odd → failure", () => {
+    expect(outcomeForSequence(0)).toBe("success");
+    expect(outcomeForSequence(1)).toBe("fail");
+    expect(outcomeForSequence(2)).toBe("success");
+    expect(outcomeForSequence(3)).toBe("fail");
   });
 
-  it("defaults everything else to 'success'", () => {
-    for (const v of ["success", "completed", "ok", "", null, undefined, "garbage"]) {
-      expect(parseOutcome(v)).toBe("success");
-    }
+  it("guards against invalid sequences (defaults to success)", () => {
+    expect(outcomeForSequence(-1)).toBe("success");
+    expect(outcomeForSequence(Number.NaN)).toBe("success");
+    expect(outcomeForSequence(2.9)).toBe("success"); // truncates to 2
   });
 });
 
@@ -159,19 +160,22 @@ describe("searchDeployment", () => {
 });
 
 describe("createDeployment", () => {
-  it("creates a queued deployment with a decodable label", () => {
-    const d = createDeployment({ outcome: "success", durationSec: 10, nowMs: T0 });
-    expect(d.status).toBe("queued");
-    expect(d.progress).toBe(0);
-    expect(decodeLabel(d.label)).toEqual({
+  it("creates a queued deployment whose outcome is derived from the sequence", () => {
+    const even = createDeployment({ sequence: 0, durationSec: 10, nowMs: T0 });
+    expect(even.status).toBe("queued");
+    expect(even.progress).toBe(0);
+    expect(decodeLabel(even.label)).toEqual({
       createdAtMs: T0,
       outcome: "success",
       durationSec: 10,
     });
+
+    const odd = createDeployment({ sequence: 1, durationSec: 10, nowMs: T0 });
+    expect(decodeLabel(odd.label)!.outcome).toBe("fail");
   });
 
   it("clamps the duration when creating", () => {
-    const d = createDeployment({ outcome: "fail", durationSec: 99999, nowMs: T0 });
+    const d = createDeployment({ sequence: 1, durationSec: 99999, nowMs: T0 });
     expect(decodeLabel(d.label)!.durationSec).toBe(MAX_DURATION_SEC);
   });
 });

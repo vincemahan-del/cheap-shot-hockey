@@ -1,14 +1,18 @@
 import type { NextRequest } from "next/server";
 import { created, serviceUnavailable } from "@/lib/api";
 import { applyDemoDelay, readDemoMode, shouldDemoFail } from "@/lib/demo";
-import { createDeployment, parseOutcome, clampDuration } from "@/lib/deployments";
+import { createDeployment, clampDuration } from "@/lib/deployments";
 
-// POST /api/deployments?outcome=success|fail&duration=<seconds>
+const SEQ_COOKIE = "csh_deploy_seq";
+
+// POST /api/deployments?duration=<seconds>
 //
-// Kicks off a simulated deployment. The returned label encodes the start time,
-// the (forced) outcome, and the duration, so subsequent status polls and label
-// searches are fully deterministic and stateless — see src/lib/deployments.ts.
-// `outcome` lets a test drive a success run vs. a failure run on demand.
+// Kicks off a deployment. The outcome is NOT selectable — it alternates by a
+// per-session sequence counter held in the `csh_deploy_seq` cookie (even →
+// success, odd → failure), mirroring a real deployment tool where the user
+// can't choose whether a deploy passes. The decided outcome is baked into the
+// returned label, so every subsequent poll is deterministic and serverless-safe
+// (no shared server state — the counter rides in the cookie, like cart/orders).
 export async function POST(req: NextRequest) {
   const mode = await readDemoMode(req.headers);
   await applyDemoDelay(mode);
@@ -16,12 +20,20 @@ export async function POST(req: NextRequest) {
     return serviceUnavailable("demo mode: deployment intake temporarily unavailable");
   }
 
-  const params = req.nextUrl.searchParams;
+  const rawSeq = Number.parseInt(req.cookies.get(SEQ_COOKIE)?.value ?? "", 10);
+  const sequence = Number.isFinite(rawSeq) && rawSeq >= 0 ? rawSeq : 0;
+
   const deployment = createDeployment({
-    outcome: parseOutcome(params.get("outcome")),
-    durationSec: clampDuration(params.get("duration")),
+    sequence,
+    durationSec: clampDuration(req.nextUrl.searchParams.get("duration")),
     nowMs: Date.now(),
   });
 
-  return created({ deployment });
+  const res = created({ deployment });
+  res.cookies.set(SEQ_COOKIE, String(sequence + 1), {
+    path: "/",
+    sameSite: "lax",
+    maxAge: 60 * 60, // 1 hour
+  });
+  return res;
 }

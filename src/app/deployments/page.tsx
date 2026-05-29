@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { DeploymentState, DeploymentOutcome } from "@/lib/deployments";
+import type { DeploymentState } from "@/lib/deployments";
 
 type State =
   | { kind: "idle" }
@@ -14,14 +14,13 @@ export default function DeploymentsLauncherPage() {
   const [durationSec, setDurationSec] = useState(8);
   const [state, setState] = useState<State>({ kind: "idle" });
 
-  async function create(outcome: DeploymentOutcome) {
+  async function deploy() {
     if (state.kind === "creating") return;
     setState({ kind: "creating" });
     try {
-      const res = await fetch(
-        `/api/deployments?outcome=${outcome}&duration=${durationSec}`,
-        { method: "POST" },
-      );
+      const res = await fetch(`/api/deployments?duration=${durationSec}`, {
+        method: "POST",
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         setState({
@@ -50,11 +49,13 @@ export default function DeploymentsLauncherPage() {
           Create a deployment.
         </h1>
         <p className="mt-3 text-[color:var(--muted)]">
-          Deploying a batch of catalog changes. The deployment moves from{" "}
-          <strong>queued → in progress → successful/failure</strong>, the status
-          updates in place, and once it&apos;s done you can search the deployment
-          label to find the result. Choose which outcome to force so you can
-          exercise both the success and failure paths.
+          Kick off a deployment of catalog changes. It moves from{" "}
+          <strong>queued → in progress → successful/failure</strong>, and the
+          status page polls until it resolves.{" "}
+          <strong>You don&apos;t choose the outcome</strong> — the system decides
+          when it runs, so you have to poll and handle whichever result comes
+          back. That&apos;s the point: write a loop, exit on either terminal
+          state.
         </p>
       </header>
 
@@ -87,26 +88,15 @@ export default function DeploymentsLauncherPage() {
           </p>
         )}
 
-        <div className="flex gap-3">
-          <button
-            type="button"
-            data-testid="create-deployment-success"
-            disabled={state.kind === "creating"}
-            onClick={() => create("success")}
-            className="flex-1 rounded-md bg-[color:var(--primary)] px-5 py-2.5 text-sm font-bold uppercase tracking-wider text-white transition hover:opacity-90 disabled:opacity-50"
-          >
-            {state.kind === "creating" ? "Creating…" : "Deploy (succeeds)"}
-          </button>
-          <button
-            type="button"
-            data-testid="create-deployment-fail"
-            disabled={state.kind === "creating"}
-            onClick={() => create("fail")}
-            className="flex-1 rounded-md border border-red-500/40 px-5 py-2.5 text-sm font-bold uppercase tracking-wider text-red-400 transition hover:bg-red-500/10 disabled:opacity-50"
-          >
-            {state.kind === "creating" ? "Creating…" : "Deploy (fails)"}
-          </button>
-        </div>
+        <button
+          type="button"
+          data-testid="create-deployment"
+          disabled={state.kind === "creating"}
+          onClick={deploy}
+          className="w-full rounded-md bg-[color:var(--primary)] px-5 py-2.5 text-sm font-bold uppercase tracking-wider text-white transition hover:opacity-90 disabled:opacity-50"
+        >
+          {state.kind === "creating" ? "Deploying…" : "Deploy"}
+        </button>
       </div>
     </div>
   );
