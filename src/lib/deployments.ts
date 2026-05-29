@@ -51,12 +51,16 @@ export const MIN_DURATION_SEC = 1;
 export const MAX_DURATION_SEC = 180;
 export const DEFAULT_DURATION_SEC = 10;
 
-export function parseOutcome(value: string | null | undefined): DeploymentOutcome {
-  const v = (value ?? "").trim().toLowerCase();
-  if (v === "fail" || v === "failed" || v === "failure" || v === "error") {
-    return "fail";
-  }
-  return "success";
+// The deployment outcome is NOT user-selectable. It alternates by creation
+// sequence (tracked per session in the csh_deploy_seq cookie): even → success,
+// odd → failure. This mirrors a real deployment tool — the user can't pick
+// whether a deploy passes; they have to poll and handle whichever result comes
+// back. Alternating (rather than random) guarantees both paths surface within
+// two deploys and keeps the flow deterministic for tests. To switch to random
+// instead, replace the body with `(seededRandom() < 0.5) ? "success" : "fail"`.
+export function outcomeForSequence(sequence: number): DeploymentOutcome {
+  const n = Number.isFinite(sequence) && sequence >= 0 ? Math.trunc(sequence) : 0;
+  return n % 2 === 0 ? "success" : "fail";
 }
 
 export function clampDuration(value: number | string | null | undefined): number {
@@ -144,17 +148,19 @@ export function searchDeployment(label: string, nowMs: number): DeploymentRecord
 }
 
 /**
- * Create a new deployment starting "now". Returns its label and initial
- * (queued) state.
+ * Create a new deployment starting "now". The outcome is derived from the
+ * creation `sequence` (see outcomeForSequence) — callers pass the per-session
+ * sequence counter, NOT a chosen outcome. Returns the label + initial (queued)
+ * state.
  */
 export function createDeployment(opts: {
-  outcome: DeploymentOutcome;
+  sequence: number;
   durationSec: number;
   nowMs: number;
 }): DeploymentState {
   const label = encodeLabel({
     createdAtMs: opts.nowMs,
-    outcome: opts.outcome,
+    outcome: outcomeForSequence(opts.sequence),
     durationSec: clampDuration(opts.durationSec),
   });
   // Non-null: we just encoded a valid label.
