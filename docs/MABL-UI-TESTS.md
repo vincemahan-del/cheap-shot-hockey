@@ -230,82 +230,100 @@ gap (TAMD-153).
 
 ---
 
-### 4. `CSH-RT-DEPLOYMENTS-UI-PollUntilTerminalSuccessAndFailure`
+### 4. `CSH-RT-DEPLOYMENTS-UI-PollUntilTerminalSuccessOrFailure`
 
-**Why:** The `/deployments` surface (TAMD-156, redesigned in TAMD-157)
-simulates a deployment job that resolves to **successful or failure** —
-and the user **cannot choose** which. The outcome alternates per session
-(deploy #1 = success, #2 = failure). This mirrors the real customer
-scenario (AutoRABIT): a `wait until status == "successful"` blocks the
-full timeout when a deploy fails, even though failure is an acceptable
-terminal state. This test demonstrates the correct pattern — **wait on a
-shared terminal signal that fires for either outcome, then branch** — so
-the wait exits the instant the deploy resolves and the test passes on
-both paths.
+> Test ID `eF83GO28dUAYDXBCgD9fiw-j` · authored in the Trainer · env Prod.
+
+**Why:** The `/deployments` surface (TAMD-156, hardened in TAMD-157/158)
+simulates a deployment job that resolves to **successful or failure**, and
+the user **cannot choose** which — the outcome is **random (~50/50)** per
+deploy. This mirrors the real customer scenario (AutoRABIT): a
+`wait until status == "successful"` blocks the full timeout when a deploy
+fails, even though failure is an acceptable terminal state ("both are pass
+cases"). This test demonstrates the fix — **poll until the deploy reaches
+*any* terminal state, exit early, branch on which one, then proceed** — so
+the wait never hangs and the test passes whether the deploy succeeds or
+fails. It's a **single-deploy, outcome-agnostic** test; over runs, the
+random outcome naturally exercises both paths.
 
 **Intent-document:**
-- Target env for authoring: **Prod** (`vwf8Vni5e7H0XTfT5hbi6w-e`). Base URL
-  `https://cheap-shot-hockey.vercel.app`.
-- No auth required.
+- Env: **Prod** (`vwf8Vni5e7H0XTfT5hbi6w-e`). Base URL
+  `https://cheap-shot-hockey.vercel.app`. No auth.
 - The outcome is **not selectable** — `POST /api/deployments` ignores any
-  `?outcome`; the result is decided by the `csh_deploy_seq` cookie (even →
-  success, odd → failure). A fresh run's cookie jar is empty, so **deploy
-  #1 = success, #2 = failure** deterministically.
+  `?outcome`; it's chosen at **random** at creation and baked into the label.
+  A single deploy is genuinely success-or-failure, so the test handles
+  whichever comes.
 - The deployment **label** is dynamic (`DEP-<createdAtMs>-<outcome>-<dur>`)
   — match by URL pattern, never equality.
 
-**The key idea — one wait, both outcomes:**
-`[data-testid="deployment-acknowledge"]` renders the moment the deploy is
-terminal, for **both** success and failure. A single
-`wait until [deployment-acknowledge] is present` exits on either — no loop,
-no OR-condition, no full-timeout block. Then a conditional on
-`deployment-result-successful` vs `deployment-result-failure` branches.
+**The method — a polling snippet (`pollUntilTerminalStatus`):**
+A reusable JS snippet polls `[data-testid="deployment-status"]`'s
+`data-status` every 1s, returns the instant it's terminal (`successful` or
+`failure`), and fails only if no terminal state appears within 170s (under
+mabl's 5-min snippet cap). One step that exits early on *either* outcome —
+no loop, no full-timeout block — and hands back the status to branch on.
+*(Notably, mabl's GenAI **AI Assist generated this snippet correctly on the
+first try**, even though full-test cloud-gen could not author the flow —
+self-contained code-gen is a GenAI strength; exploring-and-building-control-
+flow is not. See the authoring-path note.)*
 
-**Flow (deploy twice — success then failure). For each deploy:**
+**Flow (single deploy, outcome-agnostic):**
 
-1. Navigate `/deployments`; assert `[data-testid="deployments-launcher-page"]`
-   exists; set `[data-testid="deployment-duration"]` → `4`; click
-   `[data-testid="create-deployment"]`; assert URL matches `/deployments/DEP-.+`.
-2. **Wait until** `[data-testid="deployment-acknowledge"]` is present (60s) —
-   the poll-until-terminal step; exits on either outcome.
-3. **IF** `[data-testid="deployment-result-successful"]` exists → click
+1. Navigate `/deployments`; assert `[data-testid="deployments-launcher-page"]`;
+   click `[data-testid="create-deployment"]`; assert URL matches
+   `/deployments/DEP-.+`.
+2. Run **`pollUntilTerminalStatus`** as a "Create variable from JavaScript"
+   step → stores the terminal status in `final_status`. *(This is the
+   poll-and-exit-early — it replaces a `wait until` and exits on either
+   outcome.)*
+3. **IF** `final_status` == `successful` → click
    `[data-testid="deployment-search-submit"]`, assert
    `[data-testid="deployment-search-saved"]` contains `Saved`. **ELSE**
-   (failure) → skip the search (failure is a pass case).
+   (`failure`) → skip the search (failure is a pass case).
 4. Click `[data-testid="deployment-acknowledge"]`; assert URL matches
    `/deployments/DEP-.+/next`; assert `[data-testid="deployment-next-page"]`
    exists; assert `[data-testid="deployment-next-outcome"]` `data-status`
-   equals `successful` (deploy #1) / `failure` (deploy #2).
+   matches `final_status`.
 
 **Assertion tiering:**
-- STRUCTURAL: launcher / acknowledge / result / next-page existence; URL
-  patterns. Won't fail on copy edits.
-- BUSINESS-LOGIC: `deployment-next-outcome` `data-status` per run, and
-  `deployment-search-saved` contains "Saved". These prove the deploy
-  actually resolved and the success branch produced a record.
+- STRUCTURAL: launcher / next-page / result-element existence; URL patterns.
+  Won't fail on copy edits.
+- BUSINESS-LOGIC: `deployment-next-outcome` `data-status` (the outcome
+  reached the next step) and `deployment-search-saved` contains "Saved" on
+  the success branch.
 
 **Rejected (forbidden categories per `MABL-AI-ASSERTION-PROMPT.md`):**
 - `CREATE A DEPLOYMENT.` heading / `Catalog Deployments` eyebrow — marketing/CMS copy.
 - Equality on the dynamic `DEP-<timestamp>` label — use URL pattern.
 - A GenAI "verify this is the X dashboard" page-identity assertion — brittle;
-  it broke prior cloud-gen attempts. Wait on the `deployment-acknowledge`
-  element instead.
+  it broke earlier cloud-gen attempts.
 - Poll-count text.
 
-**Authoring path:** **Trainer** (reliable). Cloud test-generation was
-attempted 3× via MCP and was unreliable for this flow (the poll-until-terminal
-step — see TAMD-156). The single-`deployment-acknowledge`-wait shape above is
-the most generator-friendly retry if cloud-gen is revisited. Note: `wait until`
-must be set by **selecting the acknowledge element** in the Trainer (wait-until
-can't take CSS/XPath); the **IF** condition can use a CSS find on
-`[data-testid="deployment-result-successful"]`.
+**Branch on the snippet's returned variable, not a DOM re-check** — a DOM
+assertion for the negative branch burns the retry window (~5s) and logs a
+misleading "Assertion failed" line; `final_status` evaluates instantly.
+
+**Alternatives to the snippet (same result):**
+- **Loop-with-early-exit** — the `Demo | Looping` pattern (test
+  `hXeFvdHGuz0NWC38RFN3QA-j`): loop a max number of times; inside an IF on
+  `[data-testid="deployment-acknowledge"]` present, set the loop variable to
+  `0` to break. No-code; demonstrates the loop explicitly.
+- **Single `wait until`** on `[data-testid="deployment-acknowledge"]` (renders
+  at terminal for both outcomes). Simplest, but hides the poll the customer
+  asked about. `wait until` must be set by *selecting* the element (no CSS/XPath).
+
+**Authoring path:** **Trainer + AI-generated snippet.** Full-test cloud
+generation was attempted **4×** and is **not viable for this flow** — it
+stalls on the poll step and the planner hallucinates controls (e.g. a
+non-existent cookie/outcome toggle). The reliable path is Trainer assembly
+plus the `pollUntilTerminalStatus` snippet from AI Assist. *Lesson worth
+keeping: control-flow-over-async-state tests are Trainer-authored; only the
+self-contained snippet is a good fit for GenAI.* (See TAMD-156/157/158.)
 
 **Labels:** `type-rt, type-ui, area-deployments, priority-p1, feat-deployments, exec-nightly, team-platform`
 
 > Add to the nightly `type-rt` plan after labeling. Apply labels via mabl UI
-> — MCP exposes no label-write tool. **Cleanup:** two earlier dud copies
-> exist (`mc5FPwC47EfwezyQmejpRQ-j`, `CrfR6F3Fjn81rvDdxeH97A-j`) from failed
-> cloud-gen sessions — delete them so this is the one canonical test.
+> — MCP exposes no label-write tool.
 
 ---
 
