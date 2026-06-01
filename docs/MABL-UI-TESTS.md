@@ -230,6 +230,85 @@ gap (TAMD-153).
 
 ---
 
+### 4. `CSH-RT-DEPLOYMENTS-UI-PollUntilTerminalSuccessAndFailure`
+
+**Why:** The `/deployments` surface (TAMD-156, redesigned in TAMD-157)
+simulates a deployment job that resolves to **successful or failure** —
+and the user **cannot choose** which. The outcome alternates per session
+(deploy #1 = success, #2 = failure). This mirrors the real customer
+scenario (AutoRABIT): a `wait until status == "successful"` blocks the
+full timeout when a deploy fails, even though failure is an acceptable
+terminal state. This test demonstrates the correct pattern — **wait on a
+shared terminal signal that fires for either outcome, then branch** — so
+the wait exits the instant the deploy resolves and the test passes on
+both paths.
+
+**Intent-document:**
+- Target env for authoring: **Prod** (`vwf8Vni5e7H0XTfT5hbi6w-e`). Base URL
+  `https://cheap-shot-hockey.vercel.app`.
+- No auth required.
+- The outcome is **not selectable** — `POST /api/deployments` ignores any
+  `?outcome`; the result is decided by the `csh_deploy_seq` cookie (even →
+  success, odd → failure). A fresh run's cookie jar is empty, so **deploy
+  #1 = success, #2 = failure** deterministically.
+- The deployment **label** is dynamic (`DEP-<createdAtMs>-<outcome>-<dur>`)
+  — match by URL pattern, never equality.
+
+**The key idea — one wait, both outcomes:**
+`[data-testid="deployment-acknowledge"]` renders the moment the deploy is
+terminal, for **both** success and failure. A single
+`wait until [deployment-acknowledge] is present` exits on either — no loop,
+no OR-condition, no full-timeout block. Then a conditional on
+`deployment-result-successful` vs `deployment-result-failure` branches.
+
+**Flow (deploy twice — success then failure). For each deploy:**
+
+1. Navigate `/deployments`; assert `[data-testid="deployments-launcher-page"]`
+   exists; set `[data-testid="deployment-duration"]` → `4`; click
+   `[data-testid="create-deployment"]`; assert URL matches `/deployments/DEP-.+`.
+2. **Wait until** `[data-testid="deployment-acknowledge"]` is present (60s) —
+   the poll-until-terminal step; exits on either outcome.
+3. **IF** `[data-testid="deployment-result-successful"]` exists → click
+   `[data-testid="deployment-search-submit"]`, assert
+   `[data-testid="deployment-search-saved"]` contains `Saved`. **ELSE**
+   (failure) → skip the search (failure is a pass case).
+4. Click `[data-testid="deployment-acknowledge"]`; assert URL matches
+   `/deployments/DEP-.+/next`; assert `[data-testid="deployment-next-page"]`
+   exists; assert `[data-testid="deployment-next-outcome"]` `data-status`
+   equals `successful` (deploy #1) / `failure` (deploy #2).
+
+**Assertion tiering:**
+- STRUCTURAL: launcher / acknowledge / result / next-page existence; URL
+  patterns. Won't fail on copy edits.
+- BUSINESS-LOGIC: `deployment-next-outcome` `data-status` per run, and
+  `deployment-search-saved` contains "Saved". These prove the deploy
+  actually resolved and the success branch produced a record.
+
+**Rejected (forbidden categories per `MABL-AI-ASSERTION-PROMPT.md`):**
+- `CREATE A DEPLOYMENT.` heading / `Catalog Deployments` eyebrow — marketing/CMS copy.
+- Equality on the dynamic `DEP-<timestamp>` label — use URL pattern.
+- A GenAI "verify this is the X dashboard" page-identity assertion — brittle;
+  it broke prior cloud-gen attempts. Wait on the `deployment-acknowledge`
+  element instead.
+- Poll-count text.
+
+**Authoring path:** **Trainer** (reliable). Cloud test-generation was
+attempted 3× via MCP and was unreliable for this flow (the poll-until-terminal
+step — see TAMD-156). The single-`deployment-acknowledge`-wait shape above is
+the most generator-friendly retry if cloud-gen is revisited. Note: `wait until`
+must be set by **selecting the acknowledge element** in the Trainer (wait-until
+can't take CSS/XPath); the **IF** condition can use a CSS find on
+`[data-testid="deployment-result-successful"]`.
+
+**Labels:** `type-rt, type-ui, area-deployments, priority-p1, feat-deployments, exec-nightly, team-platform`
+
+> Add to the nightly `type-rt` plan after labeling. Apply labels via mabl UI
+> — MCP exposes no label-write tool. **Cleanup:** two earlier dud copies
+> exist (`mc5FPwC47EfwezyQmejpRQ-j`, `CrfR6F3Fjn81rvDdxeH97A-j`) from failed
+> cloud-gen sessions — delete them so this is the one canonical test.
+
+---
+
 ## Plans
 
 The UI CHP test is included as **Stage 2** in both split plans
