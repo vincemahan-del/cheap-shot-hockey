@@ -243,7 +243,7 @@ const SPEC = {
       post: {
         summary: "Create a simulated deployment",
         description:
-          "Starts a deployment that transitions queued → in_progress → successful|failure. The outcome is NOT selectable: it alternates by a per-session sequence counter held in the csh_deploy_seq cookie (even → success, odd → failure), so the caller can't choose whether a deploy passes — mirroring a real deployment tool. The decided outcome is baked into the returned label, so polling and label search are deterministic and serverless-safe (no server-side store).",
+          "Starts a deployment that transitions queued → in_progress → successful|failure. The outcome is NOT selectable: it's chosen at RANDOM (~50/50) when the deployment is created, so the caller can't choose whether a deploy passes — mirroring a real deployment tool where a given deploy is genuinely success-or-failure. The decided outcome is baked into the returned label, so polling and label search are deterministic and serverless-safe (no server-side store).",
         parameters: [
           {
             name: "duration",

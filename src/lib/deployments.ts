@@ -51,17 +51,12 @@ export const MIN_DURATION_SEC = 1;
 export const MAX_DURATION_SEC = 180;
 export const DEFAULT_DURATION_SEC = 10;
 
-// The deployment outcome is NOT user-selectable. It alternates by creation
-// sequence (tracked per session in the csh_deploy_seq cookie): even → success,
-// odd → failure. This mirrors a real deployment tool — the user can't pick
-// whether a deploy passes; they have to poll and handle whichever result comes
-// back. Alternating (rather than random) guarantees both paths surface within
-// two deploys and keeps the flow deterministic for tests. To switch to random
-// instead, replace the body with `(seededRandom() < 0.5) ? "success" : "fail"`.
-export function outcomeForSequence(sequence: number): DeploymentOutcome {
-  const n = Number.isFinite(sequence) && sequence >= 0 ? Math.trunc(sequence) : 0;
-  return n % 2 === 0 ? "success" : "fail";
-}
+// The deployment outcome is NOT user-selectable. The route picks it at random
+// (~50/50) when the deployment is created, then bakes the chosen outcome into
+// the label — so every subsequent poll and search stays deterministic and
+// serverless-safe even though the *initial* choice is random. This mirrors a
+// real deployment tool: a given deploy is genuinely success-or-failure and the
+// user can't pick which; they must poll and handle whichever result comes back.
 
 export function clampDuration(value: number | string | null | undefined): number {
   const n =
@@ -148,19 +143,19 @@ export function searchDeployment(label: string, nowMs: number): DeploymentRecord
 }
 
 /**
- * Create a new deployment starting "now". The outcome is derived from the
- * creation `sequence` (see outcomeForSequence) — callers pass the per-session
- * sequence counter, NOT a chosen outcome. Returns the label + initial (queued)
+ * Create a new deployment starting "now". The caller (the route) decides the
+ * `outcome` — randomly, at creation — and it gets baked into the label so all
+ * later polls/searches are deterministic. Returns the label + initial (queued)
  * state.
  */
 export function createDeployment(opts: {
-  sequence: number;
+  outcome: DeploymentOutcome;
   durationSec: number;
   nowMs: number;
 }): DeploymentState {
   const label = encodeLabel({
     createdAtMs: opts.nowMs,
-    outcome: outcomeForSequence(opts.sequence),
+    outcome: opts.outcome,
     durationSec: clampDuration(opts.durationSec),
   });
   // Non-null: we just encoded a valid label.
