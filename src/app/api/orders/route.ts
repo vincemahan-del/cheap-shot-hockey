@@ -21,7 +21,7 @@ const TAX_RATE = 0.08;
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
   if (user) {
-    const orders = listOrdersForUser(user.id);
+    const orders = await listOrdersForUser(user.id);
     return ok({ count: orders.length, items: orders });
   }
 
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   if (!email) {
     return unauthorized("log in or pass ?email=<address> to view orders");
   }
-  const orders = listOrdersByGuestEmail(email);
+  const orders = await listOrdersByGuestEmail(email);
   return ok({ count: orders.length, items: orders });
 }
 
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
     subtotalCents >= FREE_SHIP_THRESHOLD_CENTS ? 0 : SHIPPING_CENTS;
   const totalCents = subtotalCents + taxCents + shippingCents;
 
-  const order = createOrder({
+  const order = await createOrder({
     userId: user?.id ?? null,
     guestEmail,
     lines,

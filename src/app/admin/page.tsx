@@ -17,7 +17,7 @@ export default async function AdminPage() {
     );
   }
 
-  const orders = listAllOrders();
+  const orders = await listAllOrders();
   const users = listAllUsers();
   const products = listProducts();
   const revenue = orders.reduce((s, o) => s + o.totalCents, 0);

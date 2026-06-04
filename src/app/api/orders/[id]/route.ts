@@ -10,7 +10,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const order = getOrder(id) ?? (await findRecentOrder(id));
+  const order = (await getOrder(id)) ?? (await findRecentOrder(id));
   if (!order) return notFound("order not found");
 
   const user = await getCurrentUser();

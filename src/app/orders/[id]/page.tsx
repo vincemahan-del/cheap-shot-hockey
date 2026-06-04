@@ -15,7 +15,7 @@ export default async function OrderDetailPage({
 }) {
   const { id } = await params;
   const { new: isNew } = await searchParams;
-  const order = getOrder(id) ?? (await findRecentOrder(id));
+  const order = (await getOrder(id)) ?? (await findRecentOrder(id));
   if (!order) notFound();
 
   const user = await getCurrentUser();
