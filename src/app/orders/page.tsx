@@ -13,14 +13,13 @@ export default async function OrdersPage() {
   let isGuest = false;
 
   if (user) {
-    orders = listOrdersForUser(user.id);
+    orders = await listOrdersForUser(user.id);
   } else {
     isGuest = true;
     const ids = await getGuestOrderIds();
     const recent = await readRecentOrders();
-    const fromStore = ids
-      .map((id) => getOrder(id))
-      .filter((o): o is Order => Boolean(o));
+    const resolved = await Promise.all(ids.map((id) => getOrder(id)));
+    const fromStore = resolved.filter((o): o is Order => Boolean(o));
     const combined = [...fromStore, ...recent];
     const seen = new Set<string>();
     orders = combined

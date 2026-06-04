@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Cart, CartLine, Order, Product, User } from "./types";
 import { SEED_ORDERS, SEED_PRODUCTS, SEED_USERS } from "./seed";
+import * as ordersDb from "./orders-db";
 
 type Store = {
   products: Map<string, Product>;
@@ -150,41 +151,75 @@ export function clearCart(sessionId: string): void {
 }
 
 // Orders
+//
+// Orders are the one entity that moves to Postgres when a database is
+// configured (see orders-db.ts) — the in-memory Map doesn't survive across
+// Vercel serverless instances. With no DB configured, the in-memory behavior
+// below is used unchanged, so local dev and the unit suite are unaffected.
+// Products/users/carts are not affected by this dispatch.
 
-export function listOrdersForUser(userId: string): Order[] {
-  return Array.from(store().orders.values())
-    .filter((o) => o.userId === userId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+interface OrdersRepo {
+  createOrder(order: Omit<Order, "id" | "createdAt">): Promise<Order>;
+  getOrder(id: string): Promise<Order | undefined>;
+  listOrdersForUser(userId: string): Promise<Order[]>;
+  listOrdersByGuestEmail(email: string): Promise<Order[]>;
+  listAllOrders(): Promise<Order[]>;
 }
 
-export function listOrdersByGuestEmail(email: string): Order[] {
-  const lower = email.toLowerCase();
-  return Array.from(store().orders.values())
-    .filter((o) => o.guestEmail?.toLowerCase() === lower)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+const memoryOrders: OrdersRepo = {
+  async createOrder(order) {
+    const id = `o-${Date.now().toString(36)}${randomUUID().slice(0, 4)}`;
+    const full: Order = { ...order, id, createdAt: new Date().toISOString() };
+    store().orders.set(id, full);
+    return full;
+  },
+  async getOrder(id) {
+    return store().orders.get(id);
+  },
+  async listOrdersForUser(userId) {
+    return Array.from(store().orders.values())
+      .filter((o) => o.userId === userId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+  async listOrdersByGuestEmail(email) {
+    const lower = email.toLowerCase();
+    return Array.from(store().orders.values())
+      .filter((o) => o.guestEmail?.toLowerCase() === lower)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+  async listAllOrders() {
+    return Array.from(store().orders.values()).sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    );
+  },
+};
+
+// Single dispatch point: Postgres when configured, else in-memory. Keeping the
+// branch here (one ternary) means the in-memory path stays fully covered.
+const ordersRepo: OrdersRepo = ordersDb.postgresEnabled() ? ordersDb : memoryOrders;
+
+export function listOrdersForUser(userId: string): Promise<Order[]> {
+  return ordersRepo.listOrdersForUser(userId);
 }
 
-export function getOrder(id: string): Order | undefined {
-  return store().orders.get(id);
+export function listOrdersByGuestEmail(email: string): Promise<Order[]> {
+  return ordersRepo.listOrdersByGuestEmail(email);
 }
 
-export function createOrder(order: Omit<Order, "id" | "createdAt">): Order {
-  const id = `o-${Date.now().toString(36)}${randomUUID().slice(0, 4)}`;
-  const full: Order = {
-    ...order,
-    id,
-    createdAt: new Date().toISOString(),
-  };
-  store().orders.set(id, full);
-  return full;
+export function getOrder(id: string): Promise<Order | undefined> {
+  return ordersRepo.getOrder(id);
+}
+
+export function createOrder(
+  order: Omit<Order, "id" | "createdAt">,
+): Promise<Order> {
+  return ordersRepo.createOrder(order);
 }
 
 // Admin
 
-export function listAllOrders(): Order[] {
-  return Array.from(store().orders.values()).sort((a, b) =>
-    b.createdAt.localeCompare(a.createdAt),
-  );
+export function listAllOrders(): Promise<Order[]> {
+  return ordersRepo.listAllOrders();
 }
 
 export function listAllUsers(): User[] {

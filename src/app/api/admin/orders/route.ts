@@ -6,6 +6,6 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user) return unauthorized();
   if (user.role !== "admin") return forbidden("admin access required");
-  const items = listAllOrders();
+  const items = await listAllOrders();
   return ok({ count: items.length, items });
 }

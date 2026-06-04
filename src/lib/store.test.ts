@@ -137,8 +137,8 @@ describe("cart (in-memory helpers)", () => {
 });
 
 describe("orders", () => {
-  it("createOrder returns an order with a stable id + createdAt", () => {
-    const o = createOrder({
+  it("createOrder returns an order with a stable id + createdAt", async () => {
+    const o = await createOrder({
       userId: "u-001",
       guestEmail: null,
       lines: [{ productId: "p-stk-001", name: "X", unitPriceCents: 100, quantity: 1 }],
@@ -158,15 +158,15 @@ describe("orders", () => {
     });
     expect(o.id).toMatch(/^o-/);
     expect(o.createdAt).toBeTypeOf("string");
-    expect(getOrder(o.id)?.id).toBe(o.id);
+    expect((await getOrder(o.id))?.id).toBe(o.id);
   });
 
-  it("listOrdersForUser returns seed order for u-001", () => {
-    expect(listOrdersForUser("u-001").length).toBeGreaterThan(0);
+  it("listOrdersForUser returns seed order for u-001", async () => {
+    expect((await listOrdersForUser("u-001")).length).toBeGreaterThan(0);
   });
 
-  it("listOrdersByGuestEmail filters on guestEmail", () => {
-    createOrder({
+  it("listOrdersByGuestEmail filters on guestEmail", async () => {
+    await createOrder({
       userId: null,
       guestEmail: "guest@x.test",
       lines: [],
@@ -184,11 +184,11 @@ describe("orders", () => {
         country: "US",
       },
     });
-    expect(listOrdersByGuestEmail("guest@x.test").length).toBe(1);
-    expect(listOrdersByGuestEmail("nobody@x.test").length).toBe(0);
+    expect((await listOrdersByGuestEmail("guest@x.test")).length).toBe(1);
+    expect((await listOrdersByGuestEmail("nobody@x.test")).length).toBe(0);
   });
 
-  it("listAllOrders returns everything", () => {
-    expect(listAllOrders().length).toBeGreaterThan(0);
+  it("listAllOrders returns everything", async () => {
+    expect((await listAllOrders()).length).toBeGreaterThan(0);
   });
 });
