@@ -7,7 +7,7 @@ export function PromoStrip() {
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[color:var(--muted)]">
         <span>🏒 Free shipping on orders $99+</span>
-        <span className="hidden md:inline">🏆 Playoff push — orders ship in 24h</span>
+        <span className="hidden md:inline">🏆 Cup Final — orders ship in 24h</span>
         <span>30-day returns · Easy exchanges</span>
       </div>
     </div>
