@@ -1,5 +1,10 @@
+const USD = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
+
 export function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
+  return USD.format(cents / 100);
 }
 
 export function categoryLabel(category: string): string {

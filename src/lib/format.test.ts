@@ -18,6 +18,12 @@ describe("formatPrice", () => {
     expect(formatPrice(19999)).toBe("$199.99");
     expect(formatPrice(12305)).toBe("$123.05");
   });
+
+  it("groups thousands with a comma separator", () => {
+    expect(formatPrice(100000)).toBe("$1,000.00");
+    expect(formatPrice(140398)).toBe("$1,403.98");
+    expect(formatPrice(1234567)).toBe("$12,345.67");
+  });
 });
 
 describe("categoryLabel", () => {
