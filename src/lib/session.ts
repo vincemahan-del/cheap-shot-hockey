@@ -114,7 +114,7 @@ export async function getCurrentUser(): Promise<User | null> {
   if (fromToken) {
     // Prefer the in-memory user when this Lambda has one — picks up
     // any post-token changes (role escalation, name updates, etc.).
-    const stored = getUser(fromToken.id);
+    const stored = await getUser(fromToken.id);
     return stored ?? fromToken;
   }
 
@@ -130,7 +130,7 @@ export async function getCurrentUser(): Promise<User | null> {
   const expiryStr = verified.slice(colonIdx + 1);
   const expiry = Number.parseInt(expiryStr, 10);
   if (!Number.isFinite(expiry) || Date.now() > expiry) return null;
-  return getUser(userId) ?? null;
+  return (await getUser(userId)) ?? null;
 }
 
 export async function login(userId: string): Promise<void> {
@@ -139,8 +139,9 @@ export async function login(userId: string): Promise<void> {
   // Embed full user identity in the cookie so /api/auth/me works
   // across Lambda instances. login() is always called immediately
   // after createUser or getUserByEmail in the auth routes, so the
-  // user is guaranteed to be in this Lambda's store at this moment.
-  const user = getUser(userId);
+  // user is resolvable here (from the in-memory store, or Postgres
+  // when a database is configured).
+  const user = await getUser(userId);
   const token = user
     ? buildAuthToken(user, exp)
     : // Safety fallback — should never hit in normal flow. Emits the

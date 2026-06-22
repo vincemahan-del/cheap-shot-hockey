@@ -80,33 +80,44 @@ describe("product queries", () => {
 });
 
 describe("users", () => {
-  it("finds seeded user by email (case-insensitive)", () => {
-    expect(getUserByEmail("demo@cheapshot.test")?.id).toBe("u-001");
-    expect(getUserByEmail("DEMO@cheapshot.test")?.id).toBe("u-001");
+  it("finds seeded user by email (case-insensitive)", async () => {
+    expect((await getUserByEmail("demo@cheapshot.test"))?.id).toBe("u-001");
+    expect((await getUserByEmail("DEMO@cheapshot.test"))?.id).toBe("u-001");
   });
 
-  it("returns undefined for unknown email", () => {
-    expect(getUserByEmail("nobody@example.com")).toBeUndefined();
+  it("returns undefined for unknown email", async () => {
+    expect(await getUserByEmail("nobody@example.com")).toBeUndefined();
   });
 
-  it("getUser by id works", () => {
-    expect(getUser("u-001")?.email).toBe("demo@cheapshot.test");
+  it("getUser by id works", async () => {
+    expect((await getUser("u-001"))?.email).toBe("demo@cheapshot.test");
   });
 
-  it("createUser persists a new record", () => {
-    const u = createUser({
+  it("createUser persists a new record (defaults role to customer)", async () => {
+    const u = await createUser({
       email: "new@x.test",
       passwordHash: "abc",
       name: "Newbie",
     });
     expect(u.id).toMatch(/^u-/);
-    expect(getUser(u.id)?.email).toBe("new@x.test");
+    expect(u.role).toBe("customer");
+    expect((await getUser(u.id))?.email).toBe("new@x.test");
   });
 
-  it("listAllUsers includes seed + newly created", () => {
-    const before = listAllUsers().length;
-    createUser({ email: "x@x.test", passwordHash: "a", name: "x" });
-    expect(listAllUsers().length).toBe(before + 1);
+  it("createUser honors an explicit role", async () => {
+    const u = await createUser({
+      email: "boss@x.test",
+      passwordHash: "abc",
+      name: "Boss",
+      role: "admin",
+    });
+    expect(u.role).toBe("admin");
+  });
+
+  it("listAllUsers includes seed + newly created", async () => {
+    const before = (await listAllUsers()).length;
+    await createUser({ email: "x@x.test", passwordHash: "a", name: "x" });
+    expect((await listAllUsers()).length).toBe(before + 1);
   });
 });
 
