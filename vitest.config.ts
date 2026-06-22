@@ -19,6 +19,7 @@ export default defineConfig({
         "src/lib/order-cookie.ts",
         "src/lib/guest-orders.ts",
         "src/lib/orders-db.ts",
+        "src/lib/users-db.ts",
       ],
       // Coverage gate — if any of these drop below threshold, the unit
       // job fails and the PR is blocked by branch protection. Current

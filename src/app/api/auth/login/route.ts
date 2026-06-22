@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   if (typeof email !== "string" || typeof password !== "string") {
     return badRequest("email and password are required");
   }
-  const user = getUserByEmail(email);
+  const user = await getUserByEmail(email);
   if (!user || !verifyPassword(password, user.passwordHash)) {
     return unauthorized("invalid email or password");
   }

@@ -22,10 +22,10 @@ export async function POST(req: NextRequest) {
   if (typeof name !== "string" || name.trim().length === 0) {
     return badRequest("name is required");
   }
-  if (getUserByEmail(email)) {
+  if (await getUserByEmail(email)) {
     return badRequest("an account with this email already exists");
   }
-  const user = createUser({
+  const user = await createUser({
     email,
     passwordHash: hashPassword(password),
     name: name.trim(),

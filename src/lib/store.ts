@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Cart, CartLine, Order, Product, User } from "./types";
 import { SEED_ORDERS, SEED_PRODUCTS, SEED_USERS } from "./seed";
 import * as ordersDb from "./orders-db";
+import * as usersDb from "./users-db";
 
 type Store = {
   products: Map<string, Product>;
@@ -80,35 +81,66 @@ export function currentPrice(p: Product): number {
 }
 
 // Users
+//
+// Users dispatch to Postgres when a database is configured (see users-db.ts),
+// else the in-memory Map below. Same rationale as orders: a per-Lambda Map
+// can't serve a *form login* for a user registered on a different Lambda, so
+// unique-user-per-test-run login flows need a shared store. Registration alone
+// already survives via the signed cookie (session.ts) — this closes the gap
+// for the explicit login step.
 
-export function getUserByEmail(email: string): User | undefined {
-  const lower = email.toLowerCase();
-  for (const u of store().users.values()) {
-    if (u.email.toLowerCase() === lower) return u;
-  }
-  return undefined;
+interface UsersRepo {
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUser(id: string): Promise<User | undefined>;
+  createUser(user: User): Promise<User>;
+  listAllUsers(): Promise<User[]>;
 }
 
-export function getUser(id: string): User | undefined {
-  return store().users.get(id);
+const memoryUsers: UsersRepo = {
+  async getUserByEmail(email) {
+    const lower = email.toLowerCase();
+    for (const u of store().users.values()) {
+      if (u.email.toLowerCase() === lower) return u;
+    }
+    return undefined;
+  },
+  async getUser(id) {
+    return store().users.get(id);
+  },
+  async createUser(user) {
+    store().users.set(user.id, user);
+    return user;
+  },
+  async listAllUsers() {
+    return Array.from(store().users.values());
+  },
+};
+
+const usersRepo: UsersRepo = ordersDb.postgresEnabled() ? usersDb : memoryUsers;
+
+export function getUserByEmail(email: string): Promise<User | undefined> {
+  return usersRepo.getUserByEmail(email);
+}
+
+export function getUser(id: string): Promise<User | undefined> {
+  return usersRepo.getUser(id);
 }
 
 export function createUser(input: {
   email: string;
   passwordHash: string;
   name: string;
-}): User {
-  const id = `u-${randomUUID().slice(0, 8)}`;
+  role?: User["role"];
+}): Promise<User> {
   const user: User = {
-    id,
+    id: `u-${randomUUID().slice(0, 8)}`,
     email: input.email,
     passwordHash: input.passwordHash,
     name: input.name,
-    role: "customer",
+    role: input.role ?? "customer",
     createdAt: new Date().toISOString(),
   };
-  store().users.set(id, user);
-  return user;
+  return usersRepo.createUser(user);
 }
 
 // Cart
@@ -222,6 +254,6 @@ export function listAllOrders(): Promise<Order[]> {
   return ordersRepo.listAllOrders();
 }
 
-export function listAllUsers(): User[] {
-  return Array.from(store().users.values());
+export function listAllUsers(): Promise<User[]> {
+  return usersRepo.listAllUsers();
 }
