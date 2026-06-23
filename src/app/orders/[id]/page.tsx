@@ -112,7 +112,15 @@ export default async function OrderDetailPage({
         </address>
       </section>
 
-      <div className="mt-6 text-sm">
+      <div className="mt-6 flex flex-wrap items-center gap-4 text-sm">
+        <a
+          href={`/api/orders/${order.id}/receipt`}
+          download={`receipt-${order.id}.pdf`}
+          data-testid={`download-receipt-${order.id}`}
+          className="rounded bg-[color:var(--accent)] px-4 py-2 font-bold text-[color:var(--background)] hover:opacity-90"
+        >
+          Download receipt (PDF)
+        </a>
         {user ? (
           <Link
             href="/orders"
