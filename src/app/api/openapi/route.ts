@@ -222,6 +222,21 @@ const SPEC = {
         },
       },
     },
+    "/api/admin/orders/export": {
+      get: {
+        summary: "Admin: download all orders as a CSV",
+        description:
+          "Streams a text/csv export of all orders as an attachment (Order ID, Date, Customer, Status, Items, and money columns). Admin-only.",
+        responses: {
+          "200": {
+            description: "CSV export",
+            content: { "text/csv": { schema: { type: "string" } } },
+          },
+          "401": { description: "Unauthorized" },
+          "403": { description: "Forbidden" },
+        },
+      },
+    },
     "/api/team-orders": {
       post: {
         summary: "Submit a team-orders quote request",
