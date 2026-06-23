@@ -141,6 +141,22 @@ const SPEC = {
         },
       },
     },
+    "/api/orders/{id}/receipt": {
+      get: {
+        summary: "Download an order receipt as a PDF",
+        description:
+          "Streams an application/pdf receipt for the order as an attachment. Same access rules as GET /api/orders/{id}: the logged-in owner, admins, or an anonymous caller on the same device that placed the guest order.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": {
+            description: "PDF receipt",
+            content: { "application/pdf": { schema: { type: "string", format: "binary" } } },
+          },
+          "403": { description: "Forbidden" },
+          "404": { description: "Not found" },
+        },
+      },
+    },
     "/api/auth/login": {
       post: {
         summary: "Log in with email and password",
