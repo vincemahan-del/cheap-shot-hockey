@@ -6,6 +6,10 @@ import { findRecentOrder } from "@/lib/order-cookie";
 import { forbidden, notFound } from "@/lib/api";
 import { buildReceiptPdf } from "@/lib/receipt-pdf";
 
+// pdf-lib generates the receipt in-process; pin to the Node.js runtime
+// so this route never gets scheduled on the Edge runtime.
+export const runtime = "nodejs";
+
 // GET /api/orders/{id}/receipt — streams the order as a downloadable
 // PDF receipt. Authorization mirrors GET /api/orders/{id}: the
 // logged-in owner, an admin, or an anonymous caller on the device that
