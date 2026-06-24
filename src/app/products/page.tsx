@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { listProducts } from "@/lib/store";
 import { ProductCard } from "@/components/ProductCard";
 import { categoryLabel } from "@/lib/format";
+import { readRegion } from "@/lib/region";
 
 const CATEGORIES = [
   "sticks",
@@ -33,6 +35,7 @@ export default async function ProductsPage({
   }>;
 }) {
   const sp = await searchParams;
+  const region = readRegion(await headers());
   const items = listProducts({
     category: sp.category,
     position: sp.position,
@@ -241,7 +244,7 @@ export default async function ProductsPage({
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {items.map((p) => (
-                <ProductCard key={p.id} product={p} />
+                <ProductCard key={p.id} product={p} region={region} />
               ))}
             </div>
           )}

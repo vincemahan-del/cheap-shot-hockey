@@ -16,6 +16,7 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
     taxCents: 2240,
     shippingCents: 0,
     totalCents: 30239,
+    region: "us",
     status: "paid",
     shippingAddress: {
       name: "Wayne Gretzky",

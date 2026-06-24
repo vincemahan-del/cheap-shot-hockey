@@ -72,28 +72,28 @@ export default async function OrderDetailPage({
               <span>
                 {l.quantity} × {l.name}
               </span>
-              <span>{formatPrice(l.unitPriceCents * l.quantity)}</span>
+              <span>{formatPrice(l.unitPriceCents * l.quantity, order.region)}</span>
             </li>
           ))}
         </ul>
         <div className="mt-4 space-y-1 text-sm">
           <div className="flex justify-between">
             <span className="text-[color:var(--muted)]">Subtotal</span>
-            <span data-testid="order-subtotal">{formatPrice(order.subtotalCents)}</span>
+            <span data-testid="order-subtotal">{formatPrice(order.subtotalCents, order.region)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-[color:var(--muted)]">Tax</span>
-            <span data-testid="order-tax">{formatPrice(order.taxCents)}</span>
+            <span data-testid="order-tax">{formatPrice(order.taxCents, order.region)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-[color:var(--muted)]">Shipping</span>
             <span data-testid="order-shipping">
-              {order.shippingCents === 0 ? "FREE" : formatPrice(order.shippingCents)}
+              {order.shippingCents === 0 ? "FREE" : formatPrice(order.shippingCents, order.region)}
             </span>
           </div>
           <div className="flex justify-between border-t border-[color:var(--border)] pt-2 font-bold">
             <span>Total</span>
-            <span data-testid="order-total">{formatPrice(order.totalCents)}</span>
+            <span data-testid="order-total">{formatPrice(order.totalCents, order.region)}</span>
           </div>
         </div>
       </section>

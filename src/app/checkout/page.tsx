@@ -1,14 +1,14 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { currentPrice, getProduct } from "@/lib/store";
 import { readCartLines } from "@/lib/cart-cookie";
 import { getCurrentUser } from "@/lib/session";
 import { formatPrice } from "@/lib/format";
+import { CA_DEFAULT_PROVINCE, readRegion, shippingForSubtotal, taxRate } from "@/lib/region";
 import { CheckoutForm } from "./CheckoutForm";
 
-const FREE_SHIP_THRESHOLD_CENTS = 9900;
-const SHIPPING_CENTS = 999;
-
 export default async function CheckoutPage() {
+  const region = readRegion(await headers());
   const user = await getCurrentUser();
   const cartLines = await readCartLines();
 
@@ -21,9 +21,11 @@ export default async function CheckoutPage() {
     })
     .filter((e): e is NonNullable<typeof e> => e !== null);
   const subtotal = enriched.reduce((s, e) => s + e.lineTotal, 0);
-  const tax = Math.round(subtotal * 0.08);
-  const shipping =
-    subtotal >= FREE_SHIP_THRESHOLD_CENTS ? 0 : subtotal > 0 ? SHIPPING_CENTS : 0;
+  // Summary preview: province isn't known until the form is submitted, so the
+  // Canadian preview uses the default province rate. The order route recomputes
+  // tax from the entered province on submit.
+  const tax = Math.round(subtotal * taxRate(region, CA_DEFAULT_PROVINCE));
+  const shipping = shippingForSubtotal(region, subtotal);
   const total = subtotal + tax + shipping;
 
   if (enriched.length === 0) {
@@ -84,7 +86,7 @@ export default async function CheckoutPage() {
                   {e.line.quantity} × {e.product.name}
                 </span>
                 <span data-testid={`summary-line-${e.product.id}`}>
-                  {formatPrice(e.lineTotal)}
+                  {formatPrice(e.lineTotal, region)}
                 </span>
               </li>
             ))}
@@ -92,21 +94,21 @@ export default async function CheckoutPage() {
           <div className="my-3 h-px bg-[color:var(--border)]" />
           <div className="flex justify-between text-sm">
             <span className="text-[color:var(--muted)]">Subtotal</span>
-            <span data-testid="checkout-subtotal">{formatPrice(subtotal)}</span>
+            <span data-testid="checkout-subtotal">{formatPrice(subtotal, region)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-[color:var(--muted)]">Tax</span>
-            <span data-testid="checkout-tax">{formatPrice(tax)}</span>
+            <span data-testid="checkout-tax">{formatPrice(tax, region)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-[color:var(--muted)]">Shipping</span>
             <span data-testid="checkout-shipping">
-              {shipping === 0 && subtotal > 0 ? "FREE" : formatPrice(shipping)}
+              {shipping === 0 && subtotal > 0 ? "FREE" : formatPrice(shipping, region)}
             </span>
           </div>
           <div className="mt-2 flex justify-between border-t border-[color:var(--border)] pt-2 font-bold">
             <span>Total</span>
-            <span data-testid="checkout-total">{formatPrice(total)}</span>
+            <span data-testid="checkout-total">{formatPrice(total, region)}</span>
           </div>
         </aside>
       </div>

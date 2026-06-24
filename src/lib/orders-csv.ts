@@ -9,6 +9,7 @@ const HEADER = [
   "Order ID",
   "Date",
   "Customer",
+  "Region",
   "Status",
   "Items",
   "Subtotal",
@@ -35,12 +36,13 @@ export function buildOrdersCsv(orders: Order[]): string {
       o.id,
       o.createdAt,
       customer,
+      o.region.toUpperCase(),
       o.status,
       String(items),
-      formatPrice(o.subtotalCents),
-      formatPrice(o.taxCents),
-      formatPrice(o.shippingCents),
-      formatPrice(o.totalCents),
+      formatPrice(o.subtotalCents, o.region),
+      formatPrice(o.taxCents, o.region),
+      formatPrice(o.shippingCents, o.region),
+      formatPrice(o.totalCents, o.region),
     ]
       .map(csvField)
       .join(",");

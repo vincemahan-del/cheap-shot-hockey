@@ -1,10 +1,16 @@
 import Link from "next/link";
-import type { Product } from "@/lib/types";
+import type { Product, Region } from "@/lib/types";
 import { formatPrice } from "@/lib/format";
 import { ProductThumb } from "./ProductThumb";
 import { StarRating } from "./StarRating";
 
-export function ProductCard({ product }: { product: Product }) {
+export function ProductCard({
+  product,
+  region = "us",
+}: {
+  product: Product;
+  region?: Region;
+}) {
   const onSale = product.salePriceCents != null;
   const savingsPct = onSale
     ? Math.round(
@@ -60,10 +66,10 @@ export function ProductCard({ product }: { product: Product }) {
                 className="text-lg font-black text-[color:var(--primary)]"
                 data-testid={`price-${product.slug}`}
               >
-                {formatPrice(product.salePriceCents!)}
+                {formatPrice(product.salePriceCents!, region)}
               </span>
               <span className="text-sm text-[color:var(--muted)] line-through">
-                {formatPrice(product.priceCents)}
+                {formatPrice(product.priceCents, region)}
               </span>
             </>
           ) : (
@@ -71,7 +77,7 @@ export function ProductCard({ product }: { product: Product }) {
               className="text-lg font-black"
               data-testid={`price-${product.slug}`}
             >
-              {formatPrice(product.priceCents)}
+              {formatPrice(product.priceCents, region)}
             </span>
           )}
         </div>

@@ -1,12 +1,15 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { currentPrice, getProduct } from "@/lib/store";
 import { readCartLines } from "@/lib/cart-cookie";
 import { formatPrice } from "@/lib/format";
 import { freeShippingProgress } from "@/lib/shipping";
+import { readRegion, shippingConfig } from "@/lib/region";
 import { ProductThumb } from "@/components/ProductThumb";
 import { CartLineControls } from "@/components/CartLineControls";
 
 export default async function CartPage() {
+  const region = readRegion(await headers());
   const cartLines = await readCartLines();
   const enriched = cartLines
     .map((l) => {
@@ -17,7 +20,10 @@ export default async function CartPage() {
     })
     .filter((e): e is NonNullable<typeof e> => e !== null);
   const subtotal = enriched.reduce((s, e) => s + e.lineTotal, 0);
-  const shipping = freeShippingProgress(subtotal);
+  const shipping = freeShippingProgress(
+    subtotal,
+    shippingConfig(region).freeShipThresholdCents,
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -64,7 +70,7 @@ export default async function CartPage() {
               ) : (
                 <div className="flex justify-between text-xs font-bold text-[color:var(--muted)]">
                   <span data-testid="free-shipping-remaining">
-                    Add {formatPrice(shipping.remainingCents)} more for{" "}
+                    Add {formatPrice(shipping.remainingCents, region)} more for{" "}
                     <span className="text-[color:var(--accent)]">FREE shipping</span>
                   </span>
                   <span>{shipping.progressPercent}%</span>
@@ -105,13 +111,13 @@ export default async function CartPage() {
                       {e.product.name}
                     </Link>
                     <div className="text-sm text-[color:var(--muted)]">
-                      {formatPrice(e.unit)} each
+                      {formatPrice(e.unit, region)} each
                     </div>
                     <div
                       className="mt-1 font-black"
                       data-testid={`cart-line-total-${e.product.id}`}
                     >
-                      {formatPrice(e.lineTotal)}
+                      {formatPrice(e.lineTotal, region)}
                     </div>
                   </div>
                   <CartLineControls productId={e.product.id} quantity={e.line.quantity} />
@@ -126,7 +132,7 @@ export default async function CartPage() {
             <div className="flex justify-between text-sm">
               <span className="text-[color:var(--muted)]">Subtotal</span>
               <span className="font-bold" data-testid="cart-subtotal">
-                {formatPrice(subtotal)}
+                {formatPrice(subtotal, region)}
               </span>
             </div>
             <div className="mt-1 flex justify-between text-xs text-[color:var(--muted)]">

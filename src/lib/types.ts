@@ -12,6 +12,9 @@ export type Category =
 export type Position = "player" | "goalie" | "any";
 export type Hand = "left" | "right" | "n/a";
 
+/** Storefront region (TAMD-171). Drives currency, tax rate, and shipping. */
+export type Region = "us" | "ca";
+
 export interface Product {
   id: string;
   slug: string;
@@ -68,6 +71,8 @@ export interface Order {
   taxCents: number;
   shippingCents: number;
   totalCents: number;
+  /** Region the order was placed in; amounts are stored in USD base cents. */
+  region: Region;
   status: OrderStatus;
   shippingAddress: {
     name: string;

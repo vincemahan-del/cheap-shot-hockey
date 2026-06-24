@@ -15,6 +15,7 @@ import { randomUUID } from "node:crypto";
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import type { Order, OrderLine, OrderStatus } from "./types";
 import { SEED_ORDERS } from "./seed";
+import { parseRegion } from "./region";
 
 /** True when a Postgres connection string is configured (and we're not in a unit-test run). */
 export function postgresEnabled(): boolean {
@@ -56,8 +57,11 @@ async function ensureSchema(): Promise<void> {
       shipping_state       text NOT NULL,
       shipping_postal_code text NOT NULL,
       shipping_country     text NOT NULL,
+      region               text NOT NULL DEFAULT 'us',
       created_at           timestamptz NOT NULL
     )`;
+  // Idempotent migration for tables created before TAMD-171 added the column.
+  await db`ALTER TABLE orders ADD COLUMN IF NOT EXISTS region text NOT NULL DEFAULT 'us'`;
   await db`
     CREATE TABLE IF NOT EXISTS order_lines (
       id               bigserial PRIMARY KEY,
@@ -87,12 +91,12 @@ async function insertOrderRow(order: Order): Promise<void> {
     db`INSERT INTO orders (
          id, user_id, guest_email, subtotal_cents, tax_cents, shipping_cents,
          total_cents, status, shipping_name, shipping_street, shipping_city,
-         shipping_state, shipping_postal_code, shipping_country, created_at
+         shipping_state, shipping_postal_code, shipping_country, region, created_at
        ) VALUES (
          ${order.id}, ${order.userId}, ${order.guestEmail}, ${order.subtotalCents},
          ${order.taxCents}, ${order.shippingCents}, ${order.totalCents}, ${order.status},
          ${a.name}, ${a.street}, ${a.city}, ${a.state}, ${a.postalCode}, ${a.country},
-         ${order.createdAt}
+         ${order.region}, ${order.createdAt}
        )
        ON CONFLICT (id) DO NOTHING`,
     ...order.lines.map(
@@ -120,6 +124,7 @@ type OrderRow = {
   shipping_state: string;
   shipping_postal_code: string;
   shipping_country: string;
+  region: string | null;
   created_at: string;
 };
 
@@ -133,6 +138,7 @@ function rowToOrder(row: OrderRow, lines: OrderLine[]): Order {
     taxCents: row.tax_cents,
     shippingCents: row.shipping_cents,
     totalCents: row.total_cents,
+    region: parseRegion(row.region),
     status: row.status as OrderStatus,
     shippingAddress: {
       name: row.shipping_name,

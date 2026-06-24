@@ -1,12 +1,20 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { listProducts } from "@/lib/store";
+import { formatPrice } from "@/lib/format";
+import { readRegion, shippingConfig } from "@/lib/region";
 import { ProductCard } from "@/components/ProductCard";
 import { CategoryTiles } from "@/components/CategoryTile";
 import { BrandRow } from "@/components/BrandRow";
 
-export default function Home() {
+export default async function Home() {
+  const region = readRegion(await headers());
   const onSale = listProducts({ onSale: true }).slice(0, 8);
   const goalieGear = listProducts({ category: "goalie-gear" }).slice(0, 4);
+  const freeShipDisplay = formatPrice(
+    shippingConfig(region).freeShipThresholdCents,
+    region,
+  );
 
   return (
     <div>
@@ -64,7 +72,7 @@ export default function Home() {
               </Link>
             </div>
             <div className="mt-6 flex flex-wrap gap-5 text-xs text-[color:var(--muted)]">
-              <span>✓ Free shipping over $99</span>
+              <span>✓ Free shipping over {freeShipDisplay}</span>
               <span>✓ 30-day returns</span>
               <span>✓ Team pricing</span>
             </div>
@@ -94,8 +102,12 @@ export default function Home() {
                 </div>
                 <div className="font-black text-white">Apex Velocity Pro Stick</div>
                 <div className="mt-1 flex items-baseline gap-2">
-                  <span className="text-xl font-black text-white">$199.99</span>
-                  <span className="text-xs text-white/60 line-through">$289.99</span>
+                  <span className="text-xl font-black text-white">
+                    {formatPrice(19999, region)}
+                  </span>
+                  <span className="text-xs text-white/60 line-through">
+                    {formatPrice(28999, region)}
+                  </span>
                   <span className="ml-auto rounded bg-[color:var(--primary)] px-1.5 py-0.5 text-[10px] font-black text-white">
                     SAVE 31%
                   </span>
@@ -112,7 +124,11 @@ export default function Home() {
           className="grid grid-cols-2 gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] p-4 md:grid-cols-4"
           data-testid="value-bar"
         >
-          <ValueStat icon="🚚" title="Free shipping" body="On orders over $99" />
+          <ValueStat
+            icon="🚚"
+            title="Free shipping"
+            body={`On orders over ${freeShipDisplay}`}
+          />
           <ValueStat icon="↩️" title="30-day returns" body="Easy exchanges" />
           <ValueStat icon="🥅" title="Pro-tested" body="Approved by goalies" />
           <ValueStat icon="💳" title="Team pricing" body="Bulk discounts" />
@@ -129,7 +145,7 @@ export default function Home() {
           <SectionHeader title="Deals of the week" href="/products?onSale=true" accent />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {onSale.map((p) => (
-              <ProductCard key={p.id} product={p} />
+              <ProductCard key={p.id} product={p} region={region} />
             ))}
           </div>
         </section>
@@ -145,7 +161,7 @@ export default function Home() {
           />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {goalieGear.map((p) => (
-              <ProductCard key={p.id} product={p} />
+              <ProductCard key={p.id} product={p} region={region} />
             ))}
           </div>
         </section>

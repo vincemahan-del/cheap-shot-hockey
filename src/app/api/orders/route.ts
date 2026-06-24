@@ -13,10 +13,7 @@ import { rememberGuestOrder } from "@/lib/guest-orders";
 import { badRequest, created, ok, serviceUnavailable, unauthorized } from "@/lib/api";
 import { applyDemoDelay, readDemoMode, shouldDemoFail } from "@/lib/demo";
 import { isValidEmail } from "@/lib/email";
-
-const SHIPPING_CENTS = 999;
-const FREE_SHIP_THRESHOLD_CENTS = 9900;
-const TAX_RATE = 0.08;
+import { readRegion, shippingForSubtotal, taxRate } from "@/lib/region";
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
@@ -102,9 +99,11 @@ export async function POST(req: NextRequest) {
     (sum, l) => sum + l.unitPriceCents * l.quantity,
     0,
   );
-  const taxCents = Math.round(subtotalCents * TAX_RATE);
-  const shippingCents =
-    subtotalCents >= FREE_SHIP_THRESHOLD_CENTS ? 0 : SHIPPING_CENTS;
+  // Amounts stay in USD base cents; region drives the tax rate (by province for
+  // Canada) and shipping config. Display converts to the region's currency.
+  const region = readRegion(req.headers);
+  const taxCents = Math.round(subtotalCents * taxRate(region, addr.state));
+  const shippingCents = shippingForSubtotal(region, subtotalCents);
   const totalCents = subtotalCents + taxCents + shippingCents;
 
   const order = await createOrder({
@@ -115,6 +114,7 @@ export async function POST(req: NextRequest) {
     taxCents,
     shippingCents,
     totalCents,
+    region,
     status: "paid",
     shippingAddress: addr,
   });

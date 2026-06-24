@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { currentPrice, getProductBySlug, listProducts } from "@/lib/store";
 import { ProductThumb } from "@/components/ProductThumb";
@@ -6,6 +7,7 @@ import { ProductCard } from "@/components/ProductCard";
 import { AddToCartButton } from "@/components/AddToCartButton";
 import { StarRating } from "@/components/StarRating";
 import { categoryLabel, formatPrice } from "@/lib/format";
+import { readRegion } from "@/lib/region";
 
 export default async function ProductPage({
   params,
@@ -13,6 +15,7 @@ export default async function ProductPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const region = readRegion(await headers());
   const product = getProductBySlug(slug);
   if (!product) notFound();
 
@@ -111,10 +114,10 @@ export default async function ProductPage({
                   className="font-display text-4xl text-[color:var(--primary)]"
                   data-testid="product-price"
                 >
-                  {formatPrice(priceNow)}
+                  {formatPrice(priceNow, region)}
                 </span>
                 <span className="text-lg text-[color:var(--muted)] line-through">
-                  {formatPrice(product.priceCents)}
+                  {formatPrice(product.priceCents, region)}
                 </span>
                 <span
                   className="rounded bg-[color:var(--primary)]/20 px-2 py-1 text-xs font-black uppercase tracking-wider text-[color:var(--primary)]"
@@ -128,7 +131,7 @@ export default async function ProductPage({
                 className="font-display text-4xl"
                 data-testid="product-price"
               >
-                {formatPrice(priceNow)}
+                {formatPrice(priceNow, region)}
               </span>
             )}
           </div>
@@ -215,7 +218,7 @@ export default async function ProductPage({
             data-testid="related-grid"
           >
             {related.map((p) => (
-              <ProductCard key={p.id} product={p} />
+              <ProductCard key={p.id} product={p} region={region} />
             ))}
           </div>
         </section>

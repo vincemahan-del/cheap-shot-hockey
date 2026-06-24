@@ -1,10 +1,20 @@
-const USD = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-});
+import { convertToRegionCents, regionConfig, type Region } from "./region";
 
-export function formatPrice(cents: number): string {
-  return USD.format(cents / 100);
+/**
+ * Format a USD base-cents amount as currency for the given region.
+ *
+ * Region drives display only: the amount is converted to the region's currency
+ * (FX multiplier) and formatted with that currency + number locale. Defaults to
+ * the US ("$199.99"); Canada renders the disambiguating "CA$" symbol. See
+ * src/lib/region.ts for why CAD is formatted with an en-US base locale.
+ */
+export function formatPrice(usdCents: number, region: Region = "us"): string {
+  const cfg = regionConfig(region);
+  const amount = convertToRegionCents(usdCents, region) / 100;
+  return new Intl.NumberFormat(cfg.numberLocale, {
+    style: "currency",
+    currency: cfg.currency,
+  }).format(amount);
 }
 
 export function categoryLabel(category: string): string {
