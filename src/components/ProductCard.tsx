@@ -1,16 +1,18 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import type { Product, Region } from "@/lib/types";
 import { formatPrice } from "@/lib/format";
 import { ProductThumb } from "./ProductThumb";
 import { StarRating } from "./StarRating";
 
-export function ProductCard({
+export async function ProductCard({
   product,
   region = "us",
 }: {
   product: Product;
   region?: Region;
 }) {
+  const t = await getTranslations("product");
   const onSale = product.salePriceCents != null;
   const savingsPct = onSale
     ? Math.round(
@@ -33,7 +35,7 @@ export function ProductCard({
       )}
       {product.stock <= 6 && product.stock > 0 && (
         <span className="absolute left-3 top-3 z-10 rounded-md bg-amber-500/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-black">
-          Low stock
+          {t("lowStock")}
         </span>
       )}
       <div className="px-3 pt-3">

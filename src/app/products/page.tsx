@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
+import { getTranslations } from "next-intl/server";
 import { listProducts } from "@/lib/store";
 import { ProductCard } from "@/components/ProductCard";
 import { categoryLabel } from "@/lib/format";
@@ -35,6 +36,7 @@ export default async function ProductsPage({
   }>;
 }) {
   const sp = await searchParams;
+  const t = await getTranslations("products");
   const region = readRegion(await headers());
   const items = listProducts({
     category: sp.category,
@@ -48,16 +50,16 @@ export default async function ProductsPage({
   if (sp.category) activeFilters.push({ label: categoryLabel(sp.category), href: removeParam(sp, "category") });
   if (sp.brand) activeFilters.push({ label: sp.brand, href: removeParam(sp, "brand") });
   if (sp.position) activeFilters.push({ label: sp.position, href: removeParam(sp, "position") });
-  if (sp.onSale === "true") activeFilters.push({ label: "On sale", href: removeParam(sp, "onSale") });
+  if (sp.onSale === "true") activeFilters.push({ label: t("onSale"), href: removeParam(sp, "onSale") });
   if (sp.q) activeFilters.push({ label: `"${sp.q}"`, href: removeParam(sp, "q") });
 
   const title = sp.category
     ? categoryLabel(sp.category)
     : sp.onSale === "true"
-      ? "All Deals"
+      ? t("allDeals")
       : sp.q
-        ? `Results for "${sp.q}"`
-        : "All Products";
+        ? t("resultsFor", { query: sp.q })
+        : t("allProducts");
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
@@ -81,7 +83,7 @@ export default async function ProductsPage({
             className="text-sm font-bold text-[color:var(--muted)]"
             data-testid="catalog-count"
           >
-            {items.length} item{items.length === 1 ? "" : "s"}
+            {t("itemCount", { count: items.length })}
           </span>
         </div>
         {activeFilters.length > 0 && (
@@ -99,7 +101,7 @@ export default async function ProductsPage({
               href="/products"
               className="text-xs font-semibold text-[color:var(--muted)] underline-offset-4 hover:text-[color:var(--primary)] hover:underline"
             >
-              Clear all
+              {t("clearAll")}
             </Link>
           </div>
         )}
@@ -112,13 +114,13 @@ export default async function ProductsPage({
         >
           <form action="/products" method="get">
             <label className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--muted)]">
-              Search
+              {t("search")}
             </label>
             <input
               type="text"
               name="q"
               defaultValue={sp.q ?? ""}
-              placeholder="brand, name, keyword…"
+              placeholder={t("searchPlaceholder")}
               data-testid="filter-search-input"
               className="mt-1 w-full rounded-md border border-[color:var(--border)] bg-[color:var(--background)] px-3 py-2 text-sm"
             />
@@ -129,13 +131,13 @@ export default async function ProductsPage({
               data-testid="filter-search-submit"
               className="mt-2 w-full rounded-md bg-[color:var(--primary)] py-2 text-sm font-bold uppercase tracking-wider text-white"
             >
-              Search
+              {t("search")}
             </button>
           </form>
 
           <div>
             <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-[color:var(--muted)]">
-              Category
+              {t("category")}
             </div>
             <ul className="space-y-1 text-sm">
               <li>
@@ -148,7 +150,7 @@ export default async function ProductsPage({
                       : "text-[color:var(--muted)] hover:text-[color:var(--foreground)]"
                   }
                 >
-                  All categories
+                  {t("allCategories")}
                 </Link>
               </li>
               {CATEGORIES.map((c) => (
@@ -171,7 +173,7 @@ export default async function ProductsPage({
 
           <div>
             <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-[color:var(--muted)]">
-              Position
+              {t("position")}
             </div>
             <ul className="space-y-1 text-sm">
               {POSITIONS.map((p) => (
@@ -194,7 +196,7 @@ export default async function ProductsPage({
 
           <div>
             <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-[color:var(--muted)]">
-              Brand
+              {t("brand")}
             </div>
             <ul className="space-y-1 text-sm">
               {brands.map((b) => (
@@ -220,7 +222,7 @@ export default async function ProductsPage({
             data-testid="filter-on-sale"
             className="block rounded-md bg-[color:var(--primary)]/10 px-3 py-2 text-center text-xs font-black uppercase tracking-wider text-[color:var(--primary)] hover:bg-[color:var(--primary)]/20"
           >
-            Show only sale items →
+            {t("showOnSale")}
           </Link>
         </aside>
 
@@ -231,13 +233,13 @@ export default async function ProductsPage({
               data-testid="no-results"
             >
               <div className="mb-3 text-4xl">🔍</div>
-              No products match those filters.
+              {t("noMatch")}
               <div className="mt-3">
                 <Link
                   href="/products"
                   className="text-sm font-bold text-[color:var(--accent)] hover:underline"
                 >
-                  Clear filters
+                  {t("clearFilters")}
                 </Link>
               </div>
             </div>
