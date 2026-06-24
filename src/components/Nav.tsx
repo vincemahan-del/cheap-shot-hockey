@@ -81,7 +81,8 @@ export async function Nav() {
 
           <div className="flex items-center gap-3 text-sm">
             <RegionSwitcher current={region} />
-            <LanguageSwitcher current={locale} />
+            {/* French is a Canada-only option (TAMD-175): no toggle for US. */}
+            {region === "ca" && <LanguageSwitcher current={locale} />}
             {user ? (
               <Link
                 href="/account"

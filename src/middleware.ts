@@ -71,6 +71,9 @@ export function middleware(req: NextRequest) {
 
   const { region, fromQuery: regionFromQuery } = resolveRegion(req);
   const { lang, fromQuery: langFromQuery } = resolveLang(req);
+  // French is a Canada-only option (TAMD-175): the US storefront is always
+  // English, regardless of a sticky csh_lang cookie or a fr-* Accept-Language.
+  const effectiveLang = region === "ca" ? lang : "en";
 
   let sessionId = req.cookies.get(SESSION_COOKIE)?.value;
   const mintNewSession = !sessionId;
@@ -80,7 +83,7 @@ export function middleware(req: NextRequest) {
   reqHeaders.set(DEMO_HEADER, effective);
   reqHeaders.set(SESSION_HEADER, sessionId);
   reqHeaders.set(REGION_HEADER, region);
-  reqHeaders.set(LANG_HEADER, lang);
+  reqHeaders.set(LANG_HEADER, effectiveLang);
 
   const res = NextResponse.next({ request: { headers: reqHeaders } });
 
@@ -98,7 +101,9 @@ export function middleware(req: NextRequest) {
       maxAge: 30 * 24 * 60 * 60,
     });
   }
-  if (langFromQuery) {
+  // Only persist a language choice in Canada — US is English-only, so we never
+  // write a fr cookie that would later strand a US visitor in French.
+  if (langFromQuery && region === "ca") {
     res.cookies.set(LANG_COOKIE, lang, {
       path: "/",
       sameSite: "lax",
@@ -115,7 +120,7 @@ export function middleware(req: NextRequest) {
   }
   res.headers.set(DEMO_HEADER, effective);
   res.headers.set(REGION_HEADER, region);
-  res.headers.set(LANG_HEADER, lang);
+  res.headers.set(LANG_HEADER, effectiveLang);
   return res;
 }
 
