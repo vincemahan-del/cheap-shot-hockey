@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 
-export function Footer() {
+export async function Footer() {
+  const t = await getTranslations("footer");
   return (
     <footer className="mt-20 border-t border-[color:var(--border)] bg-[color:var(--surface)]">
       <div className="mx-auto max-w-6xl px-4 py-10">
@@ -20,35 +22,32 @@ export function Footer() {
                 Cheap Shot <span className="text-[color:var(--primary)]">Hockey</span>
               </span>
             </div>
-            <p className="text-sm text-[color:var(--muted)]">
-              Hockey gear at a fighting price. Player and goalie equipment shipped
-              fast from our pro shop.
-            </p>
+            <p className="text-sm text-[color:var(--muted)]">{t("tagline")}</p>
           </div>
 
           <div>
             <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-[color:var(--muted)]">
-              Shop
+              {t("shop")}
             </h3>
             <ul className="space-y-1.5 text-sm">
               <li>
                 <Link href="/products?category=sticks" className="hover:text-[color:var(--accent)]">
-                  Sticks
+                  {t("sticks")}
                 </Link>
               </li>
               <li>
                 <Link href="/products?category=skates" className="hover:text-[color:var(--accent)]">
-                  Skates
+                  {t("skates")}
                 </Link>
               </li>
               <li>
                 <Link href="/products?category=goalie-gear" className="hover:text-[color:var(--accent)]">
-                  Goalie gear
+                  {t("goalieGear")}
                 </Link>
               </li>
               <li>
                 <Link href="/products?onSale=true" className="text-[color:var(--primary)] hover:opacity-80">
-                  Deals &amp; clearance
+                  {t("dealsClearance")}
                 </Link>
               </li>
             </ul>
@@ -56,34 +55,34 @@ export function Footer() {
 
           <div>
             <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-[color:var(--muted)]">
-              Help
+              {t("help")}
             </h3>
             <ul className="space-y-1.5 text-sm text-[color:var(--muted)]">
               <li>
                 <Link href="/shipping" className="hover:text-[color:var(--accent)]" data-testid="footer-shipping-link">
-                  Shipping &amp; returns
+                  {t("shippingReturns")}
                 </Link>
               </li>
               <li>
                 <Link href="/size-guide" className="hover:text-[color:var(--accent)]" data-testid="footer-size-guide-link">
-                  Size guide
+                  {t("sizeGuide")}
                 </Link>
               </li>
               <li>
                 <Link href="/team-orders" className="hover:text-[color:var(--accent)]" data-testid="footer-team-orders-link">
-                  Team orders
+                  {t("teamOrders")}
                 </Link>
               </li>
-              <li>Contact us</li>
+              <li>{t("contactUs")}</li>
             </ul>
           </div>
 
           <div>
             <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-[color:var(--muted)]">
-              Get the deals
+              {t("getDeals")}
             </h3>
             <p className="mb-2 text-sm text-[color:var(--muted)]">
-              Be the first to know about new drops and markdowns.
+              {t("newsletterHint")}
             </p>
             <form
               action="/"
@@ -103,7 +102,7 @@ export function Footer() {
                 data-testid="footer-newsletter-submit"
                 className="rounded-r-md bg-[color:var(--primary)] px-3 text-sm font-bold text-white hover:opacity-90"
               >
-                Join
+                {t("join")}
               </button>
             </form>
           </div>
@@ -111,15 +110,15 @@ export function Footer() {
 
         <div className="mt-10 flex flex-col items-start justify-between gap-2 border-t border-[color:var(--border)] pt-5 text-xs text-[color:var(--muted)] md:flex-row md:items-center">
           <div>
-            © 2026 Cheap Shot Hockey, LLC ·{" "}
-            <span className="italic">Fake store, real puck deals.</span>
+            {t("copyright")}{" "}
+            <span className="italic">{t("fakeStore")}</span>
           </div>
           <div className="flex flex-wrap gap-4">
             <a href="/api/openapi" data-testid="footer-openapi" className="hover:text-[color:var(--foreground)]">
-              API spec
+              {t("apiSpec")}
             </a>
             <a href="/api/health" data-testid="footer-health" className="hover:text-[color:var(--foreground)]">
-              Status
+              {t("status")}
             </a>
             <span>Demo: demo@cheapshot.test / demo1234</span>
           </div>

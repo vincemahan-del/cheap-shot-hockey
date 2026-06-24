@@ -1,24 +1,30 @@
 import Link from "next/link";
 import { headers } from "next/headers";
+import { getTranslations } from "next-intl/server";
 import { getCurrentUser } from "@/lib/session";
 import { readCartLines } from "@/lib/cart-cookie";
 import { readRegion } from "@/lib/region";
+import { readLocale } from "@/lib/locale";
 import { RegionSwitcher } from "./RegionSwitcher";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 
 const CATEGORY_LINKS = [
-  { label: "Sticks", href: "/products?category=sticks" },
-  { label: "Skates", href: "/products?category=skates" },
-  { label: "Protective", href: "/products?category=pads" },
-  { label: "Goalies", href: "/products?category=goalie-gear" },
-  { label: "Apparel", href: "/products?category=jerseys" },
-  { label: "Deals", href: "/products?onSale=true", accent: true },
+  { id: "sticks", href: "/products?category=sticks" },
+  { id: "skates", href: "/products?category=skates" },
+  { id: "protective", href: "/products?category=pads" },
+  { id: "goalies", href: "/products?category=goalie-gear" },
+  { id: "apparel", href: "/products?category=jerseys" },
+  { id: "deals", href: "/products?onSale=true", accent: true },
 ];
 
 export async function Nav() {
+  const t = await getTranslations("nav");
   const user = await getCurrentUser();
   const cartLines = await readCartLines();
   const cartCount = cartLines.reduce((sum, l) => sum + l.quantity, 0);
-  const region = readRegion(await headers());
+  const reqHeaders = await headers();
+  const region = readRegion(reqHeaders);
+  const locale = readLocale(reqHeaders);
 
   return (
     <header className="sticky top-0 z-40 border-b border-[color:var(--border)] bg-[color:var(--background)]/95 backdrop-blur">
@@ -58,30 +64,31 @@ export async function Nav() {
               <input
                 type="search"
                 name="q"
-                placeholder="Search sticks, skates, jerseys…"
+                placeholder={t("searchPlaceholder")}
                 data-testid="nav-search-input"
                 className="w-full rounded-l-md border border-r-0 border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2 text-sm placeholder:text-[color:var(--muted)] focus:border-[color:var(--accent)] focus:outline-none"
               />
               <button
                 type="submit"
                 data-testid="nav-search-submit"
-                aria-label="Search"
+                aria-label={t("search")}
                 className="rounded-r-md bg-[color:var(--primary)] px-4 text-sm font-bold text-white hover:opacity-90"
               >
-                Search
+                {t("search")}
               </button>
             </div>
           </form>
 
           <div className="flex items-center gap-3 text-sm">
             <RegionSwitcher current={region} />
+            <LanguageSwitcher current={locale} />
             {user ? (
               <Link
                 href="/account"
                 data-testid="nav-account"
                 className="hidden text-[color:var(--muted)] hover:text-[color:var(--foreground)] sm:inline"
               >
-                Hi, {user.name.split(" ")[0]}
+                {t("greeting", { name: user.name.split(" ")[0] })}
               </Link>
             ) : (
               <Link
@@ -89,7 +96,7 @@ export async function Nav() {
                 data-testid="nav-login"
                 className="hidden text-[color:var(--muted)] hover:text-[color:var(--foreground)] sm:inline"
               >
-                Log in
+                {t("login")}
               </Link>
             )}
             <Link
@@ -109,7 +116,7 @@ export async function Nav() {
                 <circle cx="10" cy="20.5" r="1.5" fill="currentColor" />
                 <circle cx="17" cy="20.5" r="1.5" fill="currentColor" />
               </svg>
-              <span className="hidden sm:inline">Cart</span>
+              <span className="hidden sm:inline">{t("cart")}</span>
               {cartCount > 0 && (
                 <span
                   data-testid="nav-cart-count"
@@ -130,14 +137,14 @@ export async function Nav() {
             <Link
               key={c.href}
               href={c.href}
-              data-testid={`nav-cat-${c.label.toLowerCase()}`}
+              data-testid={`nav-cat-${c.id}`}
               className={
                 c.accent
                   ? "whitespace-nowrap text-[color:var(--primary)] hover:opacity-80"
                   : "whitespace-nowrap text-[color:var(--muted)] hover:text-[color:var(--foreground)]"
               }
             >
-              {c.label}
+              {t(c.id)}
             </Link>
           ))}
           <Link
@@ -145,7 +152,7 @@ export async function Nav() {
             data-testid="nav-orders"
             className="ml-auto whitespace-nowrap text-[color:var(--muted)] hover:text-[color:var(--foreground)]"
           >
-            My Orders
+            {t("myOrders")}
           </Link>
         </nav>
       </div>

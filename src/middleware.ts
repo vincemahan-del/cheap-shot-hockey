@@ -27,6 +27,32 @@ function resolveRegion(req: NextRequest): { region: string; fromQuery: boolean }
   return { region: "us", fromQuery: false };
 }
 
+// Language (TAMD-172), independent of region. Precedence: ?lang= override →
+// csh_lang cookie → Quebec auto-detect (Vercel x-vercel-ip-country-region=QC)
+// → Accept-Language fr → English default.
+const LANG_HEADER = "x-csh-lang";
+const LANG_COOKIE = "csh_lang";
+const LANG_ALLOWED = new Set(["en", "fr"]);
+
+function resolveLang(req: NextRequest): { lang: string; fromQuery: boolean } {
+  const query = req.nextUrl.searchParams.get("lang")?.toLowerCase();
+  if (query && LANG_ALLOWED.has(query)) return { lang: query, fromQuery: true };
+
+  const cookie = req.cookies.get(LANG_COOKIE)?.value?.toLowerCase();
+  if (cookie && LANG_ALLOWED.has(cookie)) return { lang: cookie, fromQuery: false };
+
+  // Quebec: Vercel exposes the ISO-3166-2 subdivision. QC defaults to French.
+  const country = req.headers.get("x-vercel-ip-country")?.toUpperCase();
+  const subdivision = req.headers.get("x-vercel-ip-country-region")?.toUpperCase();
+  if (country === "CA" && subdivision === "QC") return { lang: "fr", fromQuery: false };
+
+  // Browser preference: a fr-* primary Accept-Language wins.
+  const accept = req.headers.get("accept-language")?.toLowerCase() ?? "";
+  if (/(^|,)\s*fr\b/.test(accept)) return { lang: "fr", fromQuery: false };
+
+  return { lang: "en", fromQuery: false };
+}
+
 function randomSessionId(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
@@ -44,6 +70,7 @@ export function middleware(req: NextRequest) {
         : "normal";
 
   const { region, fromQuery: regionFromQuery } = resolveRegion(req);
+  const { lang, fromQuery: langFromQuery } = resolveLang(req);
 
   let sessionId = req.cookies.get(SESSION_COOKIE)?.value;
   const mintNewSession = !sessionId;
@@ -53,6 +80,7 @@ export function middleware(req: NextRequest) {
   reqHeaders.set(DEMO_HEADER, effective);
   reqHeaders.set(SESSION_HEADER, sessionId);
   reqHeaders.set(REGION_HEADER, region);
+  reqHeaders.set(LANG_HEADER, lang);
 
   const res = NextResponse.next({ request: { headers: reqHeaders } });
 
@@ -70,6 +98,13 @@ export function middleware(req: NextRequest) {
       maxAge: 30 * 24 * 60 * 60,
     });
   }
+  if (langFromQuery) {
+    res.cookies.set(LANG_COOKIE, lang, {
+      path: "/",
+      sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60,
+    });
+  }
   if (mintNewSession) {
     res.cookies.set(SESSION_COOKIE, sessionId, {
       path: "/",
@@ -80,6 +115,7 @@ export function middleware(req: NextRequest) {
   }
   res.headers.set(DEMO_HEADER, effective);
   res.headers.set(REGION_HEADER, region);
+  res.headers.set(LANG_HEADER, lang);
   return res;
 }
 

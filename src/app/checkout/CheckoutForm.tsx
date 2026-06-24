@@ -1,16 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
+import type { Region } from "@/lib/types";
 
 export function CheckoutForm({
   defaultName,
   defaultEmail,
   isGuest,
+  region,
 }: {
   defaultName: string;
   defaultEmail: string;
   isGuest: boolean;
+  region: Region;
 }) {
+  const t = useTranslations("checkout");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,12 +70,12 @@ export function CheckoutForm({
     >
       {isGuest && (
         <section>
-          <h2 className="font-bold">Contact</h2>
+          <h2 className="font-bold">{t("contact")}</h2>
           <p className="mb-3 text-xs text-[color:var(--muted)]">
-            We&apos;ll send your confirmation here.
+            {t("contactHint")}
           </p>
           <Field
-            label="Email"
+            label={t("email")}
             name="customerEmail"
             type="email"
             required
@@ -80,29 +85,34 @@ export function CheckoutForm({
         </section>
       )}
       <section>
-        <h2 className="font-bold">Shipping address</h2>
+        <h2 className="font-bold">{t("shippingAddress")}</h2>
         <div className="mt-3 space-y-4">
           <Field
-            label="Full name"
+            label={t("fullName")}
             name="name"
             defaultValue={defaultName}
             required
             testId="checkout-name"
           />
-          <Field label="Street" name="street" required testId="checkout-street" />
+          <Field label={t("street")} name="street" required testId="checkout-street" />
           <div className="grid grid-cols-2 gap-3">
-            <Field label="City" name="city" required testId="checkout-city" />
-            <Field label="State" name="state" required testId="checkout-state" />
+            <Field label={t("city")} name="city" required testId="checkout-city" />
+            <Field
+              label={region === "ca" ? t("province") : t("state")}
+              name="state"
+              required
+              testId="checkout-state"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field
-              label="Postal code"
+              label={t("postalCode")}
               name="postalCode"
               required
               testId="checkout-postalCode"
             />
             <Field
-              label="Country"
+              label={t("country")}
               name="country"
               defaultValue="US"
               required
@@ -125,10 +135,14 @@ export function CheckoutForm({
         data-testid="checkout-submit"
         className="w-full rounded bg-[color:var(--primary)] py-3 font-semibold text-white hover:opacity-90 disabled:opacity-50"
       >
-        {submitting ? "Placing order…" : isGuest ? "Place guest order" : "Place order"}
+        {submitting
+          ? t("placingOrder")
+          : isGuest
+            ? t("placeGuestOrder")
+            : t("placeOrder")}
       </button>
       <p className="text-center text-xs text-[color:var(--muted)]">
-        No real payment is taken — this is a demo store.
+        {t("demoNotice")}
       </p>
     </form>
   );

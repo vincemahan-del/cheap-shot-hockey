@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
+import { getTranslations } from "next-intl/server";
 import { listProducts } from "@/lib/store";
 import { formatPrice } from "@/lib/format";
 import { readRegion, shippingConfig } from "@/lib/region";
@@ -8,6 +9,7 @@ import { CategoryTiles } from "@/components/CategoryTile";
 import { BrandRow } from "@/components/BrandRow";
 
 export default async function Home() {
+  const t = await getTranslations("home");
   const region = readRegion(await headers());
   const onSale = listProducts({ onSale: true }).slice(0, 8);
   const goalieGear = listProducts({ category: "goalie-gear" }).slice(0, 4);
@@ -44,16 +46,15 @@ export default async function Home() {
         <div className="relative mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-14 md:grid-cols-[1.2fr_1fr] md:py-20">
           <div>
             <span className="inline-block rounded-full bg-[color:var(--primary)]/20 px-3 py-1 text-xs font-black uppercase tracking-wider text-[color:var(--primary)]">
-              🏒 Slapshot Special · Up to 85% off
+              {t("saleBadge")}
             </span>
-            <h1 className="font-display mt-4 text-5xl leading-[0.95] text-white md:text-7xl">
-              DROP THE GLOVES.
+            <h1 className="font-display mt-4 text-5xl uppercase leading-[0.95] text-white md:text-7xl">
+              {t("heroTitleLine1")}
               <br />
-              <span className="text-[color:var(--accent)]">NOT YOUR BUDGET.</span>
+              <span className="text-[color:var(--accent)]">{t("heroTitleLine2")}</span>
             </h1>
             <p className="mt-5 max-w-xl text-base text-[color:var(--muted)] md:text-lg">
-              Pro-grade sticks, skates, pads, and goalie gear — marked down hard, shipped
-              fast. Weekend warriors, junior leagues, and pros alike.
+              {t("heroSubtitle")}
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link
@@ -61,20 +62,20 @@ export default async function Home() {
                 data-testid="hero-shop-deals"
                 className="rounded-md bg-[color:var(--primary)] px-6 py-3 font-bold text-white shadow-lg hover:opacity-90"
               >
-                Shop the Deals
+                {t("shopDeals")}
               </Link>
               <Link
                 href="/products"
                 data-testid="hero-shop-all"
                 className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-6 py-3 font-bold hover:border-[color:var(--accent)]"
               >
-                Browse all gear →
+                {t("browseAll")}
               </Link>
             </div>
             <div className="mt-6 flex flex-wrap gap-5 text-xs text-[color:var(--muted)]">
-              <span>✓ Free shipping over {freeShipDisplay}</span>
-              <span>✓ 30-day returns</span>
-              <span>✓ Team pricing</span>
+              <span>✓ {t("perkShipping", { amount: freeShipDisplay })}</span>
+              <span>✓ {t("perkReturns")}</span>
+              <span>✓ {t("perkTeam")}</span>
             </div>
           </div>
           <div className="relative hidden md:block">
@@ -94,7 +95,7 @@ export default async function Home() {
                 aria-hidden="true"
               />
               <div className="absolute left-4 top-4 rounded bg-[color:var(--primary)] px-2 py-1 text-[10px] font-black uppercase tracking-wider text-white">
-                Featured
+                {t("cardFeatured")}
               </div>
               <div className="absolute bottom-4 left-4 right-4">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--accent)]">
@@ -109,7 +110,7 @@ export default async function Home() {
                     {formatPrice(28999, region)}
                   </span>
                   <span className="ml-auto rounded bg-[color:var(--primary)] px-1.5 py-0.5 text-[10px] font-black text-white">
-                    SAVE 31%
+                    {t("heroSave", { pct: 31 })}
                   </span>
                 </div>
               </div>
@@ -126,23 +127,35 @@ export default async function Home() {
         >
           <ValueStat
             icon="🚚"
-            title="Free shipping"
-            body={`On orders over ${freeShipDisplay}`}
+            title={t("valueShippingTitle")}
+            body={t("valueShippingBody", { amount: freeShipDisplay })}
           />
-          <ValueStat icon="↩️" title="30-day returns" body="Easy exchanges" />
-          <ValueStat icon="🥅" title="Pro-tested" body="Approved by goalies" />
-          <ValueStat icon="💳" title="Team pricing" body="Bulk discounts" />
+          <ValueStat
+            icon="↩️"
+            title={t("valueReturnsTitle")}
+            body={t("valueReturnsBody")}
+          />
+          <ValueStat
+            icon="🥅"
+            title={t("valueProTitle")}
+            body={t("valueProBody")}
+          />
+          <ValueStat
+            icon="💳"
+            title={t("valueTeamTitle")}
+            body={t("valueTeamBody")}
+          />
         </section>
 
         {/* Shop by category */}
         <section>
-          <SectionHeader title="Shop by category" href="/products" />
+          <SectionHeader title={t("shopByCategory")} href="/products" seeAll={t("seeAll")} />
           <CategoryTiles />
         </section>
 
         {/* Deals grid */}
         <section>
-          <SectionHeader title="Deals of the week" href="/products?onSale=true" accent />
+          <SectionHeader title={t("dealsOfWeek")} href="/products?onSale=true" seeAll={t("seeAll")} accent />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {onSale.map((p) => (
               <ProductCard key={p.id} product={p} region={region} />
@@ -156,8 +169,9 @@ export default async function Home() {
         {/* Goalie gear spotlight */}
         <section>
           <SectionHeader
-            title="Goalie gear worth bragging about"
+            title={t("goalieSpotlight")}
             href="/products?category=goalie-gear"
+            seeAll={t("seeAll")}
           />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {goalieGear.map((p) => (
@@ -172,24 +186,24 @@ export default async function Home() {
           data-testid="cta-block"
         >
           <h2 className="font-display text-3xl md:text-4xl">
-            Still shopping? <span className="text-[color:var(--primary)]">Drop the mitts.</span>
+            {t("ctaTitle")}{" "}
+            <span className="text-[color:var(--primary)]">{t("ctaTitleAccent")}</span>
           </h2>
           <p className="mx-auto mt-2 max-w-xl text-sm text-[color:var(--muted)]">
-            Our team pricing gets your whole roster outfitted without benching the budget.
-            Reach out for a custom quote.
+            {t("ctaBody")}
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-3">
             <Link
               href="/products"
               className="rounded-md bg-[color:var(--primary)] px-5 py-2.5 font-bold text-white"
             >
-              Shop everything
+              {t("shopEverything")}
             </Link>
             <Link
               href="/register"
               className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-5 py-2.5 font-bold"
             >
-              Create account
+              {t("createAccount")}
             </Link>
           </div>
         </section>
@@ -201,10 +215,12 @@ export default async function Home() {
 function SectionHeader({
   title,
   href,
+  seeAll,
   accent = false,
 }: {
   title: string;
   href?: string;
+  seeAll?: string;
   accent?: boolean;
 }) {
   return (
@@ -223,7 +239,7 @@ function SectionHeader({
           href={href}
           className="text-sm font-semibold text-[color:var(--muted)] hover:text-[color:var(--accent)]"
         >
-          See all →
+          {seeAll ?? "See all →"}
         </Link>
       )}
     </div>

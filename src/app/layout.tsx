@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Archivo_Black } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
@@ -29,21 +31,25 @@ export const metadata: Metadata = {
     "Hockey sticks, skates, helmets, gloves, pads, jerseys, and goalie gear — all marked down. Free shipping over $99.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const locale = await getLocale();
+  const messages = await getMessages();
   return (
     <html
-      lang="en"
+      lang={locale}
       className={`${geistSans.variable} ${geistMono.variable} ${archivoBlack.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <DemoBanner />
-        <MemorialDayBanner />
-        <PromoStrip />
-        <Nav />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <DemoBanner />
+          <MemorialDayBanner />
+          <PromoStrip />
+          <Nav />
+          <main className="flex-1">{children}</main>
+          <Footer />
+        </NextIntlClientProvider>
         <Analytics />
         <SpeedInsights />
       </body>

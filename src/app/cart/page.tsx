@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
+import { getTranslations } from "next-intl/server";
 import { currentPrice, getProduct } from "@/lib/store";
 import { readCartLines } from "@/lib/cart-cookie";
 import { formatPrice } from "@/lib/format";
@@ -9,6 +10,7 @@ import { ProductThumb } from "@/components/ProductThumb";
 import { CartLineControls } from "@/components/CartLineControls";
 
 export default async function CartPage() {
+  const t = await getTranslations("cart");
   const region = readRegion(await headers());
   const cartLines = await readCartLines();
   const enriched = cartLines
@@ -28,7 +30,7 @@ export default async function CartPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <h1 className="font-display mb-6 text-4xl" data-testid="cart-heading">
-        Your Cart
+        {t("heading")}
       </h1>
       {enriched.length === 0 ? (
         <div
@@ -36,13 +38,13 @@ export default async function CartPage() {
           data-testid="cart-empty"
         >
           <div className="mb-4 text-5xl">🏒</div>
-          <p className="text-[color:var(--muted)]">Your cart is empty. Time to load up.</p>
+          <p className="text-[color:var(--muted)]">{t("empty")}</p>
           <Link
             href="/products"
             data-testid="cart-empty-shop"
             className="mt-5 inline-block rounded-md bg-[color:var(--primary)] px-5 py-2.5 font-bold text-white"
           >
-            Start shopping
+            {t("startShopping")}
           </Link>
         </div>
       ) : (
@@ -63,15 +65,16 @@ export default async function CartPage() {
                   data-testid="free-shipping-qualified"
                 >
                   <span className="text-[color:var(--accent)]">
-                    You qualify for FREE shipping
+                    {t("qualifyFree")}
                   </span>
                   <span>100%</span>
                 </div>
               ) : (
                 <div className="flex justify-between text-xs font-bold text-[color:var(--muted)]">
                   <span data-testid="free-shipping-remaining">
-                    Add {formatPrice(shipping.remainingCents, region)} more for{" "}
-                    <span className="text-[color:var(--accent)]">FREE shipping</span>
+                    {t("addMoreForFree", {
+                      amount: formatPrice(shipping.remainingCents, region),
+                    })}
                   </span>
                   <span>{shipping.progressPercent}%</span>
                 </div>
@@ -111,7 +114,7 @@ export default async function CartPage() {
                       {e.product.name}
                     </Link>
                     <div className="text-sm text-[color:var(--muted)]">
-                      {formatPrice(e.unit, region)} each
+                      {formatPrice(e.unit, region)} {t("each")}
                     </div>
                     <div
                       className="mt-1 font-black"
@@ -127,30 +130,30 @@ export default async function CartPage() {
           </div>
           <aside className="h-fit rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] p-5">
             <h2 className="mb-3 font-black uppercase tracking-wider text-[color:var(--muted)]">
-              Summary
+              {t("summary")}
             </h2>
             <div className="flex justify-between text-sm">
-              <span className="text-[color:var(--muted)]">Subtotal</span>
+              <span className="text-[color:var(--muted)]">{t("subtotal")}</span>
               <span className="font-bold" data-testid="cart-subtotal">
                 {formatPrice(subtotal, region)}
               </span>
             </div>
             <div className="mt-1 flex justify-between text-xs text-[color:var(--muted)]">
-              <span>Tax &amp; shipping</span>
-              <span>calculated at checkout</span>
+              <span>{t("taxShippingLabel")}</span>
+              <span>{t("calculatedAtCheckout")}</span>
             </div>
             <Link
               href="/checkout"
               data-testid="cart-checkout"
               className="mt-5 block rounded-md bg-[color:var(--primary)] py-3 text-center font-black uppercase tracking-wider text-white hover:opacity-90"
             >
-              Checkout
+              {t("checkout")}
             </Link>
             <Link
               href="/products"
               className="mt-2 block text-center text-xs text-[color:var(--muted)] hover:text-[color:var(--foreground)]"
             >
-              ← Continue shopping
+              ← {t("continueShopping")}
             </Link>
           </aside>
         </div>
