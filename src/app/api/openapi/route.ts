@@ -224,6 +224,7 @@ const SPEC = {
     },
     "/api/admin/orders/export": {
       get: {
+        operationId: "adminOrdersExportCsv",
         summary: "Admin: download all orders as a CSV",
         description:
           "Streams a text/csv export of all orders as an attachment (Order ID, Date, Customer, Status, Items, and money columns). Admin-only.",
