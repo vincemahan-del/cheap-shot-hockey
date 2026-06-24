@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 export function AddToCartButton({
   productId,
@@ -10,6 +11,7 @@ export function AddToCartButton({
   productId: string;
   disabled?: boolean;
 }) {
+  const t = useTranslations("product");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<"idle" | "added" | "error">("idle");
@@ -39,7 +41,7 @@ export function AddToCartButton({
     );
     const qty = line?.quantity ?? 1;
     setState("added");
-    setMessage(qty > 1 ? `${qty} in cart` : "Added to cart");
+    setMessage(qty > 1 ? t("inCart", { qty }) : t("addedToCart"));
     startTransition(() => router.refresh());
   }
 
@@ -51,7 +53,7 @@ export function AddToCartButton({
         data-testid={`add-to-cart-${productId}`}
         className="rounded bg-[color:var(--primary)] px-4 py-2 font-semibold text-[color:var(--primary-foreground)] transition hover:opacity-90 disabled:opacity-50"
       >
-        {pending ? "Adding…" : disabled ? "Out of stock" : "Add to cart"}
+        {pending ? t("adding") : disabled ? t("outOfStock") : t("addToCart")}
       </button>
       {message && (
         <span
