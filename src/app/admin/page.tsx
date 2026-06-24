@@ -37,7 +37,16 @@ export default async function AdminPage() {
         <Stat label="Products" value={String(products.length)} testId="stat-products" />
       </div>
       <section>
-        <h2 className="mb-2 text-xl font-bold">Recent orders</h2>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-xl font-bold">Recent orders</h2>
+          <a
+            href="/api/admin/orders/export"
+            data-testid="download-orders-csv"
+            className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1.5 text-sm hover:border-[color:var(--accent)]"
+          >
+            Download orders (CSV)
+          </a>
+        </div>
         <div className="overflow-hidden rounded-lg border border-[color:var(--border)]">
           <table className="w-full text-sm">
             <thead className="bg-[color:var(--surface-2)] text-left text-xs uppercase text-[color:var(--muted)]">
