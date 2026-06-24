@@ -614,6 +614,7 @@ export const SEED_ORDERS: Order[] = [
     taxCents: 1696,
     shippingCents: 999,
     totalCents: 23892,
+    region: "us",
     status: "delivered",
     shippingAddress: {
       name: "Demo Customer",

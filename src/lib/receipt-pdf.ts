@@ -30,16 +30,16 @@ export function buildReceiptLines(order: Order): string[] {
   lines.push("Items");
   for (const l of order.lines) {
     lines.push(
-      `  ${l.quantity} x ${l.name}   ${formatPrice(l.unitPriceCents * l.quantity)}`,
+      `  ${l.quantity} x ${l.name}   ${formatPrice(l.unitPriceCents * l.quantity, order.region)}`,
     );
   }
   lines.push("");
-  lines.push(`Subtotal: ${formatPrice(order.subtotalCents)}`);
-  lines.push(`Tax: ${formatPrice(order.taxCents)}`);
+  lines.push(`Subtotal: ${formatPrice(order.subtotalCents, order.region)}`);
+  lines.push(`Tax: ${formatPrice(order.taxCents, order.region)}`);
   lines.push(
-    `Shipping: ${order.shippingCents === 0 ? "FREE" : formatPrice(order.shippingCents)}`,
+    `Shipping: ${order.shippingCents === 0 ? "FREE" : formatPrice(order.shippingCents, order.region)}`,
   );
-  lines.push(`Total: ${formatPrice(order.totalCents)}`);
+  lines.push(`Total: ${formatPrice(order.totalCents, order.region)}`);
   lines.push("");
   lines.push("Ship to");
   const a = order.shippingAddress;

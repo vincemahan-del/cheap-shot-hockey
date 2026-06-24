@@ -24,6 +24,16 @@ describe("formatPrice", () => {
     expect(formatPrice(140398)).toBe("$1,403.98");
     expect(formatPrice(1234567)).toBe("$12,345.67");
   });
+
+  it("defaults to the US region (USD) when none is given", () => {
+    expect(formatPrice(19999)).toBe(formatPrice(19999, "us"));
+  });
+
+  it("converts and labels CAD with the disambiguating CA$ symbol", () => {
+    // 19999 USD base × 1.35 FX = 26999 → CA$269.99
+    expect(formatPrice(19999, "ca")).toBe("CA$269.99");
+    expect(formatPrice(10000, "ca")).toBe("CA$135.00");
+  });
 });
 
 describe("categoryLabel", () => {

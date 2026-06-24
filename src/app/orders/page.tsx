@@ -81,7 +81,7 @@ export default async function OrdersPage() {
                   {o.status}
                 </span>
                 <span className="font-semibold" data-testid={`order-total-${o.id}`}>
-                  {formatPrice(o.totalCents)}
+                  {formatPrice(o.totalCents, o.region)}
                 </span>
               </div>
             </li>

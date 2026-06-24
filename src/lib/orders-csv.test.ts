@@ -15,6 +15,7 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
     taxCents: 1696,
     shippingCents: 0,
     totalCents: 22893,
+    region: "us",
     status: "paid",
     shippingAddress: {
       name: "Demo Customer",
@@ -33,20 +34,27 @@ describe("buildOrdersCsv", () => {
   it("emits the header row first", () => {
     const csv = buildOrdersCsv([]);
     expect(csv.split("\r\n")[0]).toBe(
-      "Order ID,Date,Customer,Status,Items,Subtotal,Tax,Shipping,Total",
+      "Order ID,Date,Customer,Region,Status,Items,Subtotal,Tax,Shipping,Total",
     );
   });
 
   it("empty order list yields just the header (plus trailing newline)", () => {
     expect(buildOrdersCsv([])).toBe(
-      "Order ID,Date,Customer,Status,Items,Subtotal,Tax,Shipping,Total\r\n",
+      "Order ID,Date,Customer,Region,Status,Items,Subtotal,Tax,Shipping,Total\r\n",
     );
   });
 
   it("renders an order row with summed items and formatted money", () => {
     const row = buildOrdersCsv([makeOrder()]).split("\r\n")[1];
-    // items = 1 + 2 = 3; money via formatPrice
-    expect(row).toBe("o-1001,2026-03-12T09:12:00.000Z,u-001,paid,3,$211.97,$16.96,$0.00,$228.93");
+    // items = 1 + 2 = 3; money via formatPrice; region column = US
+    expect(row).toBe("o-1001,2026-03-12T09:12:00.000Z,u-001,US,paid,3,$211.97,$16.96,$0.00,$228.93");
+  });
+
+  it("renders a Canadian order in CAD with the CA region column", () => {
+    const row = buildOrdersCsv([makeOrder({ region: "ca" })]).split("\r\n")[1];
+    // CAD amounts carry the disambiguating "CA$" symbol and an FX multiplier.
+    expect(row).toContain(",CA,paid,");
+    expect(row).toContain("CA$");
   });
 
   it("uses guestEmail as the customer for guest orders", () => {

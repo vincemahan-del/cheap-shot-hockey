@@ -157,6 +157,7 @@ describe("orders", () => {
       taxCents: 8,
       shippingCents: 999,
       totalCents: 1107,
+      region: "us",
       status: "paid",
       shippingAddress: {
         name: "T",
@@ -185,6 +186,7 @@ describe("orders", () => {
       taxCents: 0,
       shippingCents: 0,
       totalCents: 0,
+      region: "us",
       status: "paid",
       shippingAddress: {
         name: "G",
