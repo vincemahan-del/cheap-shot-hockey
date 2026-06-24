@@ -114,8 +114,9 @@ Review the output. If existing mabl tests match the changed files:
 **3. mabl coverage gap check**
 If the change adds new UI flows, pages, or API routes that have no existing mabl test coverage:
 - Use the mabl MCP: `plan_new_test` → `create_mabl_test_cloud` (applicationId=`OZqmshBkUfVSesWy49g1eQ-a`, env=Preview)
+- **Label every created test with its Jira ticket key** (e.g. `TAMD-173`) for ticket→test traceability. Labels are written via the **cloud** mabl MCP `edit_mabl_test` (`add_label`) — the local/headless MCP can't write labels (see TAMD-176). Required at authoring time.
 - Cut a Jira ticket in TAMD to track the new test (link it to the feature ticket)
-- Note the gap and the new ticket in the PR description
+- Note the gap, the new ticket, and the applied label in the PR description
 
 **4. Local mabl browser smoke (required when `MABL_CLOUD_GATE=disabled`)**
 ```bash
@@ -140,7 +141,10 @@ These four steps are what "done" means for this repo. The GHA `test-impact` job 
    from simulated failures.
 3. **"Draft a mabl test for X"** — use the mabl MCP `plan_new_test`
    then `create_mabl_test_cloud` with `applicationId=OZqmshBkUfVSesWy49g1eQ-a`
-   and the appropriate env id.
+   and the appropriate env id. If the work has a Jira ticket, **add the
+   ticket key as a label on each created test** (cloud MCP
+   `edit_mabl_test` → `add_label`) — non-negotiable for traceability
+   (TAMD-176).
 
 ## mabl workspace IDs (read-only reference)
 
