@@ -20,7 +20,7 @@ Every PR that touches `src/` must satisfy all three before the branch is pushed:
 
 1. `npm run test:coverage` — all metrics ≥ 90%. If coverage drops, write the missing tests. Do not fake coverage to hit the number.
 2. `git diff --name-only main | ./scripts/mabl-suggest-tests.sh` — if existing mabl tests match changed files, list them in the PR description under "Test impact".
-3. New UI pages or API routes → create a mabl test via MCP (`plan_new_test` → `create_mabl_test_cloud`) and cut a follow-up Jira ticket. Note both in the PR description.
+3. New UI pages or API routes → create a mabl test via MCP (`plan_new_test` → `create_mabl_test_cloud`) and cut a follow-up Jira ticket. **Label every created test with its Jira ticket key** (e.g. `TAMD-173`) via the cloud mabl MCP `edit_mabl_test` (`add_label`) — the local/headless MCP can't write labels, so this happens at authoring time (TAMD-176). Note the test, the ticket, and the applied label in the PR description.
 
 ## Tool selection
 

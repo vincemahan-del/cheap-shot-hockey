@@ -46,6 +46,14 @@ If an assertion fits neither, do not emit it.
 - Test name: `CSH-<TYPE>-<MODULE>-<PLATFORM>-<Outcome>`
   (e.g., `CSH-CHP-CHECKOUT-API-CustomerPlacesOrderEndToEnd`)
 - Labels include `type-*`, `priority-*`, `feat-*`, `exec-*`, `team-*`
+- **Jira traceability label (non-negotiable, TAMD-176):** every test
+  created for a ticket MUST also carry the **Jira ticket key** as a
+  label (e.g. `TAMD-173`). Apply it via the **cloud** mabl MCP
+  `edit_mabl_test` (`add_label`) — the local MCP this agent is wired
+  with can't write labels, so if only the local MCP is available,
+  report the test IDs + the required ticket-key label so the main
+  agent applies it via the cloud MCP. Never leave a ticket-linked test
+  unlabeled.
 - Branch in repo (if test source lives in a Postman file): the same
   ticket key as the parent work
 
@@ -93,6 +101,10 @@ If an assertion fits neither, do not emit it.
 
 4. **Apply governance labels** when the test lands in mabl:
    `type-chp, type-ui, priority-p0, feat-<area>, exec-pr, exec-postdeploy, exec-nightly, team-platform`
+   **plus the Jira ticket key** (e.g. `TAMD-173`) — see hard rule #4.
+   The ticket-key label is applied via the cloud MCP `edit_mabl_test`
+   `add_label`; if only the local MCP is available, hand the test IDs
+   back to the main agent to label.
 
 5. **Update `docs/MABL-UI-TESTS.md`** to add the new test under
    the appropriate plan + stage.
