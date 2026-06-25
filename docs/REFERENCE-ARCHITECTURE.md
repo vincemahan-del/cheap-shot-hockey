@@ -1,6 +1,6 @@
 ---
-last-verified: 2026-05-22
-verifies: [".github/workflows/mabl-sdlc.yml", ".github/workflows/auto-fix.yml", "scripts/llm/check-tool-surface.mjs"]
+last-verified: 2026-06-25
+verifies: [".github/workflows/mabl-sdlc.yml", ".github/workflows/codeql.yml", ".github/workflows/blast-radius-gate.yml", ".github/workflows/auto-fix.yml", ".github/workflows/mabl-nightly.yml", "scripts/llm/check-tool-surface.mjs", "scripts/pipeline-awareness/detect-changes.sh", "scripts/pipeline-awareness/vercel-should-build.sh", "scripts/orchestrator-plan/detect-blast-radius.js", "vercel.json", "vitest.config.ts", ".mcp.json"]
 ---
 
 # Reference architecture — agentic SDLC
@@ -62,6 +62,46 @@ Anthropic's published guidance on building agents.
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
+## Component map (factual inventory)
+
+The "what is where" index — every item below is a real file in the repo. The
+sections above explain *why*; this is the *where*.
+
+**Application**
+- `src/app/**` — Next.js 16 App Router pages + API routes. `src/middleware.ts` mints the session cookie and translates `?demo=` / `?region=` / `?lang=` query params → cookies → request headers (`x-demo-mode`, `x-csh-region`, `x-csh-lang`).
+- `src/lib/store.ts` (in-memory singleton) + `orders-db.ts` / `users-db.ts` (Neon Postgres when `DATABASE_URL` is set); cart + recent orders live in cookies.
+- `src/lib/region.ts` (currency/tax by region) + `src/lib/locale.ts` (EN/fr-CA language) — two independent axes. `data-testid` on every interactive element for mabl selector stability.
+
+**CI/CD workflows (`.github/workflows/`)**
+- `mabl-sdlc.yml` — primary gate. Jobs in order: `change-detector → lint → security → unit → build → t1-smoke-preview → mabl-smoke` (CSH-SMOKE-PR, Preview) → **[merge + Vercel deploy]** → `t1-smoke-prod → post-deploy-smoke` (CSH-SMOKE-POSTDEPLOY, Prod) → `test-impact`.
+- `codeql.yml` — CodeQL `security-extended`, PR + push + weekly. **Required** (2026-05-26, TAMD-139).
+- `blast-radius-gate.yml` — high-blast-radius human checkpoint (holds auto-merge until the `blast-radius-approved` label).
+- `claude-agentic-dod.yml` — agentic definition-of-done (advisory, analysis-only, SHA-pinned action, pinned model, same-repo only).
+- `auto-fix.yml` — deterministic `eslint --fix` + circuit breaker.
+- `mabl-nightly.yml` — full `type-rt` drift vs prod (needs `MABL_API_KEY`; currently unset → runs but skips).
+- `security-audit-cron.yml` — scheduled `npm audit`.
+
+**Deterministic control planes (`scripts/`)**
+- `pipeline-awareness/detect-changes.sh` — emits `has_app/lib/api/deps/workflows` path flags consumed by the SDLC jobs and the Vercel gate.
+- `pipeline-awareness/vercel-should-build.sh` — Vercel ignore-build gate; **fail-open** (TAMD-174) — builds when it can't resolve the parent commit, rather than silently skipping.
+- `orchestrator-plan/detect-blast-radius.js` — blast-radius classifier (risky paths / >200 LOC / removed exports / >5 files / new deps).
+- `llm/check-tool-surface.mjs` — static contract locking the agent tool surface; runs in the lint gate.
+
+**mabl (`scripts/` + MCP)**
+- `mabl-deployment.sh` (trigger plan runs) · `mabl-suggest-tests.sh` (test-impact) · `mabl-local-cli.sh` / `mabl-local-gate.sh` (local CLI gate, the compensating control when the cloud gate is paused) · `mabl-analyze-last-failure.sh` (triage).
+- MCP: `.mcp.json` pins the local (deprecated) mabl server; the cloud server (`mcp.mabl.com`) is the going-forward one, auth via OAuth **or** headless `x-api-key`. Authored coverage loop: `plan_new_test → create_mabl_test_cloud → label = Jira key (cloud edit_mabl_test) → run → analyze_failure → refine`.
+- Plan-label intersections: `type-smk,exec-pr` (CSH-SMOKE-PR) · `type-smk,exec-postdeploy` (CSH-SMOKE-POSTDEPLOY) · `type-rt` (nightly).
+
+**Agentic surface (`.claude/agents/`)**
+- `demo-orchestrator` · `pr-reviewer` · `mabl-test-author`. Definition of Done lives in `AGENTS.md` + `CLAUDE.md`: coverage ≥90% on `src/lib/**`, mabl test-impact, and new UI/API → author a mabl test + **label it with the Jira key** (TAMD-176).
+
+**Observability (`scripts/`)**
+- `ci-notify.sh` (canonical Slack event format) · `cycle-time-receipt.sh` (lead time, GHA minutes, CI attempts, human touches) · Jira lifecycle auto-transitions.
+
+**Config & repo controls**
+- `vercel.json` (`ignoreCommand`) · `vitest.config.ts` (coverage ≥90% on `src/lib`) · `next.config.ts` (next-intl plugin) · `.github/dependabot.yml`.
+- `MABL_CLOUD_GATE` (repo variable) toggles the PR/post-deploy mabl cloud runs for cost control · `MABL_API_KEY` (secret) unlocks the nightly CLI job — **currently unset**.
+
 ## The four-phase pipeline
 
 This pattern mirrors [mabl's published architecture](https://www.mabl.com/blog/how-we-built-a-system-for-ai-agents-to-ship-real-code-across-75-repos) for shipping AI-assisted code across 75+ repos.
@@ -85,7 +125,7 @@ A `change-detector` job at the top of `mabl-sdlc.yml` runs `scripts/pipeline-awa
 
 Concrete effect on a docs-only PR: `security`, `unit`, `build`, `t1-smoke-preview`, `mabl-smoke` all skip. Only `lint` and `regression-rollup` actually run. Saves ~3 min CI runner + mabl cloud minutes per docs PR.
 
-Layer 2 — Vercel side: `scripts/pipeline-awareness/vercel-should-build.sh` is set as Vercel's "Ignored Build Step" in project settings. Vercel calls it before every potential build; the script invokes `detect-changes.sh` and exits 0 (skip) when no app paths changed. Saves Vercel build minutes on docs-only main merges.
+Layer 2 — Vercel side: `scripts/pipeline-awareness/vercel-should-build.sh` is set as Vercel's "Ignored Build Step" in project settings. Vercel calls it before every potential build; the script invokes `detect-changes.sh` and exits 0 (skip) only when it has a *positive* "no app paths changed" result. It **fails open** (TAMD-174): on Vercel's shallow clone where `HEAD~1` is absent, it tries `git fetch --deepen=1` and otherwise builds rather than silently skipping a real deploy — the prior fail-closed behavior stranded prod on the previous commit and forced manual re-trigger commits.
 
 Spec: TAMD-132. Conservative path patterns deliberately err toward "run when uncertain" — false positives cost minutes, false negatives cost reliability.
 
