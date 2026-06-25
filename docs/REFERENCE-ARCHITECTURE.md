@@ -1,6 +1,6 @@
 ---
 last-verified: 2026-06-25
-verifies: [".github/workflows/mabl-sdlc.yml", ".github/workflows/codeql.yml", ".github/workflows/blast-radius-gate.yml", ".github/workflows/auto-fix.yml", ".github/workflows/mabl-nightly.yml", "scripts/llm/check-tool-surface.mjs", "scripts/pipeline-awareness/detect-changes.sh", "scripts/pipeline-awareness/vercel-should-build.sh", "scripts/orchestrator-plan/detect-blast-radius.js", "vercel.json", "vitest.config.ts", ".mcp.json"]
+verifies: [".github/workflows/mabl-sdlc.yml", ".github/workflows/codeql.yml", ".github/workflows/blast-radius-gate.yml", ".github/workflows/auto-fix.yml", ".github/workflows/mabl-nightly.yml", "Jenkinsfile", "scripts/llm/check-tool-surface.mjs", "scripts/pipeline-awareness/detect-changes.sh", "scripts/pipeline-awareness/vercel-should-build.sh", "scripts/orchestrator-plan/detect-blast-radius.js", "src/lib/store.ts", "src/lib/orders-db.ts", "vercel.json", "vitest.config.ts", ".mcp.json"]
 ---
 
 # Reference architecture — agentic SDLC
@@ -69,7 +69,7 @@ sections above explain *why*; this is the *where*.
 
 **Application**
 - `src/app/**` — Next.js 16 App Router pages + API routes. `src/middleware.ts` mints the session cookie and translates `?demo=` / `?region=` / `?lang=` query params → cookies → request headers (`x-demo-mode`, `x-csh-region`, `x-csh-lang`).
-- `src/lib/store.ts` (in-memory singleton) + `orders-db.ts` / `users-db.ts` (Neon Postgres when `DATABASE_URL` is set); cart + recent orders live in cookies.
+- **Data layer (3-tier hybrid):** products are seeded **in-memory** (`src/lib/seed.ts` via `store.ts`); **orders + users persist to Neon Postgres** (`@neondatabase/serverless`, `orders-db.ts` / `users-db.ts`) when `DATABASE_URL`/`POSTGRES_URL` is set, else an in-memory `Map` — `store.ts` dispatches via `postgresEnabled()`; the **cart** (`cart-cookie.ts`) and **recent-order pointers** (`order-cookie.ts` / `guest-orders.ts`) live in **cookies** so they travel with the request across Vercel's serverless instances.
 - `src/lib/region.ts` (currency/tax by region) + `src/lib/locale.ts` (EN/fr-CA language) — two independent axes. `data-testid` on every interactive element for mabl selector stability.
 
 **CI/CD workflows (`.github/workflows/`)**
@@ -80,6 +80,7 @@ sections above explain *why*; this is the *where*.
 - `auto-fix.yml` — deterministic `eslint --fix` + circuit breaker.
 - `mabl-nightly.yml` — full `type-rt` drift vs prod (needs `MABL_API_KEY`; currently unset → runs but skips).
 - `security-audit-cron.yml` — scheduled `npm audit`.
+- `Jenkinsfile` (repo root, **not** a GHA workflow) — parallel/legacy 9-stage pipeline on a local Jenkins: checkout → install → detect-changes → lint → unit+coverage → build → preview → mabl CSH-SMOKE-PR → promote → mabl CSH-SMOKE-POSTDEPLOY. Older than the GHA workflow and does **not** mirror its security gate or cycle-time receipt; **the GHA `mabl-sdlc.yml` is canonical.** Jenkins doesn't deploy — Vercel does; it only triggers mabl to gate.
 
 **Deterministic control planes (`scripts/`)**
 - `pipeline-awareness/detect-changes.sh` — emits `has_app/lib/api/deps/workflows` path flags consumed by the SDLC jobs and the Vercel gate.
