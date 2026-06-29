@@ -71,7 +71,7 @@ jobs:
                 "type": "http",
                 "url": "https://mcp.mabl.com/mcp",
                 "headers": {
-                  "x-api-key": "${MABL_MCP_API_KEY}"
+                  "x-api-key": "${MABL_API_KEY}"
                 }
               },
               "atlassian": {
@@ -92,10 +92,11 @@ jobs:
         uses: anthropics/claude-code-action@23e4ee05df2c5aefd801f51b83c81cd4215be7e9  # v1.0.120
         env:
           MABL_API_TOKEN: ${{ secrets.MABL_API_TOKEN }}
-          # Workspace-scoped Editor/Viewer mabl API key for pXXgThbNi4HfQOpiZptHfw-w,
-          # used as the cloud MCP x-api-key (TAMD-179: MABL_API_TOKEN authenticates
-          # but 403s on workspace read — needs a key generated in that workspace).
-          MABL_MCP_API_KEY: ${{ secrets.MABL_MCP_API_KEY }}
+          # Workspace-scoped mabl API key (same secret the nightly uses via
+          # `mabl auth activate-key`), used as the cloud MCP x-api-key. TAMD-179:
+          # MABL_API_TOKEN authenticates but 403s on workspace read; MABL_API_KEY
+          # is scoped to pXXgThbNi4HfQOpiZptHfw-w.
+          MABL_API_KEY: ${{ secrets.MABL_API_KEY }}
           JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
         with:
