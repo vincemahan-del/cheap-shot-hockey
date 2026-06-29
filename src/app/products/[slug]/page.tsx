@@ -86,7 +86,10 @@ export default async function ProductPage({
             <span>·</span>
             <span>{categoryLabel(product.category)}</span>
             {product.stock <= 6 && product.stock > 0 && (
-              <span className="ml-auto rounded bg-amber-500/20 px-2 py-0.5 text-amber-400">
+              <span
+                className="ml-auto rounded bg-amber-500/20 px-2 py-0.5 text-amber-400"
+                data-testid="low-stock-notice"
+              >
                 Only {product.stock} left
               </span>
             )}
