@@ -363,3 +363,5 @@ Lives in a future `CSH-REGRESSION-API` plan with labels `type-rt, type-api, exec
 - `Jenkinsfile` — CI pipeline dispatching mabl deployment events
 - `.github/workflows/mabl-sdlc.yml` — GHA mirror
 - `scripts/mabl-deployment.sh` — mabl REST event + poll loop
+
+<!-- TAMD-179: second validation ping — exercise cloud mabl MCP with dedicated MABL_MCP_API_KEY (2026-06-29). Safe to revert. -->
