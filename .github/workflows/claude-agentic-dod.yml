@@ -68,10 +68,10 @@ jobs:
           {
             "mcpServers": {
               "mabl": {
-                "command": "npx",
-                "args": ["--yes", "@mabl/mcp"],
-                "env": {
-                  "MABL_API_KEY": "${MABL_API_TOKEN}"
+                "type": "http",
+                "url": "https://mcp.mabl.com/mcp",
+                "headers": {
+                  "x-api-key": "${MABL_API_TOKEN}"
                 }
               },
               "atlassian": {
