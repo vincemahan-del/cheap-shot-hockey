@@ -229,3 +229,5 @@ export default async function ProductPage({
     </div>
   );
 }
+
+// throwaway: CI re-validation (bracket path) — DO NOT MERGE

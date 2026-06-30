@@ -66,3 +66,5 @@ export function categoryColor(category: string): string {
       return "#9aa3b2";
   }
 }
+
+// throwaway: CI re-validation of clean engine comment (TAMD-186) — DO NOT MERGE
