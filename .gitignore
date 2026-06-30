@@ -44,6 +44,9 @@ next-env.d.ts
 # MCP server config (personal, not shared)
 .mcp.json
 
+# mabl CLI local debug artifacts (DOM/HAR/screenshots from `mabl ... debug`) — never commit
+.mabl/
+
 # recovery-agent runtime output (created in CI, not committed)
 recovery-result.json
 /scripts/recovery-agent/logs/

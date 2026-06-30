@@ -75,3 +75,9 @@ export function resolveFiles(args, stdin = "") {
   const list = useStdin ? stdin.split(/\r?\n/) : args;
   return [...new Set(list.map((s) => s.trim()).filter(Boolean))];
 }
+
+// Keep only files that can map to an area (the manifest's surfaces). A real diff
+// includes docs, config, CI, and (if not gitignored) .mabl artifacts — none of which
+// the engine should classify. Without this the impact comment drowns in "unclassified".
+export const isSurface = (f) => /^(\.\/)?(src\/|messages\/)/.test(f);
+export const filterSurfaces = (files) => files.filter(isSurface);

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
-import { buildMaps, areaOfTestid, tidClassified, normRoute, deriveAreas, resolveFiles } from "./engine.mjs";
+import { buildMaps, areaOfTestid, tidClassified, normRoute, deriveAreas, resolveFiles, filterSurfaces } from "./engine.mjs";
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const manifest = yaml.load(fs.readFileSync(path.join(HERE, "coverage.map.yml"), "utf8"));
@@ -69,6 +69,23 @@ test("resolveFiles: args win; '-'/empty read stdin; trim/dedupe/drop-blanks; bra
   assert.deepEqual(resolveFiles(["-"], "a.ts\nb.ts\n"), ["a.ts", "b.ts"]);                  // stdin via "-"
   assert.deepEqual(resolveFiles([], "a.ts\n\n  b.ts  \na.ts\n"), ["a.ts", "b.ts"]);         // empty->stdin, trim+dedupe
   assert.deepEqual(resolveFiles(["-"], "src/app/products/[slug]/page.tsx\n"), ["src/app/products/[slug]/page.tsx"]); // bracket path intact
+});
+
+test("filterSurfaces: keeps only src/ and messages/ (ignores .mabl/docs/config/CI artifacts)", () => {
+  const input = [
+    "src/components/ProductCard.tsx",
+    "src/app/products/[slug]/page.tsx",
+    "messages/en.json",
+    ".mabl/debug/abc-jr/step-run-x-dom.html",   // the flood we hit in CI
+    "docs/SHIFT-LEFT-AGENTIC-TESTING.md",
+    ".github/workflows/mabl-sdlc.yml",
+    "package.json",
+  ];
+  assert.deepEqual(filterSurfaces(input), [
+    "src/components/ProductCard.tsx",
+    "src/app/products/[slug]/page.tsx",
+    "messages/en.json",
+  ]);
 });
 
 test("manifest invariant: area-* vocabulary is exactly the locked 9", () => {
