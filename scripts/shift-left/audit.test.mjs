@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
-import { buildMaps, areaOfTestid, tidClassified, normRoute, deriveAreas } from "./engine.mjs";
+import { buildMaps, areaOfTestid, tidClassified, normRoute, deriveAreas, resolveFiles } from "./engine.mjs";
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const manifest = yaml.load(fs.readFileSync(path.join(HERE, "coverage.map.yml"), "utf8"));
@@ -62,6 +62,13 @@ test("deriveAreas: no-testid test falls back to route base areas (+ i18n via que
 test("deriveAreas: i18n earned from query even when testids are structural", () => {
   const d = deriveAreas({ testids: ["product-card-x"], routes: ["/products?region=ca&lang=fr"] }, maps);
   assert.deepEqual([...d].sort(), ["catalog", "i18n"]);
+});
+
+test("resolveFiles: args win; '-'/empty read stdin; trim/dedupe/drop-blanks; brackets survive", () => {
+  assert.deepEqual(resolveFiles(["a.ts", "b.ts"]), ["a.ts", "b.ts"]);                       // explicit args
+  assert.deepEqual(resolveFiles(["-"], "a.ts\nb.ts\n"), ["a.ts", "b.ts"]);                  // stdin via "-"
+  assert.deepEqual(resolveFiles([], "a.ts\n\n  b.ts  \na.ts\n"), ["a.ts", "b.ts"]);         // empty->stdin, trim+dedupe
+  assert.deepEqual(resolveFiles(["-"], "src/app/products/[slug]/page.tsx\n"), ["src/app/products/[slug]/page.tsx"]); // bracket path intact
 });
 
 test("manifest invariant: area-* vocabulary is exactly the locked 9", () => {

@@ -608,16 +608,23 @@ jobs:
           echo "$changed" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: query mabl for relevant tests
-        id: mabl_tests
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+
+      - name: shift-left coverage engine (impact + guard)
+        id: engine
         env:
           CHANGED_FILES: ${{ steps.diff.outputs.changed }}
         run: |
-          chmod +x scripts/mabl-suggest-tests.sh
-          suggestions=$(echo "$CHANGED_FILES" | ./scripts/mabl-suggest-tests.sh 2>/dev/null || true)
-          echo "suggestions<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$suggestions" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          # impact: which mabl tests does this diff hit. Piped via stdin so bracket
+          # route paths ([slug]/[id]) survive shell globbing/word-splitting (TAMD-185).
+          printf '%s\n' "$CHANGED_FILES" | node scripts/shift-left/audit.mjs impact - > impact.txt 2>&1 \
+            || echo "(shift-left engine error — see job log)" > impact.txt
+          # guard: advisory completeness check — flags any new unclassified surface.
+          node scripts/shift-left/audit.mjs --guard > guard.txt 2>&1 || true
 
       - name: post PR comment
         env:
@@ -626,20 +633,14 @@ jobs:
           TEST_TOTAL: ${{ needs.unit.outputs.test_total }}
           TEST_PASSED: ${{ needs.unit.outputs.test_passed }}
           CHANGED_FILES: ${{ steps.diff.outputs.changed }}
-          SUGGESTIONS: ${{ steps.mabl_tests.outputs.suggestions }}
         run: |
           if awk "BEGIN{exit !(${COV_LINES:-0} >= 90 && ${COV_BRANCHES:-0} >= 90)}"; then
             cov_icon="✅"; cov_note="above 90% threshold"
           else
             cov_icon="⚠️"; cov_note="**below 90% threshold — unit job blocks merge**"
           fi
-
-          if [[ -z "${SUGGESTIONS:-}" || "$SUGGESTIONS" == *"No existing"* ]]; then
-            mabl_section="No existing mabl tests matched the changed files.
-          If this PR introduces new UI flows or API behaviour, create mabl tests before closing the ticket (see TAMD-88 for the process)."
-          else
-            mabl_section="$SUGGESTIONS"
-          fi
+          guard_summary=$(grep -E "guard (passes|FAILS)|unclassified" guard.txt | head -6 || true)
+          [ -z "$guard_summary" ] && guard_summary="guard: clean (every surface classified)"
 
           {
             echo "<!-- test-impact-analysis -->"
@@ -652,16 +653,18 @@ jobs:
             echo "| Unit tests | ${TEST_PASSED}/${TEST_TOTAL} passed |"
             echo "| Files changed | $(echo "$CHANGED_FILES" | wc -l | tr -d ' ') |"
             echo ""
-            echo "**Changed files:**"
+            echo "**Impacted mabl tests** — shift-left engine (\`scripts/shift-left\`), advisory:"
             echo "\`\`\`"
-            echo "$CHANGED_FILES"
+            cat impact.txt
             echo "\`\`\`"
             echo ""
-            echo "**Relevant mabl tests:**"
-            echo "$mabl_section"
+            echo "**Coverage-map guard (advisory):**"
+            echo "\`\`\`"
+            echo "$guard_summary"
+            echo "\`\`\`"
             echo ""
             echo "---"
-            echo "_Run \`npm run test:mabl:local\` to run the mabl API gate locally. UI tests run in mabl cloud against the Preview deploy._"
+            echo "_Impact + guard from the area-coverage engine; mabl test index is as of the last \`coverage-auditor\` refresh. **Advisory — does not block merge.** UI tests run in mabl cloud against the Preview deploy._"
           } | gh pr comment "${{ github.event.pull_request.number }}" --body-file -
 
   # NOTE: PR-time tier-4 area regression was removed in
