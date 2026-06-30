@@ -85,7 +85,19 @@ if (MODE === "impact") {
   const matchTid = (tt) => [...owned].some((o) => tt === o || tt.startsWith(o) || o.startsWith(tt));
   const precise = index.filter((t) => t.testids.some(matchTid));
   const areaTests = index.filter((t) => t.area.some((a) => areasHit.has(a)));
+
+  // Plain-English headline — what a human should actually DO before merge.
+  // First line of the report so skimmers don't have to parse the breakdown.
+  let reco;
+  if (!files.length) reco = "▶ Recommendation: nothing to run — no app surfaces (src/ or messages/) changed.";
+  else if (broad) reco = `▶ Recommendation: run the FULL smoke + regression suite — core/cross-cutting change (${areaTests.length} test(s) across impacted areas).`;
+  else if (areasHit.size) reco = `▶ Recommendation: run the ${[...areasHit].map((a) => "area-" + a).join(", ")} regression set (${areaTests.length} test(s))${precise.length ? ` — ${precise.length} of them precise` : ""}.`;
+  else if (owned.size && precise.length === 0) reco = "▶ Recommendation: AUTHOR a test — the changed UI is instrumented (data-testid) but no mabl test covers it.";
+  else reco = "▶ Recommendation: no mapped tests — the CSH-SMOKE-PR plan still covers the baseline smoke surface.";
+
   L("══════════ impact ══════════");
+  L(reco);
+  L("");
   for (const x of rep) L(`  ${x.f}  ->  ${x.bucket}${x.as.length ? " (" + x.as.join(",") + ")" : ""}`);
   if (skipped) L(`  (${skipped} non-source file(s) ignored — docs/config/CI/artifacts)`);
   if (!files.length) L("  (no src/ or messages/ surfaces in this diff)");
@@ -93,11 +105,12 @@ if (MODE === "impact") {
   L(`impacted areas: ${[...areasHit].map((a) => "area-" + a).join(", ") || "(none)"}${broad ? "  + CORE/BROAD" : ""}`);
   if (broad) L("  ⚠ core/cross-cutting change → BROAD impact: run the full smoke/regression set");
   L("");
-  L(`precise (by owned testid · ${owned.size} prefixes): ${precise.length} test(s)`);
+  // legend folded into the labels: precise = changed-testid tests; area-level = whole-domain tests
+  L(`precise — tests that touch a data-testid you changed (${owned.size} prefix(es)): ${precise.length} test(s)`);
   L("  " + (precise.map((t) => t.name).join(", ") || "— none reference these testids"));
   if (owned.size && precise.length === 0) L("  ⚠ instrumented but UNCOVERED → suggest authoring a test");
   L("");
-  L(`area-level (${areasHit.size} area(s)): ${areaTests.length} test(s)`);
+  L(`area-level — every test in the impacted domain(s) (${areasHit.size} area(s)): ${areaTests.length} test(s)`);
   L("  " + (areaTests.map((t) => t.name).join(", ") || "— none"));
   process.exit(0);
 }

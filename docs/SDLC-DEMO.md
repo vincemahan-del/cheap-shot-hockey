@@ -222,7 +222,7 @@ This act mirrors the four-phase pattern mabl uses internally to ship code across
      editing `src/lib/auth-crypto.ts` in a follow-up demo run.
 4. Phase 3 (Implementation):
    - Runs the pre-PR DoD: `npm run test:coverage` (90% gate), then
-     `git diff --name-only main | ./scripts/mabl-suggest-tests.sh`
+     `git diff --name-only main | node scripts/shift-left/audit.mjs impact -`
    - Commits with message `TAMD-NN: ...`, pushes, opens the PR, and
      arms auto-merge: `gh pr merge <N> --auto --merge --delete-branch`
 
@@ -375,7 +375,7 @@ Agent SDK `query()` call invoked from a webhook handler (Phase 2).
 | Flip production into a slow / flaky / broken state | `./scripts/demo-toggle.sh slow` (or `flaky` / `broken`) |
 | Reset prod to normal | `./scripts/demo-toggle.sh normal` |
 | Kick off a mabl smoke manually against Prod | `./scripts/mabl-deployment.sh --labels type-smk,exec-postdeploy --environment $MABL_ENV_PROD_ID --application $MABL_APPLICATION_ID --url https://cheap-shot-hockey.vercel.app --wait` |
-| Run mabl test impact analysis locally | `git diff --name-only main \| ./scripts/mabl-suggest-tests.sh` |
+| Run mabl test impact analysis locally | `git diff --name-only main \| node scripts/shift-left/audit.mjs impact -` |
 | See the current prod build | `curl https://cheap-shot-hockey.vercel.app/api/build-info` |
 | Check API health | `curl https://cheap-shot-hockey.vercel.app/api/health` |
 | Install pre-push T1 hook | `./scripts/install-git-hooks.sh` |

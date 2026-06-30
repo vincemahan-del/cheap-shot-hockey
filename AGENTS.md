@@ -19,7 +19,7 @@ Read CLAUDE.md first for project context. These rules govern *how* to operate.
 Every PR that touches `src/` must satisfy all three before the branch is pushed:
 
 1. `npm run test:coverage` — all metrics ≥ 90%. If coverage drops, write the missing tests. Do not fake coverage to hit the number.
-2. `git diff --name-only main | ./scripts/mabl-suggest-tests.sh` — if existing mabl tests match changed files, list them in the PR description under "Test impact".
+2. `git diff --name-only main | node scripts/shift-left/audit.mjs impact -` — the area-coverage engine reports which mabl tests this change impacts (precise by changed testid, area-level by domain, CORE/BROAD for cross-cutting changes). List them in the PR description under "Test impact". Same engine the `test-impact` CI job runs, so the two agree.
 3. New UI pages or API routes → create a mabl test via MCP (`plan_new_test` → `create_mabl_test_cloud`) and cut a follow-up Jira ticket. **Label every created test with its Jira ticket key** (e.g. `TAMD-173`) via the cloud mabl MCP `edit_mabl_test` (`add_label`) — the local/headless MCP can't write labels, so this happens at authoring time (TAMD-176). Note the test, the ticket, and the applied label in the PR description.
 
 ## Tool selection
@@ -67,7 +67,7 @@ fails the merge if the contract regresses.
 - Trigger: PR opened, synchronized, or reopened against `main`.
 - **Same-repo only**: fork-head PRs are skipped (no secrets exposure).
 - **Analysis-only**: tools are `Read,Glob,Grep` + tightly scoped
-  `Bash(npm run *)`, `Bash(git diff *)`, `Bash(./scripts/mabl-suggest-tests.sh *)`
+  `Bash(npm run *)`, `Bash(git diff *)`, `Bash(node scripts/shift-left/audit.mjs *)`
   + read-only `mcp__mabl__*` / `mcp__atlassian__*`. No `Edit`, no `Write`,
   no `*_create_*` — gaps are listed in the PR comment, not fixed in place.
 - **Model**: `claude-opus-4-7` pinned via `--model` in `claude_args`.
@@ -90,6 +90,10 @@ be reinstated by a fork that has an `ANTHROPIC_API_KEY` available.
   `mcp__*__add_jira_comment`, `mcp__mabl__plan_new_test`,
   `mcp__mabl__run_mabl_test_cloud`, or bare `Bash` (without paren-restricted args).
 - `claude-agentic-dod.yml` restricts to same-repo PRs.
+- The DoD's test-impact analysis is wired to the area-coverage engine
+  (`Bash(node scripts/shift-left/audit.mjs *)`) and the retired
+  `mabl-suggest-tests.sh` heuristic does not reappear (TAMD-187) — so the
+  DoD comment and the `test-impact` CI comment give one consistent answer.
 
 **If you intentionally widen the surface, update `check-tool-surface.mjs`
 in the same PR so the contract stays explicit and reviewable.**

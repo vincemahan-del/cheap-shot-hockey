@@ -40,12 +40,12 @@ else
   "$REPO_ROOT/scripts/mabl-local-gate.sh"
 fi
 
-# Advisory: suggest mabl tests for changed files (never blocks push)
+# Advisory: which mabl tests this push impacts (area-coverage engine; never blocks)
 changed=$(git diff --name-only "$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo main)" HEAD 2>/dev/null || true)
 if [[ -n "$changed" ]]; then
   echo ""
-  echo "🔍 Checking for relevant mabl tests..."
-  echo "$changed" | "$REPO_ROOT/scripts/mabl-suggest-tests.sh" || true
+  echo "🔍 Shift-left impact (area-coverage engine)..."
+  echo "$changed" | node "$REPO_ROOT/scripts/shift-left/audit.mjs" impact - || true
 fi
 
 exit 0
