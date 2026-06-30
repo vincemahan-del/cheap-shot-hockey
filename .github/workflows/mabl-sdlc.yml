@@ -583,7 +583,13 @@ jobs:
   test-impact:
     name: test impact analysis
     needs: [unit, build]
-    if: github.event_name == 'pull_request'
+    # TAMD-190: run even when `unit`/`build` SKIP. `unit` is gated on
+    # has_lib_changes, so a UI-only PR (new page/component, no src/lib) skips
+    # it — and a plain `needs:` would cascade-skip this job, silencing the
+    # engine's deterministic comment exactly on the UI changes mabl covers.
+    # `!cancelled()` runs regardless of the needs' result; the comment step
+    # handles empty unit coverage outputs.
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -634,10 +640,14 @@ jobs:
           TEST_PASSED: ${{ needs.unit.outputs.test_passed }}
           CHANGED_FILES: ${{ steps.diff.outputs.changed }}
         run: |
-          if awk "BEGIN{exit !(${COV_LINES:-0} >= 90 && ${COV_BRANCHES:-0} >= 90)}"; then
-            cov_icon="✅"; cov_note="above 90% threshold"
-          else
-            cov_icon="⚠️"; cov_note="**below 90% threshold — unit job blocks merge**"
+          # TAMD-190: when `unit` skipped (no src/lib change), its coverage
+          # outputs are empty. Compute the icon only when we have numbers.
+          if [ -n "$COV_LINES" ]; then
+            if awk "BEGIN{exit !(${COV_LINES:-0} >= 90 && ${COV_BRANCHES:-0} >= 90)}"; then
+              cov_icon="✅"; cov_note="above 90% threshold"
+            else
+              cov_icon="⚠️"; cov_note="**below 90% threshold — unit job blocks merge**"
+            fi
           fi
           guard_summary=$(grep -E "guard (passes|FAILS)|unclassified" guard.txt | head -6 || true)
           [ -z "$guard_summary" ] && guard_summary="guard: clean (every surface classified)"
@@ -648,9 +658,14 @@ jobs:
             echo ""
             echo "| Metric | Value |"
             echo "|---|---|"
-            echo "| Unit coverage — lines | ${cov_icon} \`${COV_LINES}%\` |"
-            echo "| Unit coverage — branches | ${cov_icon} \`${COV_BRANCHES}%\` (${cov_note}) |"
-            echo "| Unit tests | ${TEST_PASSED}/${TEST_TOTAL} passed |"
+            # Coverage rows: conditional so empty unit outputs (UI-only PR) don't render 0%.
+            if [ -z "$COV_LINES" ]; then
+              echo "| Unit coverage | — _no \`src/lib\` change; unit suite not re-run this PR_ |"
+            else
+              echo "| Unit coverage — lines | ${cov_icon} \`${COV_LINES}%\` |"
+              echo "| Unit coverage — branches | ${cov_icon} \`${COV_BRANCHES}%\` (${cov_note}) |"
+              echo "| Unit tests | ${TEST_PASSED}/${TEST_TOTAL} passed |"
+            fi
             echo "| Files changed | $(echo "$CHANGED_FILES" | wc -l | tr -d ' ') |"
             echo ""
             echo "**Impacted mabl tests** — shift-left engine (\`scripts/shift-left\`), advisory:"
