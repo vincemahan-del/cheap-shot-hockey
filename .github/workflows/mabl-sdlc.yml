@@ -67,7 +67,7 @@ jobs:
       has_deps_changes:      ${{ steps.detect.outputs.has_deps_changes }}
       has_workflows_changes: ${{ steps.detect.outputs.has_workflows_changes }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: detect changes
@@ -102,7 +102,7 @@ jobs:
     needs: change-detector
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -129,7 +129,7 @@ jobs:
     if: needs.change-detector.outputs.has_deps_changes == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -153,7 +153,7 @@ jobs:
       coverage_lines: ${{ steps.metrics.outputs.coverage_lines }}
       coverage_branches: ${{ steps.metrics.outputs.coverage_branches }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -220,7 +220,7 @@ jobs:
       needs.change-detector.outputs.has_app_changes == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Full history for git diff against main
           fetch-depth: 0
@@ -261,7 +261,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: notify (tooling PR — merge-ready)
@@ -300,7 +300,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: wait for Vercel Preview deployment + capture URL
         id: preview
         run: |
@@ -350,7 +350,7 @@ jobs:
       needs.change-detector.outputs.has_api_changes == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: wait for Vercel Prod to reflect new commit
         run: |
           short="${GITHUB_SHA:0:7}"
@@ -410,7 +410,7 @@ jobs:
           else
             echo "skipped=false" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.gate.outputs.skipped != 'true'
       - run: sudo apt-get update && sudo apt-get install -y jq
         if: steps.gate.outputs.skipped != 'true'
@@ -475,7 +475,7 @@ jobs:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
         run: |
           bash scripts/ci-notify.sh fail "Merge blocked by mabl" "Browser-layer tests failed on the Preview deploy. See mabl's Slack post in this channel for screenshots + which steps failed, and the plan run for the full detail."
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.gate.outputs.skipped == 'true'
       - name: notify (cloud gate disabled — paused)
         if: steps.gate.outputs.skipped == 'true'
@@ -521,7 +521,7 @@ jobs:
           else
             echo "skipped=false" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: sudo apt-get install -y jq
         if: steps.gate.outputs.skipped != 'true'
       - name: trigger CSH-SMOKE-POSTDEPLOY against Prod
@@ -599,7 +599,7 @@ jobs:
       MABL_APPLICATION_ID: ${{ secrets.MABL_APPLICATION_ID }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - run: sudo apt-get update -qq && sudo apt-get install -y jq
