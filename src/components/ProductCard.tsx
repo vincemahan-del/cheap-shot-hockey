@@ -23,6 +23,11 @@ export async function ProductCard({
     <Link
       href={`/products/${product.slug}`}
       data-testid={`product-card-${product.slug}`}
+      aria-label={
+        onSale
+          ? `${product.name}, on sale ${formatPrice(product.salePriceCents!, region)}, regularly ${formatPrice(product.priceCents, region)}`
+          : `${product.name}, ${formatPrice(product.priceCents, region)}`
+      }
       className="group relative flex flex-col overflow-hidden rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] shadow-[0_1px_0_rgba(255,255,255,0.02)] transition hover:-translate-y-0.5 hover:border-[color:var(--accent)] hover:shadow-[0_10px_30px_-12px_rgba(0,0,0,0.5)]"
     >
       {onSale && (
