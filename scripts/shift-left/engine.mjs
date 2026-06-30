@@ -28,6 +28,30 @@ export const areaOfTestid = (t, maps) =>
 export const tidClassified = (t, maps) =>
   maps.guardPrefixes.some((p) => t === p || t.startsWith(p));
 
+// SURFACE COVERAGE — is a repo testid referenced by at least one indexed test?
+// Prefix-aware both directions: a repo template prefix ("product-card-") is covered by any
+// concrete "product-card-*" a test uses; a static testid ("warranty-heading") by exact match.
+// NOTE: this is *surface* coverage (an instrumented element is touched by a test), NOT
+// execution coverage — mabl is black-box, so it cannot mean every state/branch is exercised.
+export const tidCovered = (repoTid, index) =>
+  index.some((t) => (t.testids || []).some((u) => u === repoTid || u.startsWith(repoTid) || repoTid.startsWith(u)));
+
+// Per-area + overall feature surface coverage from the swept repo testids. Skips testids that
+// don't classify to an area (core/excluded chrome) so the denominator is the feature surface.
+export function surfaceCoverage(repoTids, index, maps) {
+  const per = {};
+  let featTot = 0, featCov = 0;
+  for (const t of repoTids) {
+    const a = areaOfTestid(t, maps);
+    if (!a) continue;
+    const c = tidCovered(t, index);
+    per[a] = per[a] || { tot: 0, cov: 0 };
+    per[a].tot++; if (c) per[a].cov++;
+    featTot++; if (c) featCov++;
+  }
+  return { per, featTot, featCov };
+}
+
 // normalize a concrete route to its manifest pattern (/products/foo -> /products/[slug])
 export function normRoute(r) {
   const p = r.split("?")[0];

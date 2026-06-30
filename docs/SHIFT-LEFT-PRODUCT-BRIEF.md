@@ -119,15 +119,17 @@ swept: 38 routes · 24 lib · 15 components · 8 msg-namespaces · 244 testids �
   ✓ 100% classified — guard passes
 
 ── COVERAGE by area ──
-  ✓  area-catalog      17 test(s)
-  ✓  area-checkout      7 test(s)
-  ✓  area-orders       11 test(s)
-  ✓  area-auth         11 test(s)
-  ✓  area-admin         1 test(s)
-  ✓  area-deployments   2 test(s)
-  ✓  area-i18n          6 test(s)
-  ✗ ZERO  area-team-orders  0 test(s)
-  ✓  area-info          1 test(s)
+  feature surface coverage: 72/228 instrumented testids touched by ≥1 test (32%)
+  (surface = an element is exercised by a test; not execution/branch coverage — mabl is black-box)
+  ✓  area-catalog      17 test(s) · 15/49 testids ( 31%)
+  ✓  area-checkout      7 test(s) · 11/33 testids ( 33%)
+  ✓  area-orders       11 test(s) · 11/20 testids ( 55%)
+  ✓  area-auth         11 test(s) · 14/20 testids ( 70%)
+  ✓  area-admin         1 test(s) ·  2/ 6 testids ( 33%)
+  ✓  area-deployments   2 test(s) ·  9/29 testids ( 31%)
+  ✓  area-i18n          6 test(s) ·  2/ 4 testids ( 50%)
+  ✗ ZERO  area-team-orders   0 test(s) ·  0/12 testids (  0%)
+  ✓  area-info          1 test(s) ·  8/55 testids ( 15%)
   zero-coverage areas: area-team-orders
 
 ── RECONCILE (add-only) ──
@@ -137,9 +139,13 @@ swept: 38 routes · 24 lib · 15 components · 8 msg-namespaces · 244 testids �
   (review = current label not testid-derivable — content-verified; kept, never auto-removed)
 ```
 
-`area-team-orders` is a real, unprompted finding: a whole domain (the team-orders
-form flow) with zero mabl coverage. Nobody told the engine to look — it fell out of
-the sweep.
+**On the coverage %:** this is *surface* coverage — the share of instrumented elements
+(`data-testid`s) that at least one mabl test touches. It is **not** execution/branch
+coverage; mabl is black-box, so there's no line trace, and a touched element isn't a
+fully-exercised one. Stated that way it's defensible, and it's the honest ceiling: 32%
+means two-thirds of the instrumented surface has *no* test on it at all. `area-team-orders`
+is the sharpest case — a whole domain (the team-orders form flow) at 0%, surfaced
+unprompted; `area-info` at 15% reflects content pages with many testids and few tests.
 
 ### Act 1 — the engine catching the uncovered page (from the PR's DoD comment)
 
