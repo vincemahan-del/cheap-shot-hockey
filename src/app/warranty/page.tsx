@@ -120,6 +120,13 @@ export default function WarrantyPage() {
           </a>
           {" "}and we&apos;ll help you sort out a claim.
         </p>
+        <p className="mt-2 text-sm text-[color:var(--muted)]">
+          Looking for a return or exchange instead? See our{" "}
+          <Link href="/shipping" className="text-[color:var(--accent)] hover:opacity-80">
+            Shipping &amp; Returns
+          </Link>{" "}
+          policy.
+        </p>
       </section>
     </div>
   );
