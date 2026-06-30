@@ -1,0 +1,118 @@
+# coverage.map.yml — the authoritative app→test area model for cheap-shot-hockey
+#
+# Source of truth for the shift-left coverage engine (docs/SHIFT-LEFT-AGENTIC-TESTING.md).
+# Bootstrapped from a repo sweep on 2026-06-30; kept current by the `area-coverage-audit`
+# skill (docs/AREA-COVERAGE-AUDIT.md) + a CI completeness guard.
+#
+# CONTRACT (read before editing):
+#  - This file holds DEFINITIONS only — never coverage status, test lists, or counts.
+#    Coverage/impact/gaps are COMPUTED from this + the live mabl test index, so they
+#    can't go stale. Do not paste derived data in here.
+#  - `area-*` are the ONLY classifications that become mabl test labels. They are a
+#    CONTROLLED VOCABULARY: the engine refuses to apply or accept an `area-*` label
+#    not defined here (prevents fragmentation like area-i18n vs area-localization).
+#  - `core` / `excluded` / `platform` are NON-area classifications. They never become
+#    `area-*` labels; they exist so every file in the repo is accounted for (the guard).
+#  - A code change maps to an area via any of: testid_prefix, route, lib, or message.
+#  - The engine owns ONLY the `area-*` namespace on tests. Human labels (WIP, Demo,
+#    demo, seed-db, dt-demo, ticket keys like TAMD-180) are never touched.
+#  - GUARD: every page route, api route, src/lib module, component, and i18n namespace
+#    must be claimed by exactly one classification below. CI fails on an unclaimed surface
+#    (that's how a NEW area gets detected — e.g. adding /wishlist).
+
+version: 1
+workspace: pXXgThbNi4HfQOpiZptHfw-w   # mabl "Cheap Shot Hockey Demo"
+
+# ---------------------------------------------------------------------------
+# AREAS — feature domains. These ARE the `area-*` label vocabulary (9).
+# ---------------------------------------------------------------------------
+areas:
+
+  catalog:
+    routes:        ["/", "/products", "/products/[slug]", "/api/products", "/api/products/[id]"]
+    testid_prefix: [product-, price-, catalog-, category-, nav-cat-, nav-categories, nav-search-,
+                    filter-, filters, brand-, sale-badge-, low-stock-, gallery-thumb-, thumb-,
+                    breadcrumbs, active-filters, cta-block, hero, no-results, related-grid,
+                    gloves-row-, goalie-row-, helmets-row-, jerseys-row-, skates-row-]
+    components:    [ProductCard, ProductThumb, ProductIllustration, CategoryTile, BrandRow, StarRating]
+    lib:           [src/lib/brand.ts]
+    messages:      [product, products, home]
+
+  checkout:
+    routes:        [/cart, /checkout, /api/cart, /api/orders]
+    testid_prefix: [cart-, checkout-, summary-line-, qty-, add-to-cart-, add-to-cart-feedback-,
+                    nav-cart, free-ship, guest-checkout-]
+    components:    [CartLineControls, AddToCartButton]
+    lib:           [src/lib/cart-cookie.ts, src/lib/order-cookie.ts, src/lib/shipping.ts]
+    messages:      [cart, checkout]
+
+  orders:
+    routes:        ["/orders", "/orders/[id]", "/api/orders/[id]", "/api/orders/[id]/receipt"]
+    testid_prefix: [order-, orders-, order-line-, order-row-, order-status-, order-total-, download-receipt-, nav-orders]
+    lib:           [src/lib/orders-db.ts, src/lib/receipt-pdf.ts, src/lib/email.ts, src/lib/guest-orders.ts]
+
+  auth:
+    routes:        [/login, /register, /account, /api/auth/login, /api/auth/logout,
+                    /api/auth/me, /api/auth/register]
+    testid_prefix: [login-, register-, logout-, nav-login, nav-account, account-]
+    lib:           [src/lib/auth-crypto.ts, src/lib/session.ts, src/lib/users-db.ts]
+
+  admin:
+    routes:        [/admin, /api/admin/orders, /api/admin/orders/export]
+    testid_prefix: [admin-, account-admin-link, download-orders-csv]
+    lib:           [src/lib/orders-csv.ts]
+
+  deployments:
+    routes:        ["/deployments", "/deployments/[label]", "/deployments/[label]/next",
+                    "/api/deployments", "/api/deployments/[label]", "/api/deployments/search"]
+    testid_prefix: [deployment-, deployments-, create-deployment]
+    lib:           [src/lib/deployments.ts]
+
+  i18n:                     # cross-cutting behavioral domain (region/currency/language)
+    routes:        []       # owns no route; exercised via ?region=/?lang= on any page
+    testid_prefix: [lang-, region-]
+    components:    [RegionSwitcher, LanguageSwitcher]
+    lib:           [src/lib/locale.ts, src/lib/region.ts]
+
+  team-orders:              # B2B quote form — fully instrumented, ZERO coverage (priority gap)
+    routes:        [/team-orders, /api/team-orders]
+    testid_prefix: [team-orders-]
+    lib:           [src/lib/team-orders.ts]
+
+  info:                     # static reference/policy pages — low risk
+    routes:        [/shipping, /size-guide]
+    testid_prefix: [shipping-, returns-, size-guide-, sticks-row-, gloves-size-table,
+                    goalie-leg-pads, goalie-chest-protector, goalie-leg-pads-table, helmets-size-table,
+                    jerseys-size-table, skates-size-table, sticks-size-table]
+    # /shipping logic lives in checkout (shipping.ts); these pages are content display.
+
+# ---------------------------------------------------------------------------
+# CORE — cross-cutting / shared infrastructure. NOT a label.
+# A change here has BROAD impact (potentially every area) -> engine selects wide.
+# ---------------------------------------------------------------------------
+core:
+  lib:        [src/lib/store.ts, src/lib/types.ts, src/lib/api.ts, src/lib/format.ts,
+               src/lib/seed.ts, src/lib/test-seed.ts, src/lib/demo.ts]
+  testid_prefix: [footer-, nav-home]   # global nav/footer chrome (Nav/Footer)
+  components:  [Nav, Footer]
+  messages:    [nav, footer]
+  other:       [src/middleware.ts]
+  impact: broad        # changes fan out -> run the broad smoke/regression set, not one area
+
+# ---------------------------------------------------------------------------
+# EXCLUDED — intentionally untested by the assertion policy (marketing / demo).
+# Suppressed from the gap report so "uncovered by design" is never flagged as a gap.
+# ---------------------------------------------------------------------------
+excluded:
+  lib:        [src/lib/memorial-day.ts]
+  testid_prefix: [promo-strip, promo-, demo-banner, memorial-day, value-bar]
+  components:  [PromoStrip, MemorialDayBanner, DemoBanner]
+  messages:    [promo]
+  reason: "marketing/promo + demo-mode UI; assertion policy forbids testing this copy (docs/MABL-AI-ASSERTION-PROMPT.md)"
+
+# ---------------------------------------------------------------------------
+# PLATFORM — infra endpoints. Covered on the API-smoke axis, NOT a UI area.
+# ---------------------------------------------------------------------------
+platform:
+  routes:     [/api/health, /api/build-info, /api/openapi, /api/test/seed-user]
+  covered_by: "newman T1 + mabl API smoke (CSH-SMK-HEALTH-API, CSH-SMK-BUILD-API)"
