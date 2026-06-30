@@ -229,3 +229,5 @@ export default async function ProductPage({
     </div>
   );
 }
+
+// throwaway: CI validation for TAMD-185 (bracket-path stdin test) — DO NOT MERGE
