@@ -239,6 +239,45 @@ jobs:
           bash scripts/ci-notify.sh ok "Stage 1 · code quality" "Lint ok, unit tests green, build succeeded. Ticket moving to In Progress."
 
   # ─────────────────────────────────────────────────────────────────
+  # Tooling-only narration (TAMD-184). Every ci-notify call above lives
+  # in an app-gated job (build / mabl-smoke / post-deploy), so a
+  # scripts/docs/workflows/.claude-only PR path-skips all of them and
+  # ships SILENTLY (no Slack post, no Jira transition — observed on
+  # TAMD-182 #166 + TAMD-183 #167; same class as TAMD-154). This job
+  # fires on the COMPLEMENT (no app/api/lib/deps changes) so tooling PRs
+  # still narrate + auto-transition. Additive; not a required check.
+  # ─────────────────────────────────────────────────────────────────
+
+  notify-tooling:
+    name: notify (tooling-only change)
+    needs: [change-detector, lint]
+    if: |
+      !cancelled() &&
+      needs.lint.result == 'success' &&
+      needs.change-detector.outputs.has_app_changes != 'true' &&
+      needs.change-detector.outputs.has_api_changes != 'true' &&
+      needs.change-detector.outputs.has_lib_changes != 'true' &&
+      needs.change-detector.outputs.has_deps_changes != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: notify (tooling PR — merge-ready)
+        if: github.event_name == 'pull_request'
+        env:
+          JIRA_TRANSITION: In Progress
+        run: |
+          bash scripts/ci-notify.sh ok "Merge-ready · tooling-only change" "No app/api/lib/deps changes — lint green; build/newman/mabl gates path-skipped by design. Merge gated on the required checks + blast-radius."
+      - name: notify (tooling merged to main)
+        if: github.event_name == 'push'
+        env:
+          JIRA_TRANSITION: Done
+        run: |
+          bash scripts/ci-notify.sh ok "Merged to main · tooling-only change" ":package: Merged. No prod deploy (no app change to ship). Ticket transitioning to Done."
+
+  # ─────────────────────────────────────────────────────────────────
   # Stage 2: T1 CLI smoke (newman vs Postman collection)
   # ─────────────────────────────────────────────────────────────────
 
