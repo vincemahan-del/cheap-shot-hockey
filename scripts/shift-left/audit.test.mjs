@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
-import { buildMaps, areaOfTestid, tidClassified, normRoute, deriveAreas, resolveFiles, filterSurfaces } from "./engine.mjs";
+import { buildMaps, areaOfTestid, tidClassified, normRoute, deriveAreas, resolveFiles, filterSurfaces, tidCovered, surfaceCoverage } from "./engine.mjs";
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const manifest = yaml.load(fs.readFileSync(path.join(HERE, "coverage.map.yml"), "utf8"));
@@ -86,6 +86,23 @@ test("filterSurfaces: keeps only src/ and messages/ (ignores .mabl/docs/config/C
     "src/app/products/[slug]/page.tsx",
     "messages/en.json",
   ]);
+});
+
+test("tidCovered: prefix-aware both directions; uncovered testid reads false", () => {
+  const index = [{ testids: ["product-card-apex-velocity-pro-stick", "low-stock-badge-x"] }];
+  assert.equal(tidCovered("product-card-", index), true);   // repo template ⊂ test concrete
+  assert.equal(tidCovered("low-stock-badge-x", index), true); // exact
+  assert.equal(tidCovered("warranty-heading", index), false); // not referenced
+});
+
+test("surfaceCoverage: per-area + overall; chrome (unclassified) excluded from denominator", () => {
+  const index = [{ testids: ["product-card-apex"] }];               // covers catalog product-card-
+  const repoTids = ["product-card-", "sale-badge-", "footer-health"]; // 2 catalog + 1 core chrome
+  const { per, featTot, featCov } = surfaceCoverage(repoTids, index, maps);
+  assert.equal(featTot, 2);          // footer-health is core → excluded from feature denominator
+  assert.equal(featCov, 1);          // only product-card- is covered
+  assert.equal(per.catalog.tot, 2);
+  assert.equal(per.catalog.cov, 1);
 });
 
 test("manifest invariant: area-* vocabulary is exactly the locked 9", () => {

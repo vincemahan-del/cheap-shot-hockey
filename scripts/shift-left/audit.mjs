@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
-import { buildMaps, areaOfTestid, tidClassified, normRoute, deriveAreas, resolveFiles, filterSurfaces } from "./engine.mjs";
+import { buildMaps, areaOfTestid, tidClassified, normRoute, deriveAreas, resolveFiles, filterSurfaces, surfaceCoverage } from "./engine.mjs";
 
 const argv = process.argv.slice(2);
 const MODE = argv[0] === "impact" ? "impact" : "audit";
@@ -168,8 +168,16 @@ L("\n── GUARD (every surface classified?) ──");
 const totalUn = Object.values(un).reduce((n, a) => n + a.length, 0);
 for (const [k, v] of Object.entries(un)) if (v.length) L(`  ⚠ unclassified ${k} (${v.length}): ${v.slice(0, 12).join(", ")}${v.length > 12 ? " …" : ""}`);
 L(totalUn === 0 ? "  ✓ 100% classified — guard passes" : `  ✗ ${totalUn} unclassified — guard FAILS (new-area / manifest-gap candidates)`);
+// surface coverage: instrumented testids touched by >=1 test (NOT execution coverage)
+const surf = surfaceCoverage([...allTids], index, maps);
+const pct = (c, t) => (t ? Math.round((c / t) * 100) : 0);
 L("\n── COVERAGE by area ──");
-for (const a of AREAS) L(`  ${coverage[a] > 0 ? "✓" : "✗ ZERO"}  area-${a.padEnd(12)} ${coverage[a]} test(s)`);
+L(`  feature surface coverage: ${surf.featCov}/${surf.featTot} instrumented testids touched by ≥1 test (${pct(surf.featCov, surf.featTot)}%)`);
+L("  (surface = an element is exercised by a test; not execution/branch coverage — mabl is black-box)");
+for (const a of AREAS) {
+  const s = surf.per[a] || { tot: 0, cov: 0 };
+  L(`  ${coverage[a] > 0 ? "✓" : "✗ ZERO"}  area-${a.padEnd(12)} ${String(coverage[a]).padStart(2)} test(s) · ${String(s.cov).padStart(2)}/${String(s.tot).padStart(2)} testids (${String(pct(s.cov, s.tot)).padStart(3)}%)`);
+}
 const zero = AREAS.filter((a) => coverage[a] === 0);
 L(`  zero-coverage areas: ${zero.length ? zero.map((a) => "area-" + a).join(", ") : "none"}`);
 L("\n── RECONCILE (add-only) ──");
