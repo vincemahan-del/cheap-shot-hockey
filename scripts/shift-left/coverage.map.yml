@@ -80,8 +80,8 @@ areas:
     lib:           [src/lib/team-orders.ts]
 
   info:                     # static reference/policy pages — low risk
-    routes:        [/shipping, /size-guide]
-    testid_prefix: [shipping-, returns-, size-guide-, sticks-row-, gloves-size-table,
+    routes:        [/shipping, /size-guide, /warranty]
+    testid_prefix: [shipping-, returns-, size-guide-, warranty-, sticks-row-, gloves-size-table,
                     goalie-leg-pads, goalie-chest-protector, goalie-leg-pads-table, helmets-size-table,
                     jerseys-size-table, skates-size-table, sticks-size-table]
     # /shipping logic lives in checkout (shipping.ts); these pages are content display.
