@@ -105,6 +105,94 @@ Every workaround in the engine is a symptom of a missing primitive:
 - Build a triage-orchestration POC: selection → run affected → `analyze_failure` → *propose* a bug-vs-stale verdict behind a human gate.
 - Fix the i18n granularity noise (TAMD-193).
 
+## Evidence (real output)
+
+Everything below is verbatim from the live runs this session — not mock-ups.
+
+### The coverage report — `node scripts/shift-left/audit.mjs`
+
+```
+══════════════ area-coverage-audit ══════════════
+swept: 38 routes · 24 lib · 15 components · 8 msg-namespaces · 244 testids · 38 tests
+
+── GUARD (every surface classified?) ──
+  ✓ 100% classified — guard passes
+
+── COVERAGE by area ──
+  ✓  area-catalog      17 test(s)
+  ✓  area-checkout      7 test(s)
+  ✓  area-orders       11 test(s)
+  ✓  area-auth         11 test(s)
+  ✓  area-admin         1 test(s)
+  ✓  area-deployments   2 test(s)
+  ✓  area-i18n          6 test(s)
+  ✗ ZERO  area-team-orders  0 test(s)
+  ✓  area-info          1 test(s)
+  zero-coverage areas: area-team-orders
+
+── RECONCILE (add-only) ──
+  CSH-LOCALE-MATRIX        ADD area-catalog
+  CSH-RT-ADMIN-UI-OrdersCsvVisualDownloadAssertion  review(keep) area-orders
+  CSH-CHP-CHECKOUT-UI-SeededOrderConfirmation        review(keep) area-checkout
+  (review = current label not testid-derivable — content-verified; kept, never auto-removed)
+```
+
+`area-team-orders` is a real, unprompted finding: a whole domain (the team-orders
+form flow) with zero mabl coverage. Nobody told the engine to look — it fell out of
+the sweep.
+
+### Act 1 — the engine catching the uncovered page (from the PR's DoD comment)
+
+```
+audit.mjs --guard FAILS on this PR (manifest gap):
+  Unclassified route:   /warranty
+  Unclassified testids (15): warranty-page, warranty-breadcrumbs, warranty-heading,
+    warranty-coverage, warranty-coverage-defects, warranty-coverage-terms,
+    warranty-row-sticks, warranty-row-skates, warranty-row-protective,
+    warranty-exclusions, warranty-exclusions-list, warranty-claims, …
+  Precise (changed testid): 0 tests — the 15 warranty-* testids are instrumented but UNCOVERED.
+```
+
+### Act 2 — selection on a component change (verbatim test-impact PR comment)
+
+```
+▶ Recommendation: run the area-catalog regression set (17 test(s)) — 10 of them precise.
+
+  src/components/ProductCard.tsx  ->  area (catalog)
+
+impacted areas: area-catalog              ← no CORE/BROAD; ProductCard is a component, not core
+
+precise — tests that touch a data-testid you changed (4 prefixes): 10 test(s)
+  CSH-RT-CATALOG-UI-LowStockBadgeDisplays, CSH-QUEBEC, CSH-REGION-DETECTION,
+  CSH-I18N-TAX, CSH-I18N-CURRENCY, dt-demo-catalog-category,
+  csh-checkout-authenticated-uses-saved-context, csh-checkout-paid-shipping-under-99,
+  csh-checkout-guest-golden-path, CSH-CHP-CHECKOUT-UI-CustomerPlacesOrderEndToEnd
+area-level — every test in the impacted domain (1 area): 17 test(s)
+```
+
+### The triage verdict already exists — `analyze_failure` on a real failed run
+
+```
+synopsis:  "Login test failed due to incorrect credential variable substitution"
+Root cause: app.defaults.username was not substituted in the email field — the input
+            "[plan credentials placeholder]" was entered instead of a valid email,
+            so authentication failed. This is a recurring test configuration issue.
+Next steps: ensure valid credentials resolve for app.defaults.username on Preview;
+            review the data-seeding logic / variable scope settings.
+```
+
+mabl classified this itself as a **test-configuration** issue (stale/config), not an
+app regression — the bug-vs-stale call, made by the platform today. What's missing is
+wiring it into the change loop and a place to persist the verdict.
+
+### Screenshots to add (only you can capture these — auth'd UIs)
+
+Drop these in wherever they punch hardest; the shareable page has labeled slots:
+- The **DoD comment** on PR #174 (the gap, rendered in GitHub).
+- The **test-impact comment** on PR #177 (Act 2 selection).
+- The **mabl test** `CSH-RT-INFO-UI-WarrantyPageDisplays` — green run + the `TAMD-189` / `area-info` labels.
+- The **merged-PR list** (TAMD-187 → 196) as proof of throughput.
+
 ## Appendix — trail and artifacts
 
 - **Shipped this session (all merged to `main`):** TAMD-187 (retire the legacy heuristic; one engine across DoD + pre-push + CI), TAMD-189 (Act 1, `/warranty`), TAMD-190 (test-impact on UI PRs), TAMD-191 (index refresh), TAMD-192 (Act 2, selection), TAMD-194 (evidence consolidation), TAMD-195 (this brief). Logged: TAMD-193 (i18n granularity). Tracked: TAMD-188 (advisory → blocking).
