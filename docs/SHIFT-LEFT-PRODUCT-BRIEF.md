@@ -67,6 +67,86 @@ The broader lesson: **test it in CI, not just locally.** Two real defects (this 
 - **No triage.** The engine tells you *which* tests to run, not whether a failure is a real regression or a stale test. (More on this below — it's less missing than I expected.)
 - **A workflow that edits its own file can't validate itself.** When I changed the DoD workflow, its own check refused to run on that PR (the action won't run a modified copy of its own workflow) — so its first live run is always the *next* PR. Worth knowing for anyone building CI-side agent checks.
 
+## Labels: the execution control plane
+
+Labels are how mabl decides *what to run*. Per mabl's own docs, a deployment event
+"triggers all plans that match specified labels," and the CI/CD guidance is explicit:
+"use test labels to run a group of tests for a deployment event." Labels aren't
+decoration — they're the dispatch layer. The engine's job is to feed that layer the
+right inputs.
+
+### The label axes in this workspace
+Tests carry labels on a few orthogonal axes:
+
+- **Domain — `area-*`** (catalog, checkout, orders, auth, admin, deployments, i18n, info, team-orders): *what the test covers.*
+- **Tier — `type-*`** (`type-smk` smoke, `type-rt` regression): *how deep.*
+- **Timing — `exec-*`** (`exec-pr`, `exec-postdeploy`): *when it runs.*
+- **Layer — `api-smoke`**: API vs UI.
+- **Traceability — `TAMD-*`** (the Jira key): *why it exists.*
+- **Descriptive / human — `csv`, `download-assertion`, `demo`, `WIP`**: free-form.
+
+Plans dispatch on the *intersection*: `type-smk,exec-pr` → the PR smoke; `type-rt,area-catalog`
+→ catalog regression; `type-rt` → the nightly full suite.
+
+### What's automated, and what isn't (deliberately)
+- **Auto — the domain axis (`area-*`).** The engine derives these from the testids a test
+  touches and applies them add-only (never clobbering a human label). It's cheap: in mabl,
+  label/metadata edits consume **0 credits** and don't count toward authoring/automator billing.
+- **Semi-auto — the ticket key (`TAMD-*`).** Applied at authoring time by the agent, per our DoD.
+- **Manual, on purpose — tier (`type-*`) and timing (`exec-*`).** These encode *risk policy*,
+  not facts about the code. Whether something is smoke vs regression, and when it should run,
+  is a human judgment. Code can tell you a test's *domain*; it can't tell you how much you
+  should care. So the engine derives the one axis it legitimately can (domain) and leaves the
+  risk axes to people. That boundary is the point — remove the toil, don't overreach into policy.
+
+### Where this goes: targeted testing to balance risk and credit
+mabl meters cloud execution in credits, and the ladder is steep:
+
+| Run | Credits |
+|---|---|
+| Local / CI-environment run | **0** |
+| API cloud run | 0.1 |
+| Browser cloud run (desktop) | 1 (1.5 with visual) |
+| Mobile cloud run | 5 (5.5 with visual) |
+| `analyze_failure` summary | **0** |
+| Test authoring / label writes | **0** |
+
+The expensive unit is the cloud browser/mobile run. mabl's own guidance already says to stage
+execution (cheap API first, expensive browser second) to conserve credits. The engine makes that
+staging *change-aware* instead of fixed:
+
+- **Inner loop (local, 0 credits):** the engine maps a diff to `area-catalog` →
+  `mabl tests run --labels type-rt,area-catalog` locally, before the PR. Fast feedback, no burn.
+- **PR gate (cloud, targeted):** run the diff-relevant area plan instead of the whole smoke —
+  spend credits proportional to blast radius. A single-component change runs that area; a
+  CORE/BROAD change runs wide (the risk warrants the spend).
+- **Deployment events:** a deploy that touches area-X fires the area-X plan by label match.
+- **Nightly (cloud, full):** `type-rt` everything — the comprehensive backstop, scheduled when
+  credit timing doesn't compete with iteration.
+
+Labels become a *risk dial*: the human-set depth/timing axes set the policy; the engine-derived
+domain axis + the impact selection decide where to point it on each change.
+
+### Pressure test (against mabl's docs + roadmap)
+- **The mechanism already exists.** Label-driven plans + deployment events are how mabl CI/CD
+  works today — this isn't a new runner, just a better selector feeding it.
+- **The credit argument is mabl's own.** "Organizing tests into plans to conserve credit
+  consumption" via staged execution is documented guidance; this makes it targeted.
+- **Triage is free.** `analyze_failure` summaries consume 0 credits — wiring failure-triage into
+  the loop adds orchestration, not execution cost.
+- **Labeled credentials is already being built** (MABL-20401 / MABL-20407, active epics) — so the
+  credentials-carry-context primitive (P4) isn't hypothetical; it's in development.
+- **Honest dependencies:**
+  - It needs area-scoped plans wired to deployment triggers. In this repo, PR-time area plans were
+    *removed* (collapsed to a fixed smoke), so "make selection authoritative" means re-introducing
+    area plans or dynamic label dispatch — real work, not free.
+  - "Only enabled plans configured to run on deployment are triggered" — the plumbing has preconditions.
+  - Label tooling has rough edges on branches (MABL-20506: branch label dropdowns / bulk-add), and
+    label *writes* are cloud-MCP-only (P3 / MABL-20586) — so the auto-labeling pipeline leans on the cloud path.
+- **Not a coverage-dashboard rehash.** mabl's account/coverage dashboards measure run history and
+  pass-rate; the surface-coverage % here measures code instrumentation touched by tests — a
+  different denominator.
+
 ## The platform signal — and how it ties to Dani's idea
 
 This is the part for this group. Dani floated giving every mabl entity an open-form JSON `annotations` field — agent-writable via CLI/MCP, persisted by ID, instantly synced — with examples like test-version descriptions, test-run breakdowns, and credential notes. She reasoned to it from "what should entities carry." I'd reasoned to the same place from "what do I need to make this work, and why is it taped together." Neither of us had seen the other's thinking.
