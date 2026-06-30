@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
-import { buildMaps, areaOfTestid, tidClassified, normRoute, deriveAreas } from "./engine.mjs";
+import { buildMaps, areaOfTestid, tidClassified, normRoute, deriveAreas, resolveFiles } from "./engine.mjs";
 
 const argv = process.argv.slice(2);
 const MODE = argv[0] === "impact" ? "impact" : "audit";
@@ -50,8 +50,11 @@ if (MODE === "impact") {
     while ((m = rt.exec(txt))) if (m[1]) s.add(m[1]);
     return [...s];
   };
+  // files from args, or stdin when called as `impact -` / `impact` (pipe-friendly for CI)
+  const wantStdin = impactFiles.length === 0 || (impactFiles.length === 1 && impactFiles[0] === "-");
+  const files = resolveFiles(impactFiles, wantStdin ? fs.readFileSync(0, "utf8") : "");
   const areasHit = new Set(); let broad = false; const owned = new Set(); const rep = [];
-  for (const f of impactFiles) {
+  for (const f of files) {
     const r = rel(f); let bucket = "unclassified", as = [];
     const route = fileRoute(f);
     if (route !== null) {

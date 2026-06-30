@@ -65,3 +65,13 @@ export function deriveAreas(test, maps) {
   }
   return d;
 }
+
+// Resolve the impact file list from CLI args OR stdin. `impact -` (or no args)
+// reads newline-delimited paths from stdin — robust to bracket route paths
+// ([slug]/[id]) and spaces that shell globbing/word-splitting would mangle.
+// Trims, drops blanks, dedupes.
+export function resolveFiles(args, stdin = "") {
+  const useStdin = args.length === 0 || (args.length === 1 && args[0] === "-");
+  const list = useStdin ? stdin.split(/\r?\n/) : args;
+  return [...new Set(list.map((s) => s.trim()).filter(Boolean))];
+}
