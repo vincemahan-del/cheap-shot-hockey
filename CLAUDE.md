@@ -105,9 +105,13 @@ If coverage drops below 90% on any metric, write the missing unit tests and re-r
 
 **2. mabl test impact analysis**
 ```bash
-git diff --name-only main | ./scripts/mabl-suggest-tests.sh
+git diff --name-only main | node scripts/shift-left/audit.mjs impact -
 ```
-Review the output. If existing mabl tests match the changed files:
+The area-coverage engine (`scripts/shift-left/`) reports which mabl tests this
+change impacts: a plain-English `▶ Recommendation`, precise tests (by changed
+`data-testid`), area-level tests (by impacted domain), and a CORE/BROAD flag for
+cross-cutting changes. It's the **same** engine the `test-impact` CI job and the
+agentic DoD check run — all three agree. Review the output. If tests match:
 - Note them explicitly in the PR description under a "Test impact" section
 - Add a Jira comment listing the affected tests so QA can verify
 

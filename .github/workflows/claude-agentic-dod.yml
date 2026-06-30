@@ -23,7 +23,7 @@ on:
 env:
   CLAUDE_ACTION_SHA: 23e4ee05df2c5aefd801f51b83c81cd4215be7e9  # v1.0.120
   CLAUDE_MODEL: claude-opus-4-7
-  DOD_ANALYSIS_TOOLS: "Read,Glob,Grep,Bash(npm run test:coverage),Bash(npm run lint),Bash(git diff *),Bash(git log *),Bash(./scripts/mabl-suggest-tests.sh *),mcp__mabl__get_mabl_tests,mcp__mabl__get_mabl_test_details,mcp__mabl__get_environments,mcp__mabl__get_applications,mcp__atlassian__read_jira_issue,mcp__atlassian__search_jira_issues"
+  DOD_ANALYSIS_TOOLS: "Read,Glob,Grep,Bash(npm run test:coverage),Bash(npm run lint),Bash(git diff *),Bash(git log *),Bash(node scripts/shift-left/audit.mjs *),mcp__mabl__get_mabl_tests,mcp__mabl__get_mabl_test_details,mcp__mabl__get_environments,mcp__mabl__get_applications,mcp__atlassian__read_jira_issue,mcp__atlassian__search_jira_issues"
 
 jobs:
   claude-dod:
@@ -126,8 +126,14 @@ jobs:
                role is to call out which files are under-covered.)
 
             2. Run `git diff --name-only origin/main HEAD` to get changed files.
-               Pipe that list through `./scripts/mabl-suggest-tests.sh` to find
-               existing mabl tests that may be affected.
+               Pipe that list through `node scripts/shift-left/audit.mjs impact -`
+               to find which mabl tests this change impacts. This is the SAME
+               area-coverage engine the `test-impact` CI job uses — precise tests
+               (by changed data-testid), area-level tests (by impacted domain), and
+               a CORE/BROAD flag for cross-cutting changes. Your summary MUST agree
+               with that comment; report the engine's `▶ Recommendation` line.
+               Then run `node scripts/shift-left/audit.mjs --guard` and note any
+               unclassified surface it flags (advisory — a new area/manifest gap).
 
             3. Use `mcp__mabl__get_mabl_tests` (workspace_id pXXgThbNi4HfQOpiZptHfw-w,
                application_id OZqmshBkUfVSesWy49g1eQ-a) to identify new UI pages,
@@ -136,8 +142,11 @@ jobs:
 
             4. Post a single PR comment summarising:
                - Coverage result (pass/fail, metrics, under-covered files)
-               - Existing mabl tests affected by this PR
-               - Coverage gaps: new flows with no mabl test (recommend, don't act)
+               - Impacted mabl tests from the engine: the `▶ Recommendation`
+                 line, the impacted areas (+ CORE/BROAD if flagged), and the
+                 precise vs area-level test lists
+               - Coverage gaps: new flows with no mabl test (recommend, don't act);
+                 cross-check against any unclassified surface the guard flagged
                - Existing Jira tickets that may relate (read-only mcp__atlassian__search)
                - Overall DoD status: PASS, OBSERVATIONS, or GAPS
 

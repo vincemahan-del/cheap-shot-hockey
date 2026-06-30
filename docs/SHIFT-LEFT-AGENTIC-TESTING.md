@@ -23,7 +23,7 @@ A DoD/CI gate exists to **independently certify** safety. An agent that can both
 
 | Phase | Home | Why |
 |---|---|---|
-| ① Map / ② Predict / gap-suggest | **DoD** (pre-PR, advisory) | Cheap, shift-left, already partly there (`mabl-suggest-tests.sh`). |
+| ① Map / ② Predict / gap-suggest | **DoD** (pre-PR, advisory) | Cheap, shift-left; shipped as the area-coverage engine (`scripts/shift-left/audit.mjs`), which replaced the `mabl-suggest-tests.sh` heuristic (TAMD-187). |
 | ③ Run affected (PR gate) | **CI gate** (`CSH-SMOKE-PR`) | Enforcement belongs in branch protection; evolve from fixed → diff-relevant set. |
 | ③′ Run affected (dev inner loop) | **Local, pre-PR** (`mabl tests run --labels <area> --headless`) | Fast feedback, preserves cloud credits; over-inclusive + advisory, *not* a gate. |
 | ④ Triage + ⑤ edit/create | **Separate proposing agent** (NOT a gate step) | Keeps the test-editor distinct from the gate; output = a reviewable branch diff. |
@@ -71,7 +71,7 @@ Grounded in the mabl PM "MCP Capability Delta" (2026-06-29) and APEX-46.
 
 | Leg | mabl-native primitive | Verdict |
 |---|---|---|
-| ① Map / coverage | `identify_coverage_gaps`, `search_mabl_tests`, `mabl_find_tests_using_flow`, `area-*` labels | **Lean on mabl** + strengthen `mabl-suggest-tests.sh`. No code-level coverage (black-box) — approximate selection (see Meta TIA). |
+| ① Map / coverage | `identify_coverage_gaps`, `search_mabl_tests`, `mabl_find_tests_using_flow`, `area-*` labels | **Lean on mabl** + the area-coverage engine (`scripts/shift-left/audit.mjs`, which superseded `mabl-suggest-tests.sh`). No code-level coverage (black-box) — approximate selection (see Meta TIA). |
 | ② Predict | LLM over diff + `mabl_get_test_steps` | **Build** (light); inherently imperfect. |
 | ③ Run affected (gate) | `run_mabl_test_cloud`, plans, `trigger_mabl_deployment` | **Lean on mabl** — full support today. |
 | ③′ Run local (dev loop) | CLI `mabl tests run --headless --labels <area>` vs localhost/preview | **Lean on mabl** — `scripts/mabl-local-cli.sh` already wraps it; selection by `area-*` label. Caveat: GenAI assertions still bill. |
@@ -98,7 +98,7 @@ Grounded in the mabl PM "MCP Capability Delta" (2026-06-29) and APEX-46.
 
 ## 8. Doable-today path
 
-1. **Selection + gaps (shared):** strengthen `mabl-suggest-tests.sh` (it currently misses `messages/*`), backed by `identify_coverage_gaps` + `area-*` labels. This selection feeds both the local loop and CI.
+1. **Selection + gaps (shared):** the area-coverage engine (`scripts/shift-left/audit.mjs`) — which replaced `mabl-suggest-tests.sh` and now classifies `messages/*` — backed by `identify_coverage_gaps` + `area-*` labels. This selection feeds the local pre-push hook, the agentic DoD, and the CI `test-impact` job from one source.
 2. **Run locally (dev inner loop):** `mabl tests run --labels <selected-area> --headless` vs `localhost:3000` — fast, credit-light feedback while iterating (via `scripts/mabl-local-cli.sh`). Over-select; advisory only.
 3. **Run affected (CI gate):** evolve `CSH-SMOKE-PR` from a fixed set → diff-relevant set — authoritative.
 4. **Triage (proposing agent):** compose `analyze_failure` + RAA + TRA `repairNotes` as *evidence*; coding agent supplies *intent*; adversarial reviewer + scoring framework set the human-tap threshold.

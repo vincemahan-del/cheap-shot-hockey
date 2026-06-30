@@ -22,6 +22,11 @@
 //   4. The DoD job restricts to same-repo PRs (no fork heads can run the
 //      analysis with our secrets in scope).
 //
+//   5. The DoD's mabl test-impact analysis is wired to the area-coverage
+//      engine (scripts/shift-left/audit.mjs) — the same engine the
+//      test-impact CI job uses — and the retired mabl-suggest-tests.sh
+//      heuristic does not reappear (TAMD-187). One engine, one answer.
+//
 // Exit code: 0 = clean, 1 = at least one violation. Run from repo root.
 
 import { readFile } from "node:fs/promises";
@@ -119,6 +124,21 @@ assert(
   "claude-agentic-dod.yml: missing fork-PR exclusion (head.repo.full_name == github.repository)"
 );
 
+// --- 5. Test-impact engine is the wired tool (TAMD-187) ----------------------
+// The DoD's mabl test-impact analysis MUST use the area-coverage engine
+// (scripts/shift-left/audit.mjs), the same engine the test-impact CI job uses,
+// so both surfaces produce one consistent answer. The legacy heuristic
+// (mabl-suggest-tests.sh) was retired in TAMD-187 — if it reappears here the
+// two surfaces can diverge again, so we assert it stays gone.
+assert(
+  /Bash\(node scripts\/shift-left\/audit\.mjs \*\)/.test(dodToolsMatch?.[1] || ""),
+  "claude-agentic-dod.yml: DOD_ANALYSIS_TOOLS must wire the area-coverage engine (Bash(node scripts/shift-left/audit.mjs *))"
+);
+assert(
+  !/mabl-suggest-tests\.sh/.test(dodYml),
+  "claude-agentic-dod.yml: references the retired mabl-suggest-tests.sh heuristic — use the area-coverage engine instead (TAMD-187)"
+);
+
 // --- Report -----------------------------------------------------------------
 if (failures.length > 0) {
   console.error(`✗ tool-surface check FAILED — ${failures.length} violation(s):\n`);
@@ -133,3 +153,4 @@ console.log("  • action SHA-pinned in claude-agentic-dod.yml");
 console.log("  • --model flag present and looks pinned");
 console.log("  • DOD_ANALYSIS_TOOLS free of side-effect tools");
 console.log("  • DoD restricted to same-repo PRs");
+console.log("  • test-impact wired to the area-coverage engine (heuristic retired)");
