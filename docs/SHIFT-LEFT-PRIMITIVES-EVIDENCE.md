@@ -84,8 +84,74 @@ should use them.
   hand; an agent can't read "this cred is the admin persona, use it for admin
   flows." Dani raised this exact example from the platform side. Same shape as P1
   (annotations on the credential entity).
+- 2026-06-30 — **Empirical.** A real failed run (`csh-auth-login-valid-credentials`,
+  `J12oeg6vbVaUhUDhi4PUIg-jr`) was a credential-resolution failure: `app.defaults.username`
+  didn't substitute on Preview, so a placeholder was typed instead of an email and
+  login failed. mabl's own `analyze_failure` recommended "reviewing the data-seeding
+  logic or variable scope settings." If the credential carried its resolution
+  context/persona as an annotation, the agent (and the test) could self-diagnose
+  rather than typing a placeholder.
 
-**Verdict so far:** SUPPORTED via convergence; not yet stress-tested in this repo.
+**Verdict so far:** SUPPORTED — now with empirical backing, not just convergence.
+
+---
+
+## P5 — Failure triage that persists (bug vs stale test) — **CONVERGENCE**
+**Need:** classify a failure as a real regression vs a stale/misconfigured test, and
+persist that verdict where any agent can read it.
+
+**What already exists in mabl:** `analyze_failure` (post-hoc AI root-cause) and the
+Runtime Recovery Agent (`testNeedsUpdate` / `repairNotes`) already produce a root
+cause and a bug-vs-config classification. The triage half of the vision is NOT
+net-new AI.
+
+**Evidence (dated):**
+- 2026-06-30 — Ran `analyze_failure` on the real failed run above
+  (`J12oeg6vbVaUhUDhi4PUIg-jr`): it returned synopsis "incorrect credential variable
+  substitution," explicitly classified it a "**recurring test configuration issue**"
+  (i.e. stale/config, NOT an app regression), and gave next steps. So the
+  bug-vs-stale call is available today.
+
+**The gap this experiment shows is missing:**
+1. **Orchestration** — the engine *selects* affected tests but doesn't yet run them
+   → call `analyze_failure` on failures → surface the verdict in the PR/agent loop.
+   (Kept out of the *autonomous* path on purpose — see P2 / the self-certifying-gate
+   rule; the verdict should *propose*, a human disposes.)
+2. **Persistence** — the verdict is generated on-demand and ephemeral. Dani's
+   example #2, "detailed breakdown on test runs as to what happened and how it was
+   identified," is exactly where it belongs: an annotation on the test run, so any
+   agent reads "known recurring credential flake" instead of re-deriving it.
+
+**Verdict so far:** SUPPORTED + CONVERGENCE. Triage = orchestration + persistence,
+not a missing brain.
+
+---
+
+## VERDICT — after Acts 1–2 + edge probes (2026-06-30)
+
+**Does it work?** Yes, end-to-end on real PRs: gap detection (the uncovered
+`/warranty` page was flagged), test selection (a `ProductCard` change → `area-catalog`,
+10 precise / 17 area-level, correctly **no** BROAD), auto-derived `area-*` labels (the
+authored warranty test carries `area-info` with no hand-tagging), the full
+author → index → precise-select loop, and the deterministic test-impact comment now
+firing on UI-only PRs (TAMD-190). The testid join also beat route-mapping (the warranty
+test's URL is `/`, yet it classified as `info` via its testids).
+
+**Do the primitive needs hold — does this prove them?** Yes, and the strongest one
+converges from four independent angles:
+
+| Primitive | Status | Independent evidence in this experiment |
+|---|---|---|
+| **P1 entity annotations** | STRONGLY PROVEN | the stale repo-local index cache; `area-*` labels overloaded as a metadata store; the misleading test `url`; the ephemeral triage verdict — all four are the *same* missing field |
+| P2 safe metadata writes | SUPPORTED | last-write-wins-to-master keeps autonomous test edits out of the path; annotations are a safe write surface |
+| P3 MCP write parity | SUPPORTED | label writes only via the cloud MCP, not local |
+| P4 creds carry context | SUPPORTED (empirical) | a real failure was credential non-resolution; analyze_failure pointed at credential/variable scope |
+| P5 triage that persists | SUPPORTED + CONVERGENCE | analyze_failure already classifies bug-vs-stale; the verdict has nowhere to live |
+
+**Headline:** Dani proposed entity `annotations` from the platform side without seeing
+this build; the engine hit the same wall from the implementation side. That
+independent convergence is the result — **this prototype is a working proof-of-need
+for entity annotations**, with P2–P5 as corroborating, lower-order needs.
 
 ---
 
