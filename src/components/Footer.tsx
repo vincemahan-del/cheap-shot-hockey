@@ -69,6 +69,11 @@ export async function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/warranty" className="hover:text-[color:var(--accent)]" data-testid="footer-warranty-link">
+                  {t("warranty")}
+                </Link>
+              </li>
+              <li>
                 <Link href="/team-orders" className="hover:text-[color:var(--accent)]" data-testid="footer-team-orders-link">
                   {t("teamOrders")}
                 </Link>
