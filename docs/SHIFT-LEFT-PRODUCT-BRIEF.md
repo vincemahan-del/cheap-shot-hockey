@@ -18,15 +18,16 @@ mabl is black-box. There's no code-level coverage signal, so the question every 
 
 ## What I built
 
-A small, version-controlled engine (`scripts/shift-left/`):
+A small, version-controlled engine ([`scripts/shift-left/`](https://github.com/vincemahan-del/cheap-shot-hockey/tree/main/scripts/shift-left)):
 
-- **`coverage.map.yml`** — the manifest. A controlled vocabulary of 9 areas (catalog, checkout, orders, auth, admin, deployments, i18n, team-orders, info), each tied to its routes, components, `data-testid` prefixes, and i18n namespaces. Plus non-area buckets: `core` (shared/cross-cutting → forces broad impact), `excluded` (promo/demo chrome), `platform` (API smoke).
-- **`engine.mjs` / `audit.mjs`** — the logic and CLI. Three outputs:
+- **[`coverage.map.yml`](https://github.com/vincemahan-del/cheap-shot-hockey/blob/main/scripts/shift-left/coverage.map.yml)** — the manifest. A controlled vocabulary of 9 areas (catalog, checkout, orders, auth, admin, deployments, i18n, team-orders, info), each tied to its routes, components, `data-testid` prefixes, and i18n namespaces. Plus non-area buckets: `core` (shared/cross-cutting → forces broad impact), `excluded` (promo/demo chrome), `platform` (API smoke).
+- **[`engine.mjs`](https://github.com/vincemahan-del/cheap-shot-hockey/blob/main/scripts/shift-left/engine.mjs) / [`audit.mjs`](https://github.com/vincemahan-del/cheap-shot-hockey/blob/main/scripts/shift-left/audit.mjs)** — the logic and CLI. Three outputs:
   - **impact** — given a diff, the mabl tests it hits: *precise* (tests touching a changed testid), *area-level* (tests in the impacted domain), and a CORE/BROAD flag when shared code changes. Leads with a plain-English `▶ Recommendation`.
   - **guard** — sweeps the repo and fails if any surface (route/component/testid/namespace) isn't classified. The "you shipped something untracked" alarm.
   - **reconcile** — derives the `area-*` labels mabl uses to group/run tests, from the same map. Add-only — it never removes a human-set label.
-- **`test-index.json`** — a cached snapshot of the live mabl test list (id, name, testids, routes, derived area), rebuilt by a `coverage-auditor` subagent that pulls from the workspace.
-- **Unit tests** — 15, covering the derivation rules (longest-prefix precedence, verifies-not-transit, i18n-via-query, etc.).
+- **[`test-index.json`](https://github.com/vincemahan-del/cheap-shot-hockey/blob/main/scripts/shift-left/test-index.json)** — a cached snapshot of the live mabl test list (id, name, testids, routes, derived area), rebuilt by the `coverage-auditor` subagent (below).
+- **The [`coverage-auditor`](https://github.com/vincemahan-del/cheap-shot-hockey/blob/main/.claude/agents/coverage-auditor.md) subagent** — a repo-level Claude Code subagent (spec'd in [`docs/AREA-COVERAGE-AUDIT.md`](https://github.com/vincemahan-del/cheap-shot-hockey/blob/main/docs/AREA-COVERAGE-AUDIT.md)) that operates the engine against *live* mabl: it pulls the current test list from the workspace, rebuilds the index, runs the audit (guard / coverage / reconcile), and writes the derived `area-*` labels back onto the tests (add-only, via the cloud MCP). It's the "operate it over time" half — what keeps the map fresh and the labels true, and it's how the auto-labeling actually lands on a test. (In this session it refreshed the index 35 → 38 after the new warranty test.)
+- **[Unit tests](https://github.com/vincemahan-del/cheap-shot-hockey/blob/main/scripts/shift-left/audit.test.mjs)** — 17, covering the derivation rules (longest-prefix precedence, verifies-not-transit, i18n-via-query, surface-coverage math).
 
 ### How the mapping works
 
@@ -40,9 +41,9 @@ It's deterministic (no LLM in the engine) and advisory — it never blocks a mer
 
 I ran two acts on real PRs.
 
-**Act 1 — gap detection ([TAMD-189](https://mabl.atlassian.net/browse/TAMD-189)).** I added a `/warranty` page and deliberately shipped it with no test. The engine caught it: the guard failed on the new route plus 15 new `warranty-*` testids, and impact reported it "instrumented but UNCOVERED → author a test." I then closed the loop: classified `/warranty` into the `info` area, authored a mabl test through the cloud MCP, and it landed labeled `TAMD-189` + `area-info` (the area label applied automatically), then **ran green**. After a `coverage-auditor` index refresh (35 → 38 tests), the engine's precise impact now names that test for any future `/warranty` change.
+**Act 1 — gap detection ([TAMD-189](https://mabl.atlassian.net/browse/TAMD-189)).** I added a [`/warranty` page](https://github.com/vincemahan-del/cheap-shot-hockey/blob/main/src/app/warranty/page.tsx) and deliberately shipped it with no test. The engine caught it: the guard failed on the new route plus 15 new `warranty-*` testids, and impact reported it "instrumented but UNCOVERED → author a test." I then closed the loop: classified `/warranty` into the `info` area, authored a mabl test through the cloud MCP, and it landed labeled `TAMD-189` + `area-info` (the area label applied automatically), then **ran green**. After a `coverage-auditor` index refresh (35 → 38 tests), the engine's precise impact now names that test for any future `/warranty` change.
 
-**Act 2 — selection ([TAMD-192](https://mabl.atlassian.net/browse/TAMD-192)).** A change to the `ProductCard` component. The engine selected `area-catalog` — 10 precise, 17 area-level — with **no BROAD**, correctly, because a component isn't shared/core. That's the "run the right regression set" behavior.
+**Act 2 — selection ([TAMD-192](https://mabl.atlassian.net/browse/TAMD-192)).** A change to the [`ProductCard`](https://github.com/vincemahan-del/cheap-shot-hockey/blob/main/src/components/ProductCard.tsx) component. The engine selected `area-catalog` — 10 precise, 17 area-level — with **no BROAD**, correctly, because a component isn't shared/core. That's the "run the right regression set" behavior.
 
 **What broke, and what I learned.** Two things, both useful:
 
