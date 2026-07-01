@@ -16,6 +16,8 @@ The headline isn't the engine. It's what building it exposed: **almost every pla
 
 mabl is black-box. There's no code-level coverage signal, so the question every team actually has — "for this change, which tests matter, and what's untested?" — has no clean answer. People run the whole smoke suite and hope. If I want an agentic SDLC where a coding agent runs the *right* tests and reasons about gaps, that map has to exist first. So I built the map, against my `cheap-shot-hockey` demo storefront (Next.js, full SDLC, already instrumented for mabl).
 
+Selecting tests by what changed isn't a new idea — Meta's Predictive Test Selection, `nx affected`, and `jest --onlyChanged` all do it, backed by a real code-coverage graph. What's different here is doing it against mabl's *black-box* surface, where no such graph exists: the `data-testid`s are the only bridge between the code and the tests. I'm not claiming the concept is novel — I'm claiming the black-box application is useful, and that building it is a sharp probe of what the platform can't do yet.
+
 ## What I built
 
 A small, version-controlled engine ([`scripts/shift-left/`](https://github.com/vincemahan-del/cheap-shot-hockey/tree/main/scripts/shift-left)):
@@ -31,11 +33,13 @@ A small, version-controlled engine ([`scripts/shift-left/`](https://github.com/v
 
 ### How the mapping works
 
-The join key is `data-testid`. Every interactive element in the app has one (a repo convention, enforced in my DoD), and mabl tests select by those same testids. So a testid is one stable name living in both the code and the test. The manifest buckets testid prefixes into areas. A testid rolls up to an area; a mabl test rolls up to the areas of whatever testids its steps touch; a code change rolls up the same way. That's the entire join.
+The join key is `data-testid`. Every interactive element in the app has one (a repo convention, enforced in my DoD), and mabl tests select by those same testids. So a testid is one stable name living in both the code and the test. The manifest buckets testid prefixes into areas. A testid rolls up to an area; a mabl test rolls up to the areas of whatever testids its steps touch; a code change rolls up the same way. That's the entire join — at two granularities: a testid *prefix* is a component (`product-card-`, `warranty-`), and a set of prefixes is an area (domain). So impact reports both — *precise* tests that touch a component testid you changed, and *area-level* tests in the same domain. One deliberate rule keeps it honest: a test earns an area only from testids it actually asserts or interacts with, not from pages it merely passes through — a checkout test that navigates past `/products` without touching a catalog testid does **not** count as catalog coverage (there's a unit test pinning exactly this).
 
 Two things fall out: I can name the tests a change impacts, and I can **derive `area-*` labels from the testids a test actually uses** — so labels stay true instead of rotting, and "run all catalog tests" means it.
 
-It's deterministic (no LLM in the engine) and advisory — it never blocks a merge today.
+**Where the determinism actually is** (worth being precise, because "deterministic" gets thrown around): the *engine* — the map plus the impact/guard/reconcile logic — is pure, deterministic, and unit-tested. No model decides what covers what. LLMs sit *around* it: the agentic definition-of-done check and the `coverage-auditor` subagent *run* the engine and act on its output, but the labels they apply are the engine's derivation (add-only), and anything the engine can't derive from testids is **flagged for a human, not guessed** — that's exactly what happened this session when the auditor declined to auto-apply `area-catalog` to `CSH-LOCALE-MATRIX` (a route-only match with no testid evidence). Authoring a test is the one genuinely generative step, and it's human-reviewed. And the whole thing is advisory — it never blocks a merge today.
+
+**Scope, stated plainly:** the testid join is a *UI* technique. API tests carry no testids, so they're classified by route and by label (the `platform`/`api-smoke` buckets), and the surface-coverage % below is a *UI-surface* number. Mapping API coverage precisely is out of scope for the testid join.
 
 ## What happened this session (the live test)
 
@@ -67,6 +71,7 @@ The broader lesson: **test it in CI, not just locally.** Two real defects (this 
 - **Selection is approximate.** It's black-box underneath — there's no true code-to-test coverage — so it stays advisory by design.
 - **No triage.** The engine tells you *which* tests to run, not whether a failure is a real regression or a stale test. (More on this below — it's less missing than I expected.)
 - **A workflow that edits its own file can't validate itself.** When I changed the DoD workflow, its own check refused to run on that PR (the action won't run a modified copy of its own workflow) — so its first live run is always the *next* PR. Worth knowing for anyone building CI-side agent checks.
+- **Proven in principle, not at scale.** This ran against 38 tests and 244 testids in one well-instrumented repo. Two things scale with the app, and I haven't stress-tested either: the `data-testid` discipline (the join is only as good as the instrumentation — sloppy or missing testids blind it), and the manifest itself. The guard flags *new* unclassified surfaces automatically, but a human still decides which area they belong to. On a large app with lots of churn, that manifest upkeep is the real cost, and it's exactly the kind of derived metadata that would live better on the mabl entities than in a repo file (see the platform signal).
 
 ## Labels: the execution control plane
 
@@ -77,8 +82,9 @@ decoration — they're the dispatch layer. The engine's job is to feed that laye
 right inputs.
 
 ### The label axes in this workspace
-28 distinct labels are in use across the ~45 tests (pulled live from the workspace). They fall
-on a few orthogonal axes:
+28 distinct labels are in use across the workspace, pulled live (the coverage index tracks the
+38 enabled browser tests; the full set including API and disabled tests is ~47). They fall on a
+few orthogonal axes:
 
 - **Domain — `area-*`** (8): `area-catalog`, `area-checkout`, `area-orders`, `area-auth`, `area-admin`, `area-deployments`, `area-i18n`, `area-info` — *what the test covers.* (`area-team-orders` exists in the map but on no test yet — that's the 0%-coverage gap; the label appears once the first team-orders test is authored.)
 - **Tier — `type-*`** (3): `type-smk` (smoke), `type-rt` (regression), `type-api` — *how deep.*
@@ -173,6 +179,8 @@ Every workaround in the engine is a symptom of a missing primitive:
 - *"Approximate selection will miss a regression."* Yes, it can — which is why it's advisory and over-selects (the safe failure mode). I will not make it blocking until I've measured its false-positive rate on real PRs, the same way I promoted CodeQL.
 - *"You're generalizing a platform need from one repo and one conversation."* Correct, and I won't overstate it: this is a directional, qualitative proof-of-need, not a quantitative study. What gives it weight is that the need shows up from four independent angles in the engine, two of those needs are already GA-blocker tickets, and the headline primitive was reached independently by someone reasoning purely about the platform. That's a strong signal to investigate, not a finished business case.
 - *"Why keep authoring out of the automation?"* Deliberate. Whatever enforces the gate must not also write the tests, or it can turn a red check green by rewriting the assertion. Authoring stays agent-*assisted* and human-reviewed.
+- *"There's an LLM (the coverage-auditor) writing labels to my test suite — how is that safe?"* The label *values* are the engine's deterministic derivation; the subagent only applies them, add-only, and flags anything it can't derive from testids rather than guessing (it declined to auto-label `CSH-LOCALE-MATRIX` this session). The model orchestrates and executes — it doesn't decide coverage. The one generative step, authoring a test, is human-reviewed.
+- *"Does any of this work for API tests?"* No — the testid join is UI-only. API tests carry no testids; they're classified by route and label (`platform` / `api-smoke`), and the coverage % is a UI-surface number. Precise API-change → API-test mapping isn't something this technique does today.
 
 ## What I'm asking Product + Engineering to consider
 
@@ -229,6 +237,8 @@ fully-exercised one. Stated that way it's defensible, and it's the honest ceilin
 means two-thirds of the instrumented surface has *no* test on it at all. `area-team-orders`
 is the sharpest case — a whole domain (the team-orders form flow) at 0%, surfaced
 unprompted; `area-info` at 15% reflects content pages with many testids and few tests.
+
+One precision note on the denominator: 228 counts *distinct instrumented testids* — a templated family like `product-card-${slug}` counts once, not once per product — and only elements that actually carry a `data-testid`. Anything not instrumented isn't in the denominator at all. So it's coverage *of the instrumented surface*, not of the app in some absolute sense. That's the honest scope, and it's why the number is a floor for "what's demonstrably exercised," not a grade.
 
 ### Act 1 — the engine catching the uncovered page (from the PR's DoD comment)
 
