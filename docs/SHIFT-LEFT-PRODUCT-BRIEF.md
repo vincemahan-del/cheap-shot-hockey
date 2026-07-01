@@ -1,7 +1,7 @@
 # Product brief: a coverage engine for mabl, and what it reveals about the platform
 
 **Author:** Vince Mahan · **Audience:** Product + Engineering
-**Status:** working prototype, validated end-to-end on a live repo (`cheap-shot-hockey`)
+**Status:** working prototype — the core gap→classify→author→run→select loop is validated end-to-end on a live repo (`cheap-shot-hockey`); the triage half is not built
 **Companion docs:** [SHIFT-LEFT-PRIMITIVES-EVIDENCE.md](https://github.com/vincemahan-del/cheap-shot-hockey/blob/main/docs/SHIFT-LEFT-PRIMITIVES-EVIDENCE.md) (dated evidence log) · [SHIFT-LEFT-AGENTIC-TESTING.md](https://github.com/vincemahan-del/cheap-shot-hockey/blob/main/docs/SHIFT-LEFT-AGENTIC-TESTING.md) (design brief)
 
 ## Executive summary
