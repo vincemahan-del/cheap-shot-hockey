@@ -2,19 +2,19 @@
 
 **Author:** Vince Mahan · **Audience:** Product + Engineering
 **Status:** working prototype, validated end-to-end on a live repo (`cheap-shot-hockey`)
-**Companion docs:** [`SHIFT-LEFT-PRIMITIVES-EVIDENCE.md`](./SHIFT-LEFT-PRIMITIVES-EVIDENCE.md) (dated evidence log) · [`SHIFT-LEFT-AGENTIC-TESTING.md`](./SHIFT-LEFT-AGENTIC-TESTING.md) (design brief)
+**Companion docs:** [SHIFT-LEFT-PRIMITIVES-EVIDENCE.md](https://github.com/vincemahan-del/cheap-shot-hockey/blob/main/docs/SHIFT-LEFT-PRIMITIVES-EVIDENCE.md) (dated evidence log) · [SHIFT-LEFT-AGENTIC-TESTING.md](https://github.com/vincemahan-del/cheap-shot-hockey/blob/main/docs/SHIFT-LEFT-AGENTIC-TESTING.md) (design brief)
 
 ## Executive summary
 
-I built a deterministic engine that does for mabl what a code-coverage report does for unit tests: it maps an application's surfaces to the mabl tests that cover them, so on any change you can answer *which tests cover this* and *what did I just ship that nothing tests*. It runs advisory in three places — the PR comment, our agentic definition-of-done check, and a local pre-push hook — off one shared map.
+I built a deterministic engine that does for mabl what a code-coverage report does for unit tests: it maps an application's surfaces to the mabl tests that cover them, so on any change you can answer *which tests cover this* and *what did I just ship that nothing tests*. It runs advisory in three places — the PR comment, my agentic definition-of-done check, and a local pre-push hook — off one shared map.
 
 This session I ran it end-to-end on real feature PRs. It worked: it caught an uncovered page, drove the loop to a labeled, green mabl test, and correctly selected the regression set for a second change. It also bit back — the live run surfaced a real bug in my own CI, which I fixed.
 
-The headline isn't the engine. It's what building it exposed: **almost every place the engine is "held together with tape" maps to a mabl platform primitive that doesn't exist yet.** The strongest of those — an open-form, synced `annotations` field on mabl entities — was independently proposed by Dani on the platform side *with no knowledge of this build*, while I'd been faking it from the implementation side. That convergence is the core result. **This prototype is a working proof-of-need for entity annotations.** Two of the corroborating needs are already GA-blocker tickets (MABL-20580, MABL-20586); annotations is the net-new ask.
+The headline isn't the engine. It's what building it exposed: **almost every place the engine is "held together with tape" maps to a mabl platform primitive that doesn't exist yet.** The strongest of those — an open-form, synced `annotations` field on mabl entities — was independently proposed by Dani on the platform side *with no knowledge of this build*, while I'd been faking it from the implementation side. That convergence is the core result. **This prototype is a working proof-of-need for entity annotations.** Two of the corroborating needs are already GA-blocker tickets ([MABL-20580](https://mabl.atlassian.net/browse/MABL-20580), [MABL-20586](https://mabl.atlassian.net/browse/MABL-20586)); annotations is the net-new ask.
 
 ## The problem I was solving
 
-mabl is black-box. There's no code-level coverage signal, so the question every team actually has — "for this change, which tests matter, and what's untested?" — has no clean answer. People run the whole smoke suite and hope. If we want an agentic SDLC where a coding agent runs the *right* tests and reasons about gaps, that map has to exist first. So I built the map, against our `cheap-shot-hockey` demo storefront (Next.js, full SDLC, already instrumented for mabl).
+mabl is black-box. There's no code-level coverage signal, so the question every team actually has — "for this change, which tests matter, and what's untested?" — has no clean answer. People run the whole smoke suite and hope. If I want an agentic SDLC where a coding agent runs the *right* tests and reasons about gaps, that map has to exist first. So I built the map, against my `cheap-shot-hockey` demo storefront (Next.js, full SDLC, already instrumented for mabl).
 
 ## What I built
 
@@ -30,7 +30,7 @@ A small, version-controlled engine (`scripts/shift-left/`):
 
 ### How the mapping works
 
-The join key is `data-testid`. Every interactive element in the app has one (a repo convention, enforced in our DoD), and mabl tests select by those same testids. So a testid is one stable name living in both the code and the test. The manifest buckets testid prefixes into areas. A testid rolls up to an area; a mabl test rolls up to the areas of whatever testids its steps touch; a code change rolls up the same way. That's the entire join.
+The join key is `data-testid`. Every interactive element in the app has one (a repo convention, enforced in my DoD), and mabl tests select by those same testids. So a testid is one stable name living in both the code and the test. The manifest buckets testid prefixes into areas. A testid rolls up to an area; a mabl test rolls up to the areas of whatever testids its steps touch; a code change rolls up the same way. That's the entire join.
 
 Two things fall out: I can name the tests a change impacts, and I can **derive `area-*` labels from the testids a test actually uses** — so labels stay true instead of rotting, and "run all catalog tests" means it.
 
@@ -40,13 +40,13 @@ It's deterministic (no LLM in the engine) and advisory — it never blocks a mer
 
 I ran two acts on real PRs.
 
-**Act 1 — gap detection (TAMD-189).** I added a `/warranty` page and deliberately shipped it with no test. The engine caught it: the guard failed on the new route plus 15 new `warranty-*` testids, and impact reported it "instrumented but UNCOVERED → author a test." I then closed the loop: classified `/warranty` into the `info` area, authored a mabl test through the cloud MCP, and it landed labeled `TAMD-189` + `area-info` (the area label applied automatically), then **ran green**. After a `coverage-auditor` index refresh (35 → 38 tests), the engine's precise impact now names that test for any future `/warranty` change.
+**Act 1 — gap detection ([TAMD-189](https://mabl.atlassian.net/browse/TAMD-189)).** I added a `/warranty` page and deliberately shipped it with no test. The engine caught it: the guard failed on the new route plus 15 new `warranty-*` testids, and impact reported it "instrumented but UNCOVERED → author a test." I then closed the loop: classified `/warranty` into the `info` area, authored a mabl test through the cloud MCP, and it landed labeled `TAMD-189` + `area-info` (the area label applied automatically), then **ran green**. After a `coverage-auditor` index refresh (35 → 38 tests), the engine's precise impact now names that test for any future `/warranty` change.
 
-**Act 2 — selection (TAMD-192).** A change to the `ProductCard` component. The engine selected `area-catalog` — 10 precise, 17 area-level — with **no BROAD**, correctly, because a component isn't shared/core. That's the "run the right regression set" behavior.
+**Act 2 — selection ([TAMD-192](https://mabl.atlassian.net/browse/TAMD-192)).** A change to the `ProductCard` component. The engine selected `area-catalog` — 10 precise, 17 area-level — with **no BROAD**, correctly, because a component isn't shared/core. That's the "run the right regression set" behavior.
 
 **What broke, and what I learned.** Two things, both useful:
 
-- The live run found a real CI bug (TAMD-190): the deterministic test-impact comment was *silent on UI-only PRs*. Our `unit` job is gated on `src/lib` changes, and `test-impact` depended on it, so a pages-only PR skipped the comment entirely — exactly the case the engine is for. I fixed it (`if: !cancelled()` + a conditional coverage row) and it self-validated on its own PR. Act 2 then exercised the fix in anger.
+- The live run found a real CI bug ([TAMD-190](https://mabl.atlassian.net/browse/TAMD-190)): the deterministic test-impact comment was *silent on UI-only PRs*. Our `unit` job is gated on `src/lib` changes, and `test-impact` depended on it, so a pages-only PR skipped the comment entirely — exactly the case the engine is for. I fixed it (`if: !cancelled()` + a conditional coverage row) and it self-validated on its own PR. Act 2 then exercised the fix in anger.
 - The `/warranty` merge briefly stalled because Vercel skipped building a branch-update *merge commit*, so the mabl gate had no preview URL to test. Not an engine issue — deploy plumbing — but a good reminder that the friction in this kind of workflow is rarely where you expect.
 
 The broader lesson: **test it in CI, not just locally.** Two real defects (this one and an earlier `.mabl`-artifact flood) only surfaced on actual PRs.
@@ -61,7 +61,7 @@ The broader lesson: **test it in CI, not just locally.** Two real defects (this 
 
 ## What didn't (honest limits)
 
-- **i18n granularity is whole-file** (TAMD-193). Editing one string in `messages/en.json` recommends the *full* suite, because the engine maps the whole file's namespaces and the file contains core ones. It's *safe* (over-selection never misses a regression) but noisy, and noise erodes trust in the recommendation — which matters more if we ever make it blocking.
+- **i18n granularity is whole-file** ([TAMD-193](https://mabl.atlassian.net/browse/TAMD-193)). Editing one string in `messages/en.json` recommends the *full* suite, because the engine maps the whole file's namespaces and the file contains core ones. It's *safe* (over-selection never misses a regression) but noisy, and noise erodes trust in the recommendation — which matters more if I ever make it blocking.
 - **The test index is a cached snapshot.** A newly authored test isn't "seen" until the `coverage-auditor` refresh runs.
 - **Selection is approximate.** It's black-box underneath — there's no true code-to-test coverage — so it stays advisory by design.
 - **No triage.** The engine tells you *which* tests to run, not whether a failure is a real regression or a stale test. (More on this below — it's less missing than I expected.)
@@ -76,14 +76,16 @@ decoration — they're the dispatch layer. The engine's job is to feed that laye
 right inputs.
 
 ### The label axes in this workspace
-Tests carry labels on a few orthogonal axes:
+28 distinct labels are in use across the ~45 tests (pulled live from the workspace). They fall
+on a few orthogonal axes:
 
-- **Domain — `area-*`** (catalog, checkout, orders, auth, admin, deployments, i18n, info, team-orders): *what the test covers.*
-- **Tier — `type-*`** (`type-smk` smoke, `type-rt` regression): *how deep.*
-- **Timing — `exec-*`** (`exec-pr`, `exec-postdeploy`): *when it runs.*
-- **Layer — `api-smoke`**: API vs UI.
-- **Traceability — `TAMD-*`** (the Jira key): *why it exists.*
-- **Descriptive / human — `csv`, `download-assertion`, `demo`, `WIP`**: free-form.
+- **Domain — `area-*`** (8): `area-catalog`, `area-checkout`, `area-orders`, `area-auth`, `area-admin`, `area-deployments`, `area-i18n`, `area-info` — *what the test covers.* (`area-team-orders` exists in the map but on no test yet — that's the 0%-coverage gap; the label appears once the first team-orders test is authored.)
+- **Tier — `type-*`** (3): `type-smk` (smoke), `type-rt` (regression), `type-api` — *how deep.*
+- **Timing — `exec-*`** (2): `exec-pr`, `exec-postdeploy` — *when it runs.*
+- **Layer / smoke** (2): `api-smoke`, `ui-smoke` — API vs UI smoke.
+- **Data-seeding** (3): `seed-db`, `seed-api`, `dt-demo` — how the test gets its data.
+- **Traceability — Jira keys** (4): `TAMD-173`, `TAMD-180`, `TAMD-189` (+ the `TAMD-173-diagnostic` label) — *why it exists.*
+- **Descriptive** (6): `demo`, `csv`, `pdf`, `download-assertion`, `repro`, `i18n-failing-evidence` — free-form.
 
 Plans dispatch on the *intersection*: `type-smk,exec-pr` → the PR smoke; `type-rt,area-catalog`
 → catalog regression; `type-rt` → the nightly full suite.
@@ -92,7 +94,7 @@ Plans dispatch on the *intersection*: `type-smk,exec-pr` → the PR smoke; `type
 - **Auto — the domain axis (`area-*`).** The engine derives these from the testids a test
   touches and applies them add-only (never clobbering a human label). It's cheap: in mabl,
   label/metadata edits consume **0 credits** and don't count toward authoring/automator billing.
-- **Semi-auto — the ticket key (`TAMD-*`).** Applied at authoring time by the agent, per our DoD.
+- **Semi-auto — the ticket key (`TAMD-*`).** Applied at authoring time by the agent, per my DoD.
 - **Manual, on purpose — tier (`type-*`) and timing (`exec-*`).** These encode *risk policy*,
   not facts about the code. Whether something is smoke vs regression, and when it should run,
   is a human judgment. Code can tell you a test's *domain*; it can't tell you how much you
@@ -134,15 +136,15 @@ domain axis + the impact selection decide where to point it on each change.
   consumption" via staged execution is documented guidance; this makes it targeted.
 - **Triage is free.** `analyze_failure` summaries consume 0 credits — wiring failure-triage into
   the loop adds orchestration, not execution cost.
-- **Labeled credentials is already being built** (MABL-20401 / MABL-20407, active epics) — so the
+- **Labeled credentials is already being built** ([MABL-20401](https://mabl.atlassian.net/browse/MABL-20401) / [MABL-20407](https://mabl.atlassian.net/browse/MABL-20407), active epics) — so the
   credentials-carry-context primitive (P4) isn't hypothetical; it's in development.
 - **Honest dependencies:**
   - It needs area-scoped plans wired to deployment triggers. In this repo, PR-time area plans were
     *removed* (collapsed to a fixed smoke), so "make selection authoritative" means re-introducing
     area plans or dynamic label dispatch — real work, not free.
   - "Only enabled plans configured to run on deployment are triggered" — the plumbing has preconditions.
-  - Label tooling has rough edges on branches (MABL-20506: branch label dropdowns / bulk-add), and
-    label *writes* are cloud-MCP-only (P3 / MABL-20586) — so the auto-labeling pipeline leans on the cloud path.
+  - Label tooling has rough edges on branches ([MABL-20506](https://mabl.atlassian.net/browse/MABL-20506): branch label dropdowns / bulk-add), and
+    label *writes* are cloud-MCP-only (P3 / [MABL-20586](https://mabl.atlassian.net/browse/MABL-20586)) — so the auto-labeling pipeline leans on the cloud path.
 - **Not a coverage-dashboard rehash.** mabl's account/coverage dashboards measure run history and
   pass-rate; the surface-coverage % here measures code instrumentation touched by tests — a
   different denominator.
@@ -156,8 +158,8 @@ Every workaround in the engine is a symptom of a missing primitive:
 | Primitive | Status | Evidence from this experiment |
 |---|---|---|
 | **Entity annotations** (open JSON, synced) | **Strongly proven — net-new ask** | Four independent symptoms of the *same* gap: the stale repo-local index cache; `area-*` labels overloaded as a metadata store; the misleading test URL; the ephemeral triage verdict (below). All of it wants a place to live *on the entity*. |
-| Safe agent metadata writes | Supported — **already GA-blocker (MABL-20580)** | Editing a test's steps is last-write-wins to master, so autonomous edits aren't safe — I keep editing out of the automated path. Annotations are metadata, not steps, so they'd be a safe write surface. MABL-20580 ("Edits: versioning & conflict resolution / no silent overwrite") is open and flagged GA-blocker; Dani is a co-reporter. |
-| MCP write parity (local vs cloud) | Supported — **already GA-blocker (MABL-20586)** | Label writes only work through the authenticated cloud MCP; the local/headless one can't. MABL-20586 ("MCP parity & cross-surface consistency") is open and GA-blocker — it also notes the agent changing a visit URL to `@web.defaults.url` unprompted, which corroborates the unreliable-URL finding. |
+| Safe agent metadata writes | Supported — **already GA-blocker ([MABL-20580](https://mabl.atlassian.net/browse/MABL-20580))** | Editing a test's steps is last-write-wins to master, so autonomous edits aren't safe — I keep editing out of the automated path. Annotations are metadata, not steps, so they'd be a safe write surface. [MABL-20580](https://mabl.atlassian.net/browse/MABL-20580) ("Edits: versioning & conflict resolution / no silent overwrite") is open and flagged GA-blocker; Dani is a co-reporter. |
+| MCP write parity (local vs cloud) | Supported — **already GA-blocker ([MABL-20586](https://mabl.atlassian.net/browse/MABL-20586))** | Label writes only work through the authenticated cloud MCP; the local/headless one can't. [MABL-20586](https://mabl.atlassian.net/browse/MABL-20586) ("MCP parity & cross-surface consistency") is open and GA-blocker — it also notes the agent changing a visit URL to `@web.defaults.url` unprompted, which corroborates the unreliable-URL finding. |
 | Credentials that carry context | Supported (empirical) | A real failed run was a credential non-resolution (`app.defaults.username` didn't substitute on Preview); mabl's own `analyze_failure` recommended reviewing credential/variable scope. If the credential carried its persona/access as an annotation, the agent could self-diagnose instead of typing a placeholder. |
 | Failure triage that persists | Supported + convergence | See below. |
 
@@ -167,23 +169,23 @@ Every workaround in the engine is a symptom of a missing primitive:
 
 - *"This only works because your demo is perfectly instrumented."* Partly fair. The join depends on disciplined `data-testid` coverage and a maintained manifest. The demo enforces that by convention; real customer apps vary. The honest scope: the *technique* is sound and the labels-derive-themselves property is real, but adoption effort scales with how well an app is instrumented. That's an argument *for* annotations, not against — declared metadata reduces the inference burden.
 - *"Isn't this just labels / `identify_coverage_gaps`?"* No. Labels are the storage hack I'm forced into; the engine *derives* them. `identify_coverage_gaps` is black-box and has no code-to-test join — it can't tell you a specific code change's precise tests. The delta is the repo-side join.
-- *"Approximate selection will miss a regression."* Yes, it can — which is why it's advisory and over-selects (the safe failure mode). I will not make it blocking until I've measured its false-positive rate on real PRs, the same way we promoted CodeQL.
+- *"Approximate selection will miss a regression."* Yes, it can — which is why it's advisory and over-selects (the safe failure mode). I will not make it blocking until I've measured its false-positive rate on real PRs, the same way I promoted CodeQL.
 - *"You're generalizing a platform need from one repo and one conversation."* Correct, and I won't overstate it: this is a directional, qualitative proof-of-need, not a quantitative study. What gives it weight is that the need shows up from four independent angles in the engine, two of those needs are already GA-blocker tickets, and the headline primitive was reached independently by someone reasoning purely about the platform. That's a strong signal to investigate, not a finished business case.
 - *"Why keep authoring out of the automation?"* Deliberate. Whatever enforces the gate must not also write the tests, or it can turn a red check green by rewriting the assertion. Authoring stays agent-*assisted* and human-reviewed.
 
 ## What I'm asking Product + Engineering to consider
 
 1. **Entity annotations** — the open-form, synced, agent-writable metadata field. This is the net-new primitive, and the one that collapses the most workarounds (the cache, the label-overloading, the misleading URL, the lost triage verdict).
-2. **A safe agent write surface** for metadata that isn't test steps — already in scope via MABL-20580; annotations satisfy it cleanly.
-3. **MCP write parity** between local and cloud — already in scope via MABL-20586.
+2. **A safe agent write surface** for metadata that isn't test steps — already in scope via [MABL-20580](https://mabl.atlassian.net/browse/MABL-20580); annotations satisfy it cleanly.
+3. **MCP write parity** between local and cloud — already in scope via [MABL-20586](https://mabl.atlassian.net/browse/MABL-20586).
 4. **Context-carrying credentials.**
 5. A reframing worth internalizing: **failure triage is an orchestration + persistence problem, not a missing brain** — `analyze_failure` already classifies; it just needs to be wired into the change loop and given somewhere to persist.
 
 ## Roadmap (my side)
 
-- Promote the coverage guard from advisory to blocking once its false-positive rate holds on real PRs (TAMD-188).
+- Promote the coverage guard from advisory to blocking once its false-positive rate holds on real PRs ([TAMD-188](https://mabl.atlassian.net/browse/TAMD-188)).
 - Build a triage-orchestration POC: selection → run affected → `analyze_failure` → *propose* a bug-vs-stale verdict behind a human gate.
-- Fix the i18n granularity noise (TAMD-193).
+- Fix the i18n granularity noise ([TAMD-193](https://mabl.atlassian.net/browse/TAMD-193)).
 
 ## Evidence (real output)
 
@@ -271,17 +273,11 @@ mabl classified this itself as a **test-configuration** issue (stale/config), no
 app regression — the bug-vs-stale call, made by the platform today. What's missing is
 wiring it into the change loop and a place to persist the verdict.
 
-### Screenshots to add (only you can capture these — auth'd UIs)
-
-Drop these in wherever they punch hardest; the shareable page has labeled slots:
-- The **DoD comment** on PR #174 (the gap, rendered in GitHub).
-- The **test-impact comment** on PR #177 (Act 2 selection).
-- The **mabl test** `CSH-RT-INFO-UI-WarrantyPageDisplays` — green run + the `TAMD-189` / `area-info` labels.
-- The **merged-PR list** (TAMD-187 → 196) as proof of throughput.
-
 ## Appendix — trail and artifacts
 
-- **Shipped this session (all merged to `main`):** TAMD-187 (retire the legacy heuristic; one engine across DoD + pre-push + CI), TAMD-189 (Act 1, `/warranty`), TAMD-190 (test-impact on UI PRs), TAMD-191 (index refresh), TAMD-192 (Act 2, selection), TAMD-194 (evidence consolidation), TAMD-195 (this brief). Logged: TAMD-193 (i18n granularity). Tracked: TAMD-188 (advisory → blocking).
-- **Confirmed platform refs:** MABL-20580 (edits versioning/no-silent-overwrite, GA-blocker), MABL-20586 (MCP parity, GA-blocker).
-- **Evidence log:** `docs/SHIFT-LEFT-PRIMITIVES-EVIDENCE.md` — dated, with the full primitives table and the verdict.
-- **Design brief:** `docs/SHIFT-LEFT-AGENTIC-TESTING.md`.
+- **Shipped this session (all merged to `main`):** [TAMD-187](https://mabl.atlassian.net/browse/TAMD-187) (retire the legacy heuristic; one engine across DoD + pre-push + CI), [TAMD-189](https://mabl.atlassian.net/browse/TAMD-189) (Act 1, `/warranty`), [TAMD-190](https://mabl.atlassian.net/browse/TAMD-190) (test-impact on UI PRs), [TAMD-191](https://mabl.atlassian.net/browse/TAMD-191) (index refresh), [TAMD-192](https://mabl.atlassian.net/browse/TAMD-192) (Act 2, selection), [TAMD-194](https://mabl.atlassian.net/browse/TAMD-194) (evidence consolidation), [TAMD-195](https://mabl.atlassian.net/browse/TAMD-195) (this brief). Logged: [TAMD-193](https://mabl.atlassian.net/browse/TAMD-193) (i18n granularity). Tracked: [TAMD-188](https://mabl.atlassian.net/browse/TAMD-188) (advisory → blocking).
+- **Confirmed platform refs:** [MABL-20580](https://mabl.atlassian.net/browse/MABL-20580) (edits versioning/no-silent-overwrite, GA-blocker), [MABL-20586](https://mabl.atlassian.net/browse/MABL-20586) (MCP parity, GA-blocker).
+- **Repo:** [vincemahan-del/cheap-shot-hockey](https://github.com/vincemahan-del/cheap-shot-hockey).
+- **The engine:** [scripts/shift-left/](https://github.com/vincemahan-del/cheap-shot-hockey/tree/main/scripts/shift-left) — manifest, engine, audit, unit tests.
+- **Evidence log:** [docs/SHIFT-LEFT-PRIMITIVES-EVIDENCE.md](https://github.com/vincemahan-del/cheap-shot-hockey/blob/main/docs/SHIFT-LEFT-PRIMITIVES-EVIDENCE.md) — dated, with the full primitives table and the verdict.
+- **Design brief:** [docs/SHIFT-LEFT-AGENTIC-TESTING.md](https://github.com/vincemahan-del/cheap-shot-hockey/blob/main/docs/SHIFT-LEFT-AGENTIC-TESTING.md).
