@@ -64,7 +64,7 @@ jobs:
             echo "skipped=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.precheck.outputs.skipped == 'false'
 
       - uses: actions/setup-node@v4
