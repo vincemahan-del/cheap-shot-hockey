@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delinea × mabl — Credential Rotation, Live</title>
+<style>
+  :root {
+    --ground: #12161B; --panel: #171D24; --ink: #E8ECF0; --ink-soft: #98A4B0;
+    --line: #2C343D; --accent: #6AA5DC; --pass: #45C07C; --fail: #E5344B;
+    --code-bg: #0B0F14;
+  }
+  html { background: var(--ground); }
+  body {
+    background: var(--ground); color: var(--ink);
+    font-family: Barlow, "Helvetica Neue", Arial, sans-serif;
+    font-size: 18px; line-height: 1.55; margin: 0; padding: 0 28px 80px;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; }
+  h1 {
+    font-family: "Archivo Black", Barlow, sans-serif;
+    font-size: clamp(32px, 5.5vw, 50px); line-height: 1.04;
+    margin: 56px 0 14px; letter-spacing: -0.5px;
+  }
+  .premise { font-size: clamp(18px, 2.2vw, 21px); color: var(--ink-soft); max-width: 58ch; margin: 0 0 48px; }
+  .premise strong { color: var(--ink); }
+  h2 {
+    font-size: 24px; font-weight: 700; margin: 64px 0 6px; letter-spacing: -0.2px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .live {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--fail); border: 1.5px solid var(--fail); border-radius: 999px; padding: 3px 12px;
+  }
+  .sub { color: var(--ink-soft); max-width: 64ch; margin: 0 0 18px; font-size: 16px; }
+  .panel-label { font-size: 15px; font-weight: 700; margin: 0 0 6px; }
+  .panel-label.bad { color: var(--fail); }
+  .panel-label.good { color: var(--pass); }
+  .pair { display: flex; flex-wrap: wrap; gap: 30px; margin: 16px 0; }
+  .pair > div { flex: 1 1 360px; }
+  svg { display: block; max-width: 100%; height: auto; }
+  figure { margin: 16px 0 0; }
+  figcaption {
+    font-size: 16px; color: var(--ink-soft); max-width: 68ch;
+    border-top: 1px solid var(--line); margin-top: 18px; padding-top: 12px;
+  }
+  figcaption strong { color: var(--ink); }
+  pre {
+    background: var(--code-bg); color: #DCE5EE;
+    font-family: "JetBrains Mono", ui-monospace, Menlo, monospace;
+    font-size: 16px; line-height: 1.65; padding: 18px 22px; border-radius: 8px;
+    overflow-x: auto; margin: 14px 0; border: 1px solid var(--line);
+  }
+  pre .c { color: #6E8296; }
+  code { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: 0.85em; color: var(--accent); }
+  .hop3 { display: flex; flex-wrap: wrap; gap: 34px; margin-top: 16px; }
+  .hop3 > div { flex: 1 1 360px; min-width: 0; }
+  .hop3 ol { margin: 0; padding-left: 22px; font-size: 16.5px; }
+  .hop3 li { margin-bottom: 10px; color: var(--ink-soft); }
+  .hop3 li strong { color: var(--ink); }
+  footer { margin-top: 70px; border-top: 1px solid var(--line); padding-top: 14px; font-size: 14px; color: var(--ink-soft); }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Barlow:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+</head>
+<body>
+<div class="wrap">
+
+<h1>The Safe and the Robot</h1>
+<p class="premise"><strong>Delinea is the safe</strong> — it holds every shared password and changes the locks on a schedule. <strong>mabl is the robot</strong> that logs into your application to test each role — it needs the current key. Today we'll break that, then fix it, live.</p>
+
+<h2>Why rotation breaks tests</h2>
+<figure>
+  <div class="pair">
+    <div>
+      <p class="panel-label bad">Without a sync — rotation breaks the tests</p>
+      <svg viewBox="0 0 400 250" role="img" aria-label="Delinea changes the application's password but the robot's key copy is never updated, so its login fails.">
+        <defs>
+          <marker id="w1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+          <marker id="w2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#E5344B"/></marker>
+        </defs>
+        <g fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="16" y="24" width="128" height="52" rx="6"/><rect x="256" y="24" width="128" height="52" rx="6"/><rect x="136" y="176" width="128" height="52" rx="6"/>
+        </g>
+        <g font-family="Barlow, sans-serif" fill="currentColor">
+          <text x="80" y="47" text-anchor="middle" font-size="14" font-weight="700">Safe</text><text x="80" y="65" text-anchor="middle" font-size="11" opacity="0.6">Delinea</text>
+          <text x="320" y="47" text-anchor="middle" font-size="14" font-weight="700">Your app</text><text x="320" y="65" text-anchor="middle" font-size="11" opacity="0.6">the door</text>
+          <text x="200" y="199" text-anchor="middle" font-size="14" font-weight="700">Robot</text><text x="200" y="217" text-anchor="middle" font-size="11" opacity="0.6">mabl · key copy</text>
+        </g>
+        <line x1="144" y1="50" x2="248" y2="50" stroke="currentColor" stroke-width="1.6" marker-end="url(#w1)"/>
+        <text x="197" y="38" text-anchor="middle" font-size="11.5" font-weight="600" font-family="Barlow, sans-serif" fill="currentColor">changes the lock</text>
+        <line x1="252" y1="176" x2="304" y2="84" stroke="#E5344B" stroke-width="1.8" marker-end="url(#w2)"/>
+        <text x="302" y="140" font-size="12.5" font-weight="700" font-family="Barlow, sans-serif" fill="#E5344B">old key ✗</text>
+        <text x="72" y="140" font-size="11.5" font-family="Barlow, sans-serif" fill="currentColor" opacity="0.55">nobody tells the robot</text>
+      </svg>
+    </div>
+    <div>
+      <p class="panel-label good">With the hook — one added arrow</p>
+      <svg viewBox="0 0 400 250" role="img" aria-label="Same picture plus one arrow: when Delinea changes the lock it also drops the new key into mabl, so the robot's login succeeds.">
+        <defs>
+          <marker id="h1m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+          <marker id="h2m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6AA5DC"/></marker>
+          <marker id="h3m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#45C07C"/></marker>
+        </defs>
+        <g fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="16" y="24" width="128" height="52" rx="6"/><rect x="256" y="24" width="128" height="52" rx="6"/><rect x="136" y="176" width="128" height="52" rx="6"/>
+        </g>
+        <g font-family="Barlow, sans-serif" fill="currentColor">
+          <text x="80" y="47" text-anchor="middle" font-size="14" font-weight="700">Safe</text><text x="80" y="65" text-anchor="middle" font-size="11" opacity="0.6">Delinea</text>
+          <text x="320" y="47" text-anchor="middle" font-size="14" font-weight="700">Your app</text><text x="320" y="65" text-anchor="middle" font-size="11" opacity="0.6">the door</text>
+          <text x="200" y="199" text-anchor="middle" font-size="14" font-weight="700">Robot</text><text x="200" y="217" text-anchor="middle" font-size="11" opacity="0.6">mabl · key slot</text>
+        </g>
+        <line x1="144" y1="50" x2="248" y2="50" stroke="currentColor" stroke-width="1.6" marker-end="url(#h1m)"/>
+        <text x="197" y="38" text-anchor="middle" font-size="11.5" font-weight="600" font-family="Barlow, sans-serif" fill="currentColor">changes the lock</text>
+        <line x1="96" y1="84" x2="150" y2="172" stroke="#6AA5DC" stroke-width="3" marker-end="url(#h2m)"/>
+        <text x="96" y="130" font-size="12.5" font-weight="700" font-family="Barlow, sans-serif" fill="#6AA5DC">drops the</text>
+        <text x="96" y="146" font-size="12.5" font-weight="700" font-family="Barlow, sans-serif" fill="#6AA5DC">new key</text>
+        <line x1="252" y1="176" x2="304" y2="84" stroke="#45C07C" stroke-width="1.8" marker-end="url(#h3m)"/>
+        <text x="290" y="140" font-size="12.5" font-weight="700" font-family="Barlow, sans-serif" fill="#45C07C">current key ✓</text>
+      </svg>
+    </div>
+  </div>
+  <figcaption><strong>The blue arrow is the entire integration</strong> — one automated call at each rotation. Everything else in the two pictures is identical.</figcaption>
+</figure>
+
+<h2>Inside mabl — what a credential is</h2>
+<figure>
+  <svg viewBox="0 0 900 330" role="img" aria-label="The mabl credential object at center: written by people or automation, consumed by browser and API tests, governed by write-only storage, access policy, and audit.">
+    <defs>
+      <marker id="c1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      <marker id="c2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6AA5DC"/></marker>
+    </defs>
+    <rect x="330" y="110" width="240" height="110" rx="8" fill="none" stroke="#6AA5DC" stroke-width="2"/>
+    <g font-family="Barlow, sans-serif">
+      <text x="450" y="140" text-anchor="middle" font-size="15" font-weight="700" fill="#6AA5DC">Credential “role-qa”</text>
+      <text x="450" y="161" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">username · password · optional TOTP seed (MFA)</text>
+      <text x="450" y="179" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">encrypted · workspace KMS key · audit: who/when</text>
+      <text x="450" y="197" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">cloud-only = write-only forever</text>
+    </g>
+    <g fill="none" stroke="currentColor" stroke-width="1.5">
+      <rect x="30" y="60" width="200" height="46" rx="6"/><rect x="30" y="222" width="200" height="46" rx="6"/>
+      <rect x="670" y="60" width="210" height="46" rx="6"/><rect x="670" y="222" width="210" height="46" rx="6"/>
+    </g>
+    <g font-family="Barlow, sans-serif" fill="currentColor">
+      <text x="130" y="80" text-anchor="middle" font-size="13" font-weight="700">People</text>
+      <text x="130" y="97" text-anchor="middle" font-size="10.5" opacity="0.65">workspace UI · gated by resource groups</text>
+      <text x="130" y="242" text-anchor="middle" font-size="13" font-weight="700">Automation</text>
+      <text x="130" y="259" text-anchor="middle" font-size="10.5" opacity="0.65">public API — your vault hook lives here</text>
+      <text x="775" y="80" text-anchor="middle" font-size="13" font-weight="700">Browser tests</text>
+      <text x="775" y="97" text-anchor="middle" font-size="10.5" opacity="0.65">login form fills from the credential</text>
+      <text x="775" y="242" text-anchor="middle" font-size="13" font-weight="700">API tests</text>
+      <text x="775" y="259" text-anchor="middle" font-size="10.5" opacity="0.65">auth headers/bodies from the credential</text>
+    </g>
+    <line x1="230" y1="92" x2="324" y2="140" stroke="currentColor" stroke-width="1.6" marker-end="url(#c1)"/>
+    <line x1="230" y1="238" x2="324" y2="192" stroke="#6AA5DC" stroke-width="2.4" marker-end="url(#c2)"/>
+    <text x="262" y="108" font-size="11" font-weight="600" font-family="Barlow, sans-serif" fill="currentColor">creates</text>
+    <text x="262" y="230" font-size="11" font-weight="600" font-family="Barlow, sans-serif" fill="#6AA5DC">writes</text>
+    <line x1="576" y1="140" x2="664" y2="92" stroke="currentColor" stroke-width="1.6" marker-end="url(#c1)"/>
+    <line x1="576" y1="192" x2="664" y2="238" stroke="currentColor" stroke-width="1.6" marker-end="url(#c1)"/>
+    <text x="612" y="106" font-size="11" font-weight="600" font-family="Barlow, sans-serif" fill="currentColor">resolved at run start</text>
+    <text x="612" y="232" font-size="11" font-weight="600" font-family="Barlow, sans-serif" fill="currentColor">masked in output</text>
+    <text x="450" y="308" text-anchor="middle" font-size="11.5" font-family="Barlow, sans-serif" fill="currentColor" opacity="0.65">governance: “Require cloud credentials” policy · resource-group access control · workspace activity feed</text>
+  </svg>
+  <figcaption><strong>Tests hold the name, mabl holds the secret.</strong> The same test runs as any role by binding a different credential at run time — one credential per role, per environment. A credential can carry a TOTP seed, so MFA-protected Shared System IDs work too.</figcaption>
+</figure>
+
+<h2>The credential lifecycle, on the API <span class="live">live</span></h2>
+<p class="sub">Create → read → rotate → retire, in one minute, against a scratch credential that deletes itself. Watch <code>password_returned: false</code> — write-only isn't a slide, it's an API response.</p>
+<pre>./scripts/delinea/api-lifecycle-demo.sh</pre>
+
+<h2>The rotation, end to end <span class="live">live</span></h2>
+<p class="sub">One credential-driven login test in the mabl cloud, against production. First: everything in sync.</p>
+<pre><span class="c"># baseline</span>
+mabl tests run-cloud --id $TEST --credentials-id $CRED --app-url $APP_URL --no-prompt</pre>
+<p class="sub">Now Delinea rotates the Shared System ID — and nobody tells mabl. What happens to the next run?</p>
+<pre><span class="c"># rotation without a sync</span>
+./scripts/delinea/rotate-shared-id.sh --skip-sync
+mabl tests run-cloud --id $TEST --credentials-id $CRED --app-url $APP_URL --no-prompt</pre>
+<p class="sub">And the same rotation with the hook in place:</p>
+<pre><span class="c"># rotation with the sync hook</span>
+./scripts/delinea/rotate-shared-id.sh
+mabl tests run-cloud --id $TEST --credentials-id $CRED --app-url $APP_URL --no-prompt</pre>
+
+<h2>The plumbing — rotation through test execution</h2>
+<figure>
+  <svg viewBox="0 0 900 450" role="img" aria-label="Architecture: inside Delinea, the rotation engine sets the application's new password and fires the post-rotation hook; the hook makes one HTTPS PATCH to the mabl credential store; a test run resolves the credential at start and logs into the application with the current password.">
+    <defs>
+      <marker id="p1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      <marker id="p2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6AA5DC"/></marker>
+      <marker id="p3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#45C07C"/></marker>
+    </defs>
+    <rect x="16" y="50" width="250" height="340" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.55"/>
+    <rect x="380" y="240" width="500" height="170" rx="8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.55"/>
+    <g font-family="Barlow, sans-serif" fill="currentColor">
+      <text x="141" y="78" text-anchor="middle" font-size="13" font-weight="700" opacity="0.75">DELINEA SECRET SERVER</text>
+      <text x="630" y="268" text-anchor="middle" font-size="13" font-weight="700" opacity="0.75">MABL CLOUD</text>
+    </g>
+    <g fill="none" stroke="currentColor" stroke-width="1.6">
+      <rect x="40" y="100" width="202" height="58" rx="6"/><rect x="40" y="280" width="202" height="58" rx="6"/>
+      <rect x="636" y="84" width="240" height="70" rx="6"/><rect x="404" y="292" width="208" height="64" rx="6"/><rect x="660" y="292" width="190" height="64" rx="6"/>
+    </g>
+    <g font-family="Barlow, sans-serif" fill="currentColor">
+      <text x="141" y="124" text-anchor="middle" font-size="14" font-weight="700">Rotation engine (RPC)</text>
+      <text x="141" y="143" text-anchor="middle" font-size="11" opacity="0.6">changes the account’s password</text>
+      <text x="141" y="304" text-anchor="middle" font-size="14" font-weight="700">Post-rotation hook</text>
+      <text x="141" y="323" text-anchor="middle" font-size="11" opacity="0.6">event pipeline · “Run script” task</text>
+      <text x="756" y="112" text-anchor="middle" font-size="14" font-weight="700">Application under test</text>
+      <text x="756" y="131" text-anchor="middle" font-size="11" opacity="0.6">the Shared System ID logs in here</text>
+      <text x="508" y="316" text-anchor="middle" font-size="14" font-weight="700">Credential store</text>
+      <text x="508" y="335" text-anchor="middle" font-size="11" opacity="0.6">cloud-only · write-only</text>
+      <text x="755" y="316" text-anchor="middle" font-size="14" font-weight="700">Test run</text>
+      <text x="755" y="335" text-anchor="middle" font-size="11" opacity="0.6">scheduled or CI-triggered</text>
+    </g>
+    <line x1="242" y1="116" x2="630" y2="116" stroke="currentColor" stroke-width="1.7" marker-end="url(#p1)"/>
+    <text x="436" y="104" text-anchor="middle" font-size="12" font-weight="600" font-family="Barlow, sans-serif" fill="currentColor">1 · sets the new password on the account</text>
+    <line x1="141" y1="158" x2="141" y2="276" stroke="currentColor" stroke-width="1.7" marker-end="url(#p1)"/>
+    <text x="151" y="212" font-size="12" font-weight="600" font-family="Barlow, sans-serif" fill="currentColor">2 · rotation-succeeded</text>
+    <text x="151" y="228" font-size="12" font-weight="600" font-family="Barlow, sans-serif" fill="currentColor">event</text>
+    <line x1="242" y1="316" x2="398" y2="316" stroke="#6AA5DC" stroke-width="3" marker-end="url(#p2)"/>
+    <text x="320" y="300" text-anchor="middle" font-size="12" font-weight="700" font-family="Barlow, sans-serif" fill="#6AA5DC">3 · PATCH new secret</text>
+    <text x="320" y="336" text-anchor="middle" font-size="10.5" font-family="Barlow, sans-serif" fill="#6AA5DC" opacity="0.85">HTTPS · scoped API key</text>
+    <line x1="612" y1="324" x2="654" y2="324" stroke="currentColor" stroke-width="1.7" marker-end="url(#p1)"/>
+    <text x="633" y="312" text-anchor="middle" font-size="11" font-weight="600" font-family="Barlow, sans-serif" fill="currentColor">4</text>
+    <line x1="755" y1="290" x2="755" y2="158" stroke="#45C07C" stroke-width="2" marker-end="url(#p3)"/>
+    <text x="765" y="216" font-size="12.5" font-weight="700" font-family="Barlow, sans-serif" fill="#45C07C">5 · logs in with the</text>
+    <text x="765" y="232" font-size="12.5" font-weight="700" font-family="Barlow, sans-serif" fill="#45C07C">current password ✓</text>
+  </svg>
+  <figcaption><strong>Five hops, no humans, no test edits.</strong> Delinea rotates (1), its Event Pipeline fires a short “Run script” task (2) — a native Secret Server feature, scopable to just the Shared System IDs — which makes one sealed HTTPS call to mabl (3). The next run resolves the credential at start (4) and logs in with whatever it holds right now (5). A <em>scheduled</em> credential-smoke plan is the independent watchdog for the hook itself.</figcaption>
+</figure>
+
+<h2>Hop 3, under the hood</h2>
+<div class="hop3">
+  <div>
+    <p class="panel-label" style="color: var(--ink-soft); text-transform: uppercase; font-size: 13px; letter-spacing: 0.06em;">What the script sends</p>
+<pre>PATCH https://api.mabl.com/credentials/{id}
+Authorization: Basic key:&lt;workspace-admin key&gt;
+Content-Type: application/json
+
+{ "properties": {
+    "username": "svc-role-qa@…",
+    "password": "&lt;new value&gt;" } }</pre>
+  </div>
+  <div>
+    <p class="panel-label" style="color: var(--ink-soft); text-transform: uppercase; font-size: 13px; letter-spacing: 0.06em;">What mabl does with it</p>
+    <ol>
+      <li><strong>Authorizes</strong> — the key needs credential-write permission; anything less is refused with a named 403.</li>
+      <li><strong>Encrypts &amp; stores</strong> — in transit and at rest, extra credential-layer encryption, keys in Google Cloud KMS.</li>
+      <li><strong>Audits</strong> — records who changed it and when; <code>If-Match</code> concurrency supported.</li>
+      <li><strong>Seals</strong> — cloud-only: no read path afterward, for anyone.</li>
+      <li><strong>Delivers just-in-time</strong> — the next run resolves the value at start and keeps it out of logs.</li>
+    </ol>
+  </div>
+</div>
+
+<footer>safe = Delinea Secret Server · lock change = password rotation (RPC) · hook = Event Pipeline “Run script” task · slot = cloud-only mabl credential · robot = mabl tests</footer>
+</div>
+</body>
+</html>
