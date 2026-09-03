@@ -25,8 +25,8 @@ echo
 BOOTSTRAP_PASSWORD="$(new_password)"
 register_response=$(curl -sS -X POST "$APP_URL/api/auth/register" \
   -H "Content-Type: application/json" \
-  -d "$(jq -n --arg email "$SHARED_ID_EMAIL" --arg pw "$BOOTSTRAP_PASSWORD" \
-        '{email: $email, password: $pw, name: "Shared System ID (role-test)"}')")
+  -d "$(jq -n --arg email "$SHARED_ID_EMAIL" --arg pw "$BOOTSTRAP_PASSWORD" --arg name "$SHARED_ID_NAME" \
+        '{email: $email, password: $pw, name: $name}')")
 if jq -e '.id' <<<"$register_response" >/dev/null 2>&1; then
   echo "✓ app user created: $SHARED_ID_EMAIL"
 elif grep -q "already exists" <<<"$register_response"; then

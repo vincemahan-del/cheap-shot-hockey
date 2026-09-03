@@ -18,6 +18,9 @@ MABL_API_BASE="${MABL_API_BASE:-https://api.mabl.com}"
 MABL_WORKSPACE_ID="${MABL_WORKSPACE_ID:-pXXgThbNi4HfQOpiZptHfw-w}"
 APP_URL="${APP_URL:-http://localhost:3000}"
 SHARED_ID_EMAIL="${SHARED_ID_EMAIL:-svc-roletest@cheapshot.test}"
+# First name "Demo" keeps the header greeting ("Hi, Demo") identical to the
+# generated test's assertion regardless of which credential is bound.
+SHARED_ID_NAME="${SHARED_ID_NAME:-Demo SharedSystemID}"
 CRED_NAME="${CRED_NAME:-CSH Shared System ID (Delinea POC)}"
 
 require_var() {

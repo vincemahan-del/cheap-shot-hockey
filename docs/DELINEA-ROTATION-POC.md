@@ -47,23 +47,28 @@ plays both Delinea's rotation and the hook.
 
 ## Demo arc (5 minutes)
 
+Live asset IDs: test `CSH-DELINEA-POC-CredentialLogin` = `fmQlMzir9JLDobmIn0q8KA-j`
+(labels `delinea-poc`, `TAMD-209`), credential = `uwRgYtVhIilwFizqFoJAYg-c`.
+`--allow-billable-features` is required so the test's GenAI assertion executes
+in CLI runs.
+
 ```bash
 # 0. One-time setup: user + credential + first sync
 ./scripts/delinea/setup-poc.sh
 
 # 1. Baseline: credential-driven login test is green
-mabl tests run --id <poc-login-test-id> --credentials-id <poc-cred-id> \
-  --url http://localhost:3000 --headless
+mabl tests run --id fmQlMzir9JLDobmIn0q8KA-j --credentials-id uwRgYtVhIilwFizqFoJAYg-c \
+  --url http://localhost:3000 --headless --allow-billable-features
 
 # 2. The pain: Delinea rotates, nobody syncs mabl → test fails
 ./scripts/delinea/rotate-shared-id.sh --skip-sync
-mabl tests run --id <poc-login-test-id> --credentials-id <poc-cred-id> \
-  --url http://localhost:3000 --headless        # ← red: login rejected
+mabl tests run --id fmQlMzir9JLDobmIn0q8KA-j --credentials-id uwRgYtVhIilwFizqFoJAYg-c \
+  --url http://localhost:3000 --headless --allow-billable-features   # ← red: login rejected
 
 # 3. The fix: rotation hook syncs mabl in the same breath → green again
 ./scripts/delinea/rotate-shared-id.sh
-mabl tests run --id <poc-login-test-id> --credentials-id <poc-cred-id> \
-  --url http://localhost:3000 --headless        # ← green
+mabl tests run --id fmQlMzir9JLDobmIn0q8KA-j --credentials-id uwRgYtVhIilwFizqFoJAYg-c \
+  --url http://localhost:3000 --headless --allow-billable-features   # ← green
 ```
 
 Talking point at step 2: this failure is exactly what every rotation cycle
@@ -91,9 +96,17 @@ is ~10 lines in the rotation hook.
   are not environment-aware. File vault asks through the product portal —
   they aggregate.
 
-## Status / verified so far
+## Status / verified
 
-- App-side loop verified end-to-end locally (register → rotate → old password
-  401, new password 200): 2026-09-03.
-- mabl credential create/PATCH: pending first run of `setup-poc.sh` with a
-  `MABL_API_TOKEN` present.
+Full arc proven live 2026-09-03: setup (`POST /credentials` 201) → baseline
+run green (24.6s) → `--skip-sync` rotation → run red (stale credential) →
+synced rotation (`PATCH /credentials/{id}`) → run green (14.1s).
+
+Operational notes:
+- The mabl API key must be the **Workspace admin** type — it is the only
+  workspace key type with `credentials.write`. A CLI-type key gets a 403
+  naming the missing permission.
+- The test's cloud generation baked the observed greeting ("Hi, Demo") into
+  an assertion; the Shared System ID account is therefore named
+  `Demo SharedSystemID` (first name renders the same greeting). Override with
+  `SHARED_ID_NAME` if regenerating with different assertions.
