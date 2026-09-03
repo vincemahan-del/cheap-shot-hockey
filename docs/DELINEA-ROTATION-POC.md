@@ -75,6 +75,53 @@ Talking point at step 2: this failure is exactly what every rotation cycle
 does to UI test suites when the vault and the test tool don't talk. The fix
 is ~10 lines in the rotation hook.
 
+## Cloud demo arc (the better show — runs in mabl cloud against prod)
+
+Same three acts, but each run is a **cloud run**: the audience sees the mabl
+results page, per-step screenshots, and the GenAI assertion's reasoning
+instead of terminal output.
+
+**One-time enablement:**
+
+1. Set `TEST_SEED_TOKEN` in Vercel (Production env) using the **same value**
+   as `.env.local` (the scripts source `.env.local`, so the values must
+   match), then redeploy. This deliberately arms the token-guarded rotation
+   endpoint in prod — acceptable for a fake demo store.
+2. Create the prod demo identity + its own per-environment credential
+   (credentials are not environment-aware, so prod gets its own — which is
+   the recommended pattern anyway):
+
+```bash
+APP_URL=https://cheap-shot-hockey.vercel.app \
+SHARED_ID_EMAIL=svc-role-demo@cheapshot.test \
+CRED_NAME="CSH Shared System ID (Delinea POC Prod)" \
+./scripts/delinea/setup-poc.sh
+```
+
+**The arc** (note the prod credential ID from setup; export the three vars
+above in the demo shell so the rotate script targets prod):
+
+```bash
+# Act 1 — baseline green: cloud run, then open the run link in the mabl app
+mabl tests run-cloud --id fmQlMzir9JLDobmIn0q8KA-j \
+  --credentials-id <prod-cred-id> \
+  --app-url https://cheap-shot-hockey.vercel.app --no-prompt
+
+# Act 2 — the pain: Delinea rotates, nobody syncs mabl
+./scripts/delinea/rotate-shared-id.sh --skip-sync
+# (optional, visceral: try logging into the store UI with the old password — rejected)
+mabl tests run-cloud ... same command ...   # ← red; show the failed login screenshot in mabl
+
+# Act 3 — the fix: the rotation hook syncs mabl in the same breath
+./scripts/delinea/rotate-shared-id.sh
+mabl tests run-cloud ... same command ...   # ← green again
+```
+
+Narration for act 2's failure: "this is every rotation cycle in your suite
+today — now watch the hook version." In production the hook is a Delinea
+Secret Server post-rotation event script; this repo's script is those same
+~10 lines.
+
 ## Production hardening notes (say these out loud)
 
 - **Use cloud-only credentials + "Require cloud credentials".** A regular
