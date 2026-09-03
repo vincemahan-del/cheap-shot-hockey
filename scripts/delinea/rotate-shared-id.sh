@@ -27,6 +27,7 @@ $SKIP_SYNC || require_var MABL_API_TOKEN "Set it in .env.local (mabl cloud API k
 NEW_PASSWORD="$(new_password)"
 
 echo "── Delinea rotation hook (simulated) ──"
+echo "target app: $APP_URL"
 echo "shared ID:  $SHARED_ID_EMAIL"
 
 # 1. Rotate in the target system (the app) — Delinea's job in production.
@@ -61,4 +62,8 @@ mabl_api PATCH "/credentials/$CRED_ID" "$patched" >/dev/null
 echo "✓ mabl credential synced: $CRED_ID"
 echo
 echo "Rotation complete — app and mabl agree on the new secret."
-echo "(demo visibility only, this is a fake store) new password: $NEW_PASSWORD"
+# The secret is not echoed by default — a vault demo that prints passwords
+# undercuts its own story. SHOW_PASSWORD=true opts in (fake store only).
+if [[ "${SHOW_PASSWORD:-false}" == "true" ]]; then
+  echo "(SHOW_PASSWORD=true; fake store) new password: $NEW_PASSWORD"
+fi
