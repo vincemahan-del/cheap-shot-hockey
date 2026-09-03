@@ -48,14 +48,15 @@ if $SKIP_SYNC; then
   exit 0
 fi
 
-# 2. Sync to mabl: read-merge-write so required fields survive the PATCH.
+# 2. Sync to mabl. The PATCH body is built explicitly (never read-merge-write):
+# a cloud-only credential's GET returns no secrets, so merging would wipe them.
 CRED_ID="${CRED_ID:-$(find_poc_credential_id)}"
 if [[ -z "$CRED_ID" ]]; then
   echo "error: no mabl credential named '$CRED_NAME' — run setup-poc.sh first" >&2
   exit 1
 fi
-current=$(mabl_api GET "/credentials/$CRED_ID")
-patched=$(jq --arg pw "$NEW_PASSWORD" '.properties.password = $pw' <<<"$current")
+patched=$(jq -n --arg user "$SHARED_ID_EMAIL" --arg pw "$NEW_PASSWORD" \
+  '{properties: {username: $user, password: $pw}}')
 mabl_api PATCH "/credentials/$CRED_ID" "$patched" >/dev/null
 echo "✓ mabl credential synced: $CRED_ID"
 echo

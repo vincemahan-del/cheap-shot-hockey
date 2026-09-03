@@ -98,6 +98,9 @@ CRED_NAME="CSH Shared System ID (Delinea POC Prod)" \
 ./scripts/delinea/setup-poc.sh
 ```
 
+Add `CRED_CLOUD_ONLY=true` to create the credential **write-only** (cloud
+runs only — the strongest security posture; see hardening notes below).
+
 **The arc** (note the prod credential ID from setup; export the three vars
 above in the demo shell so the rotate script targets prod):
 
@@ -124,14 +127,19 @@ Secret Server post-rotation event script; this repo's script is those same
 
 ## Production hardening notes (say these out loud)
 
-- **Use cloud-only credentials + "Require cloud credentials".** A regular
-  mabl credential's secret can be read back via
-  `GET /credentials?with_secrets=true`. A `cloud_only: true` credential can
-  never be read back — writes only — and the workspace setting enforces this
-  for every caller including API keys. With that set, mabl holds a write-only
-  copy and Delinea remains the only place the secret can be read.
-  (Trade-off: cloud-only creds don't work in the Trainer or local runs — this
-  POC uses a regular credential *because* it demos via local headless runs.)
+- **Use cloud-only credentials + "Require cloud credentials".** The API
+  documents `GET /credentials?with_secrets=true` as returning decrypted
+  secrets for regular (non-cloud) credentials under sufficient permissions;
+  a `cloud_only: true` credential can **never** be read back — writes only —
+  and the workspace setting enforces cloud-only for every caller including
+  API keys. Observed in this workspace (2026-09-03): even the Workspace-admin
+  key got no secrets back with `with_secrets=true`, and `PATCH` works fine on
+  a cloud-only credential — so rotation-sync loses nothing by going cloud-only.
+  Set `CRED_CLOUD_ONLY=true` on `setup-poc.sh` to create the credential
+  write-only (proven: credential `nOMor1gaiX08xEACPWRRJA-c`).
+  (Trade-off: cloud-only creds don't work in the Trainer or local
+  `mabl tests run` — use a regular credential for the localhost demo arc,
+  cloud-only for the cloud/prod arc.)
 - **Scope + expire the API key.** The hook's mabl API key should be dedicated,
   minimally scoped, and carry an expiration date (supported since 2026-03).
   Store *that* key in Delinea too.

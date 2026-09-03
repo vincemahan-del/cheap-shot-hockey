@@ -41,12 +41,17 @@ CRED_ID="$(find_poc_credential_id)"
 if [[ -n "$CRED_ID" ]]; then
   echo "✓ mabl credential already exists: $CRED_ID ($CRED_NAME)"
 else
+  # CRED_CLOUD_ONLY=true creates a write-only credential: secrets can never be
+  # read back through the API (the production-recommended posture). Trade-off:
+  # cloud-only credentials do not work in local `mabl tests run` or the
+  # Trainer — use it for the cloud-run demo, not the localhost demo.
   create_body=$(jq -n \
     --arg name "$CRED_NAME" \
     --arg org "$MABL_WORKSPACE_ID" \
     --arg user "$SHARED_ID_EMAIL" \
     --arg pw "$BOOTSTRAP_PASSWORD" \
-    '{name: $name, type: "basic", organization_id: $org,
+    --argjson cloud "${CRED_CLOUD_ONLY:-false}" \
+    '{name: $name, type: "basic", organization_id: $org, cloud_only: $cloud,
       description: "POC: synced from the (simulated) Delinea Secret Server rotation hook. See docs/DELINEA-ROTATION-POC.md.",
       properties: {username: $user, password: $pw}}')
   CRED_ID=$(mabl_api POST "/credentials" "$create_body" | jq -r '.id')
