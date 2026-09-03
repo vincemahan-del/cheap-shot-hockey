@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   generateTestUser,
+  isSeedProtectedEmail,
   seedTokenConfigured,
   tokenMatches,
   DEFAULT_TEST_PASSWORD,
@@ -70,5 +71,17 @@ describe("seed token guard", () => {
     expect(tokenMatches("wrong-token!")).toBe(false);
     expect(tokenMatches(null)).toBe(false);
     expect(tokenMatches("short")).toBe(false);
+  });
+});
+
+describe("isSeedProtectedEmail", () => {
+  it("protects the seeded demo and admin users, case-insensitively", () => {
+    expect(isSeedProtectedEmail("demo@cheapshot.test")).toBe(true);
+    expect(isSeedProtectedEmail("ADMIN@cheapshot.test")).toBe(true);
+  });
+
+  it("allows any other email", () => {
+    expect(isSeedProtectedEmail("svc-roletest@cheapshot.test")).toBe(false);
+    expect(isSeedProtectedEmail("")).toBe(false);
   });
 });

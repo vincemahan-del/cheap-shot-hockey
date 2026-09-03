@@ -7,6 +7,7 @@
 // keeps this covered by the unit suite.
 
 import { randomUUID, timingSafeEqual } from "node:crypto";
+import { SEED_USERS } from "./seed";
 
 export interface SeededTestUser {
   email: string;
@@ -57,6 +58,15 @@ export function generateTestUser(opts?: {
 /** True only when TEST_SEED_TOKEN is set — the endpoint is off otherwise. */
 export function seedTokenConfigured(): boolean {
   return Boolean(process.env.TEST_SEED_TOKEN);
+}
+
+/**
+ * The seeded demo/admin accounts (docs/SDLC-DEMO.md) must never be rotated —
+ * every other demo flow depends on their documented passwords.
+ */
+export function isSeedProtectedEmail(email: string): boolean {
+  const lower = email.toLowerCase();
+  return SEED_USERS.some((u) => u.email.toLowerCase() === lower);
 }
 
 /** Constant-time compare of a provided token against TEST_SEED_TOKEN. */

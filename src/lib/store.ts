@@ -93,6 +93,7 @@ interface UsersRepo {
   getUserByEmail(email: string): Promise<User | undefined>;
   getUser(id: string): Promise<User | undefined>;
   createUser(user: User): Promise<User>;
+  updateUserPassword(id: string, passwordHash: string): Promise<User | undefined>;
   listAllUsers(): Promise<User[]>;
 }
 
@@ -111,6 +112,12 @@ const memoryUsers: UsersRepo = {
     store().users.set(user.id, user);
     return user;
   },
+  async updateUserPassword(id, passwordHash) {
+    const user = store().users.get(id);
+    if (!user) return undefined;
+    user.passwordHash = passwordHash;
+    return user;
+  },
   async listAllUsers() {
     return Array.from(store().users.values());
   },
@@ -120,6 +127,13 @@ const usersRepo: UsersRepo = ordersDb.postgresEnabled() ? usersDb : memoryUsers;
 
 export function getUserByEmail(email: string): Promise<User | undefined> {
   return usersRepo.getUserByEmail(email);
+}
+
+export function updateUserPassword(
+  id: string,
+  passwordHash: string,
+): Promise<User | undefined> {
+  return usersRepo.updateUserPassword(id, passwordHash);
 }
 
 export function getUser(id: string): Promise<User | undefined> {
