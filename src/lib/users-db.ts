@@ -110,6 +110,17 @@ export async function createUser(user: User): Promise<User> {
   return user;
 }
 
+export async function updateUserPassword(
+  id: string,
+  passwordHash: string,
+): Promise<User | undefined> {
+  await ready();
+  const rows = (await sql()`
+    UPDATE users SET password_hash = ${passwordHash} WHERE id = ${id} RETURNING *
+  `) as UserRow[];
+  return rows.length ? rowToUser(rows[0]) : undefined;
+}
+
 export async function listAllUsers(): Promise<User[]> {
   await ready();
   const rows = (await sql()`SELECT * FROM users ORDER BY created_at`) as UserRow[];

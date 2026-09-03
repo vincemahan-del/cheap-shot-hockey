@@ -7,6 +7,7 @@ import {
   getUserByEmail,
   getUser,
   createUser,
+  updateUserPassword,
   createOrder,
   getOrder,
   listOrdersForUser,
@@ -118,6 +119,21 @@ describe("users", () => {
     const before = (await listAllUsers()).length;
     await createUser({ email: "x@x.test", passwordHash: "a", name: "x" });
     expect((await listAllUsers()).length).toBe(before + 1);
+  });
+
+  it("updateUserPassword swaps the hash for an existing user", async () => {
+    const u = await createUser({
+      email: "svc-roletest@x.test",
+      passwordHash: "old-hash",
+      name: "Shared System ID",
+    });
+    const updated = await updateUserPassword(u.id, "new-hash");
+    expect(updated?.passwordHash).toBe("new-hash");
+    expect((await getUser(u.id))?.passwordHash).toBe("new-hash");
+  });
+
+  it("updateUserPassword returns undefined for an unknown id", async () => {
+    expect(await updateUserPassword("u-nope", "hash")).toBeUndefined();
   });
 });
 
