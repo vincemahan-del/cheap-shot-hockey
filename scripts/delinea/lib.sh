@@ -32,9 +32,9 @@ require_var() {
 }
 
 mabl_auth_header() {
-  # mabl API auth: HTTP Basic with blank username + API token (same pattern
-  # as scripts/mabl-deployment.sh).
-  printf 'Authorization: Basic %s' "$(printf ':%s' "$MABL_API_TOKEN" | base64)"
+  # mabl API auth: HTTP Basic, username literal "key" + API token, per
+  # https://api.help.mabl.com/reference/authentication (verified 2026-09-03).
+  printf 'Authorization: Basic %s' "$(printf 'key:%s' "$MABL_API_TOKEN" | base64)"
 }
 
 # curl wrapper: prints body, fails loudly on HTTP >= 400 without leaking headers.

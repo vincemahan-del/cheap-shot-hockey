@@ -24,9 +24,26 @@ hook keeps the matching mabl credential in sync via mabl's public API
                              rotated secret — zero test maintenance
 ```
 
-In production the "hook" is a Delinea post-rotation event script (Secret
-Server supports these natively). Here `scripts/delinea/rotate-shared-id.sh`
-plays both Delinea's rotation and the hook.
+(The mabl credential is write-only when created cloud-only —
+`CRED_CLOUD_ONLY=true` — which is the recommended posture.)
+
+In production the "hook" is a Delinea Event Pipeline task ("Secret: Password
+Change" trigger → "Run script"). Two wiring facts to state up front with a
+Delinea admin in the room:
+
+- **Getting the password into the script is a governance decision.** By
+  default event-pipeline scripts cannot receive Password-type fields; the
+  advanced setting "Event Pipelines: Allow Confidential Secret Fields to be
+  used in Scripts" defaults to False. Enable it deliberately, or keep it off
+  and have the script read the secret back via the Secret Server REST API
+  with its own least-privileged credential.
+- **Where it runs:** on-prem executes on the Secret Server host; Secret
+  Server Cloud executes on a distributed engine (needs outbound 443 to
+  api.mabl.com and a PowerShell RunAs secret). Script time cap: default 5
+  minutes, configurable.
+
+Here `scripts/delinea/rotate-shared-id.sh` plays both Delinea's rotation and
+the hook.
 
 ## Pieces
 
@@ -127,16 +144,17 @@ Secret Server post-rotation event script; this repo's script is those same
 
 ## Production hardening notes (say these out loud)
 
-- **Use cloud-only credentials + "Require cloud credentials".** The API
-  documents `GET /credentials?with_secrets=true` as returning decrypted
-  secrets for regular (non-cloud) credentials under sufficient permissions;
-  a `cloud_only: true` credential can **never** be read back — writes only —
-  and the workspace setting enforces cloud-only for every caller including
-  API keys. Observed in this workspace (2026-09-03): even the Workspace-admin
-  key got no secrets back with `with_secrets=true`, and `PATCH` works fine on
-  a cloud-only credential — so rotation-sync loses nothing by going cloud-only.
-  Set `CRED_CLOUD_ONLY=true` on `setup-poc.sh` to create the credential
-  write-only (proven: credential `nOMor1gaiX08xEACPWRRJA-c`).
+- **Use cloud-only credentials + "Require cloud credentials".** The
+  documented API contract returns decrypted secrets for regular (non-cloud)
+  credentials under sufficient permissions (`with_secrets=true`) — so
+  `cloud_only: true`, plus the workspace "Require cloud credentials" policy
+  (enforced at the API for every caller including keys), is the actual
+  control: a cloud-only credential can never be read back, and the flag is
+  one-way. `PATCH` works fine on a cloud-only credential — rotation-sync
+  loses nothing by going cloud-only (proven: `nOMor1gaiX08xEACPWRRJA-c`).
+  Do NOT lean on the observed empty `with_secrets` response in this
+  workspace as a security property — it is unexplained; the policy and the
+  cloud-only flag are the guarantees.
   (Trade-off: cloud-only creds don't work in the Trainer or local
   `mabl tests run` — use a regular credential for the localhost demo arc,
   cloud-only for the cloud/prod arc.)
@@ -158,9 +176,20 @@ run green (24.6s) → `--skip-sync` rotation → run red (stale credential) →
 synced rotation (`PATCH /credentials/{id}`) → run green (14.1s).
 
 Operational notes:
-- The mabl API key must be the **Workspace admin** type — it is the only
-  workspace key type with `credentials.write`. A CLI-type key gets a 403
-  naming the missing permission.
+- The mabl API key should be the **Workspace admin** type — the documented
+  key type for credential read-write ("read-write permissions with
+  credentials and Link Agents"). A CLI-type key was verified to 403 with the
+  missing permission named; whether other key types (e.g. Editor) can also
+  write credentials is undetermined — don't claim "only."
+- Hook-failure detection must be independent of the hook: pair Delinea's
+  event-pipeline failure notifications with a **scheduled** mabl
+  credential-smoke plan (a dead hook can't trigger anything). Failure mode is
+  fail-safe and loud: stale credential → red login test, no access gained.
+- These CLI-triggered cloud runs retained only per-step screenshots — no HAR,
+  DOM, or log artifacts were present via the artifact API (checked
+  2026-09-03). If network capture is enabled in a customer workspace, verify
+  credential redaction in network artifacts in *their* environment before
+  asserting it.
 - The test's cloud generation baked the observed greeting ("Hi, Demo") into
   an assertion; the Shared System ID account is therefore named
   `Demo SharedSystemID` (first name renders the same greeting). Override with
