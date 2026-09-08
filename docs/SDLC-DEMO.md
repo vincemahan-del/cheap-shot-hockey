@@ -379,6 +379,7 @@ Agent SDK `query()` call invoked from a webhook handler (Phase 2).
 | See the current prod build | `curl https://cheap-shot-hockey.vercel.app/api/build-info` |
 | Check API health | `curl https://cheap-shot-hockey.vercel.app/api/health` |
 | Install pre-push T1 hook | `./scripts/install-git-hooks.sh` |
+| Disappearing-dropdown demo (custom "Sort by" on /products: closes on focus loss + mouse-out; automate via `data-testid` — see `CSH-RT-CATALOG-UI-SortDropdownDisappearingMenu`) | open `https://cheap-shot-hockey.vercel.app/products`, click **Sort by** |
 
 ---
 

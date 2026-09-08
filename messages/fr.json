@@ -137,6 +137,11 @@
     "brand": "Marque",
     "showOnSale": "Afficher seulement les soldes →",
     "noMatch": "Aucun produit ne correspond à ces filtres.",
-    "clearFilters": "Effacer les filtres"
+    "clearFilters": "Effacer les filtres",
+    "sortBy": "Trier par",
+    "sortFeatured": "En vedette",
+    "sortPriceAsc": "Prix : croissant",
+    "sortPriceDesc": "Prix : décroissant",
+    "sortNameAsc": "Nom : A à Z"
   }
 }
