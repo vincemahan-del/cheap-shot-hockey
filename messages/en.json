@@ -137,6 +137,11 @@
     "brand": "Brand",
     "showOnSale": "Show only sale items →",
     "noMatch": "No products match those filters.",
-    "clearFilters": "Clear filters"
+    "clearFilters": "Clear filters",
+    "sortBy": "Sort by",
+    "sortFeatured": "Featured",
+    "sortPriceAsc": "Price: Low to High",
+    "sortPriceDesc": "Price: High to Low",
+    "sortNameAsc": "Name: A to Z"
   }
 }
