@@ -116,7 +116,7 @@ pipeline {
 
     stage('5. Build (Next.js)') {
       // TAMD-133: skip when no app-affecting paths changed
-      // (src/**, public/**, package*.json, next.config, tsconfig,
+      // (src/**, public/**, messages/**, package*.json, next.config, tsconfig,
       // postcss.config, eslint.config, tailwind.config).
       when {
         expression { env.HAS_APP_CHANGES == 'true' }

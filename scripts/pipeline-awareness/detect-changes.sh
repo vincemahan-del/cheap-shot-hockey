@@ -13,7 +13,7 @@
 # awareness layer overview.
 #
 # Flags emitted (true | false):
-#   has_app_changes        src/**, public/**, package*.json, next.config,
+#   has_app_changes        src/**, public/**, messages/**, package*.json, next.config,
 #                          tsconfig.json, postcss.config, eslint.config,
 #                          tailwind.config
 #   has_lib_changes        src/lib/**, vitest.config.ts
@@ -53,7 +53,7 @@ if [ -z "$CHANGED" ]; then
 fi
 
 # ─── Path patterns ────────────────────────────────────────────────────
-APP_PATHS='^(src/|public/|package(-lock)?\.json|next\.config|tsconfig\.json|postcss\.config|eslint\.config|tailwind\.config)'
+APP_PATHS='^(src/|public/|messages/|package(-lock)?\.json|next\.config|tsconfig\.json|postcss\.config|eslint\.config|tailwind\.config)'
 LIB_PATHS='^(src/lib/|vitest\.config\.ts)'
 API_PATHS='^(src/app/api/|src/lib/|mabl/postman/)'
 DEPS_PATHS='^package(-lock)?\.json$'
