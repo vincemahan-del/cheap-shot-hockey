@@ -103,11 +103,12 @@ fi
 
 echo "⏳ polling for plan execution completion…"
 deadline=$(( $(date +%s) + TIMEOUT ))
-# Short grace period for plans to appear if any match. If still 0 plans
-# matched the labels after this, we exit cleanly — that's a no-op
-# deployment event, not a failure. (Avoids infinite wait when labels
-# haven't been attached to plans yet.)
-no_plan_deadline=$(( $(date +%s) + 60 ))
+# Grace period for plan runs to be scheduled (mabl typically takes 10-60s).
+# If still 0 plans matched the labels after this, FAIL: a deployment event
+# that runs nothing must not report green. MABL_ALLOW_NO_PLANS=1 restores
+# the old no-op behaviour for bootstrap phases.
+NO_PLAN_GRACE="${MABL_NO_PLAN_GRACE:-120}"
+no_plan_deadline=$(( $(date +%s) + NO_PLAN_GRACE ))
 while :; do
   now=$(date +%s)
   if (( now >= deadline )); then
@@ -120,32 +121,38 @@ while :; do
       -H "$AUTH_HEADER"
   )
 
-  # The response has an array of plan executions. We fail if any failed,
-  # pass if they're all passing, and keep waiting otherwise.
-  total=$(printf '%s' "$status_json" | jq '.plan_execution_count // (.plan_executions | length // 0)')
-  finished=$(printf '%s' "$status_json" | jq '[.plan_executions[]? | select(.status=="PASSED" or .status=="FAILED" or .status=="CANCELLED" or .status=="SKIPPED")] | length')
-  failed=$(printf '%s' "$status_json" | jq '[.plan_executions[]? | select(.status=="FAILED")] | length')
+  # Response shape (GET /execution/result/event/{id}): plan_execution_metrics
+  # {total,passed,failed,...} and executions[] with lowercase status values
+  # (queued, scheduling, scheduled, succeeded, failed, cancelled, terminated,
+  # completed). Fail if any plan failed, pass when every plan is terminal and
+  # none failed, keep waiting otherwise.
+  total=$(printf '%s' "$status_json" | jq '.plan_execution_metrics.total // (.executions | length) // 0')
+  finished=$(printf '%s' "$status_json" | jq '[.executions[]? | select(.status=="succeeded" or .status=="failed" or .status=="cancelled" or .status=="terminated" or .status=="completed")] | length')
+  failed=$(printf '%s' "$status_json" | jq '[.executions[]? | select(.status=="failed" or .status=="terminated" or .status=="cancelled" or .success==false)] | length')
 
   printf "  progress: %s/%s finished, %s failed\n" "$finished" "$total" "$failed"
 
   if [[ "$failed" != "0" ]]; then
-    echo "$status_json" | jq '.plan_executions[] | select(.status=="FAILED") | {plan_name, status, app_url: .application_url, link: .summary.link}'
+    echo "$status_json" | jq '.executions[] | select(.status!="succeeded") | {plan: .plan.name, status, link: .plan_execution.app_href}'
     echo "❌ mabl runs failed"
     exit 1
   fi
 
   if [[ "$finished" == "$total" && "$total" != "0" ]]; then
-    echo "$status_json" | jq '.plan_executions[] | {plan_name, status}'
+    echo "$status_json" | jq '.executions[] | {plan: .plan.name, status}'
     echo "✅ all mabl runs passed"
     exit 0
   fi
 
   if [[ "$total" == "0" && "$now" -ge "$no_plan_deadline" ]]; then
-    echo "⚠ no mabl plans matched label(s) '$LABELS' (event $event_id)."
-    echo "  Pipeline exiting successfully — the deployment event was accepted,"
-    echo "  but no plans are configured for this label yet. Create plans in"
-    echo "  the mabl UI and attach the label to enable gating."
-    exit 0
+    echo "⚠ no mabl plans matched label(s) '$LABELS' (event $event_id) after ${NO_PLAN_GRACE}s."
+    if [[ "${MABL_ALLOW_NO_PLANS:-0}" == "1" ]]; then
+      echo "  MABL_ALLOW_NO_PLANS=1 — treating as a no-op event and exiting 0."
+      exit 0
+    fi
+    echo "  A gate that runs zero tests is not a passing gate. Enable the plan(s)" >&2
+    echo "  carrying these labels in mabl, or set MABL_ALLOW_NO_PLANS=1 to opt out." >&2
+    exit 1
   fi
 
   sleep 10
