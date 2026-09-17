@@ -446,6 +446,13 @@ jobs:
           exit 1
       - name: trigger CSH-SMOKE-PR against Preview
         if: steps.gate.outputs.skipped != 'true'
+        # PR metadata goes through env, not inline args, so a PR title can't
+        # inject into the shell. The script maps these to mabl's repository_*
+        # properties (Branch / Author / Pull request in Results > By deployment).
+        env:
+          MABL_PR_URL: ${{ github.event.pull_request.html_url }}
+          MABL_PR_NUMBER: ${{ github.event.pull_request.number }}
+          MABL_PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           chmod +x scripts/mabl-deployment.sh
           ./scripts/mabl-deployment.sh \
