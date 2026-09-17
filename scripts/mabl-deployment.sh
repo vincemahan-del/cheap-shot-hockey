@@ -10,7 +10,15 @@
 #     [--url <deploy_url>] \
 #     [--commit <sha>] \
 #     [--branch <name>] \
+#     [--actor <username>] [--repo <owner/name>] [--repo-url <url>] \
+#     [--event-name <ci_event>] [--pr-url <url>] [--pr-number <n>] [--pr-title <text>] \
 #     [--wait] [--timeout 1200]
+#
+# Source-control metadata defaults to the GitHub Actions environment
+# (GITHUB_ACTOR, GITHUB_REPOSITORY, GITHUB_SERVER_URL, GITHUB_EVENT_NAME) and to
+# MABL_PR_URL / MABL_PR_NUMBER / MABL_PR_TITLE. It is sent under the property
+# names mabl recognizes (repository_*), which populate Branch, Author, and
+# Pull request in Results > By deployment and the build link on the event page.
 #
 # Requires MABL_API_TOKEN env var. Mabl's API uses HTTP Basic with a blank
 # username and the API token as the password — see
@@ -27,6 +35,13 @@ ENVIRONMENT_ID=""
 URL=""
 COMMIT="${GIT_COMMIT_SHORT:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}"
 BRANCH="${GIT_BRANCH_NAME:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)}"
+ACTOR="${GITHUB_ACTOR:-$(git config user.name 2>/dev/null || echo "")}"
+REPO="${GITHUB_REPOSITORY:-}"
+REPO_URL=""
+EVENT_NAME="${GITHUB_EVENT_NAME:-manual}"
+PR_URL="${MABL_PR_URL:-}"
+PR_NUMBER="${MABL_PR_NUMBER:-}"
+PR_TITLE="${MABL_PR_TITLE:-}"
 WAIT=0
 TIMEOUT=1200
 
@@ -38,6 +53,13 @@ while [[ $# -gt 0 ]]; do
     --url)          URL="$2";            shift 2 ;;
     --commit)       COMMIT="$2";         shift 2 ;;
     --branch)       BRANCH="$2";         shift 2 ;;
+    --actor)        ACTOR="$2";          shift 2 ;;
+    --repo)         REPO="$2";           shift 2 ;;
+    --repo-url)     REPO_URL="$2";       shift 2 ;;
+    --event-name)   EVENT_NAME="$2";     shift 2 ;;
+    --pr-url)       PR_URL="$2";         shift 2 ;;
+    --pr-number)    PR_NUMBER="$2";      shift 2 ;;
+    --pr-title)     PR_TITLE="$2";       shift 2 ;;
     --wait)         WAIT=1;              shift   ;;
     --timeout)      TIMEOUT="$2";        shift 2 ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
@@ -56,6 +78,10 @@ fi
 API_BASE="${MABL_API_BASE:-https://api.mabl.com}"
 AUTH_HEADER="Authorization: Basic $(printf ':%s' "$MABL_API_TOKEN" | base64)"
 
+if [[ -z "$REPO_URL" && -n "$REPO" ]]; then
+  REPO_URL="${GITHUB_SERVER_URL:-https://github.com}/${REPO}"
+fi
+
 payload=$(
   jq -nc \
     --arg env  "$ENVIRONMENT_ID" \
@@ -63,22 +89,40 @@ payload=$(
     --arg rev  "$COMMIT" \
     --arg br   "$BRANCH" \
     --arg url  "$URL" \
+    --arg actor "$ACTOR" \
+    --arg repo "$REPO" \
+    --arg repo_url "$REPO_URL" \
+    --arg event_name "$EVENT_NAME" \
+    --arg pr_url "$PR_URL" \
+    --arg pr_number "$PR_NUMBER" \
+    --arg pr_title "$PR_TITLE" \
     --argjson labels "$(printf '%s' "$LABELS" | jq -R 'split(",")')" \
-    '{
-      environment_id: ($env | select(length>0)),
-      application_id: ($app | select(length>0)),
+    'def opt: if length>0 then . else null end;
+    {
+      environment_id: ($env | opt),
+      application_id: ($app | opt),
       plan_labels:    ($labels | map(select(length>0))),
       revision:       $rev,
       properties: {
+        # legacy keys, kept for anything already reading them
         app_version: $rev,
         branch:      $br,
-        deploy_url:  $url
+        deploy_url:  $url,
+        # keys mabl recognizes (Results > By deployment, event detail page)
+        repository_branch_name:         $br,
+        repository_commit_username:     ($actor      | opt),
+        repository_name:                ($repo       | opt),
+        repository_url:                 ($repo_url   | opt),
+        triggering_event_name:          ($event_name | opt),
+        repository_pull_request_url:    ($pr_url     | opt),
+        repository_pull_request_number: (if ($pr_number|length)>0 then ($pr_number|tonumber) else null end),
+        repository_pull_request_title:  ($pr_title   | opt)
       }
     } | del(..|nulls)'
 )
 
 echo "▶ triggering mabl deployment event"
-echo "  labels=$LABELS env=$ENVIRONMENT_ID app=$APPLICATION_ID url=$URL commit=$COMMIT branch=$BRANCH"
+echo "  labels=$LABELS env=$ENVIRONMENT_ID app=$APPLICATION_ID url=$URL commit=$COMMIT branch=$BRANCH actor=$ACTOR repo=$REPO pr=${PR_NUMBER:--}"
 
 response=$(
   curl -sS -X POST "$API_BASE/events/deployment" \
