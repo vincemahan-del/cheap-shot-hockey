@@ -17,7 +17,8 @@
     "test:mabl:browser:local": "./scripts/mabl-local-cli.sh",
     "test:mabl:browser:preview": "./scripts/mabl-local-cli.sh --url https://cheap-shot-hockey-git-main-vincemahan-1163s-projects.vercel.app",
     "test:mabl:browser:prod": "./scripts/mabl-local-cli.sh --url https://cheap-shot-hockey.vercel.app",
-    "demo:preflight": "./scripts/demo-preflight.sh"
+    "demo:preflight": "./scripts/demo-preflight.sh",
+    "demo:deployment-event": "mabl deployments create -a OZqmshBkUfVSesWy49g1eQ-a -e TpuarWvfj1hOREDT0JGvjA-e -l exec-pr --await-completion"
   },
   "dependencies": {
     "@neondatabase/serverless": "1.1.0",
