@@ -29,13 +29,13 @@ workspace: pXXgThbNi4HfQOpiZptHfw-w   # mabl "Cheap Shot Hockey Demo"
 areas:
 
   catalog:
-    routes:        ["/", "/products", "/products/[slug]", "/api/products", "/api/products/[id]"]
+    routes:        ["/", "/products", "/products/[slug]", "/api/products", "/api/products/[id]", "/api/promos"]
     testid_prefix: [product-, price-, catalog-, category-, nav-cat-, nav-categories, nav-search-,
                     filter-, filters, brand-, sale-badge-, low-stock-, gallery-thumb-, thumb-,
                     breadcrumbs, active-filters, cta-block, hero, no-results, related-grid,
                     gloves-row-, goalie-row-, helmets-row-, jerseys-row-, skates-row-]
     components:    [ProductCard, ProductThumb, ProductIllustration, CategoryTile, BrandRow, StarRating]
-    lib:           [src/lib/brand.ts]
+    lib:           [src/lib/promos.ts, src/lib/brand.ts]
     messages:      [product, products, home]
 
   checkout:

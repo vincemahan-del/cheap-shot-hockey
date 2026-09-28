@@ -12,8 +12,12 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/health",
-          "host": ["{{baseUrl}}"],
-          "path": ["health"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
         }
       },
       "event": [
@@ -40,8 +44,12 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/build-info",
-          "host": ["{{baseUrl}}"],
-          "path": ["build-info"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "build-info"
+          ]
         }
       },
       "event": [
@@ -61,14 +69,57 @@
       ]
     },
     {
+      "name": "CSH-SMK-PROMOS-API-ReturnsActivePromos",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/promos?locale=en",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "promos"
+          ],
+          "query": [
+            {
+              "key": "locale",
+              "value": "en"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is 200', () => pm.response.to.have.status(200));",
+              "pm.test('Content-Type is JSON', () => pm.expect(pm.response.headers.get('Content-Type')).to.match(/^application\\/json/));",
+              "const body = pm.response.json();",
+              "pm.test('locale echoes en', () => pm.expect(body.locale).to.eql('en'));",
+              "pm.test('count matches promos length and is >= 1', () => { pm.expect(body.count).to.be.at.least(1); pm.expect(body.count).to.eql(body.promos.length); });",
+              "pm.test('every promo has key and text', () => body.promos.forEach(p => { pm.expect(p.key).to.be.a('string'); pm.expect(p.text).to.be.a('string').and.not.empty; }));",
+              "pm.test('placeholders are resolved', () => body.promos.forEach(p => pm.expect(p.text).to.not.match(/\\{\\w+\\}/)));"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "CSH-CHP-01 Catalog: list products",
       "request": {
         "method": "GET",
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/products",
-          "host": ["{{baseUrl}}"],
-          "path": ["products"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "products"
+          ]
         }
       },
       "event": [
@@ -93,8 +144,13 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/products/apex-velocity-pro-stick",
-          "host": ["{{baseUrl}}"],
-          "path": ["products", "apex-velocity-pro-stick"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "products",
+            "apex-velocity-pro-stick"
+          ]
         }
       },
       "event": [
@@ -116,15 +172,25 @@
       "name": "CSH-CHP-03 Auth: login",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"email\": \"demo@cheapshot.test\",\n  \"password\": \"demo1234\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/auth/login",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "login"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
         }
       },
       "event": [
@@ -149,8 +215,13 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/auth/me",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "me"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "me"
+          ]
         }
       },
       "event": [
@@ -171,15 +242,24 @@
       "name": "CSH-CHP-05 Cart: add Apex Velocity",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"productId\": \"p-stk-001\",\n  \"quantity\": 1,\n  \"mode\": \"add\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/cart",
-          "host": ["{{baseUrl}}"],
-          "path": ["cart"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "cart"
+          ]
         }
       },
       "event": [
@@ -205,8 +285,12 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/cart",
-          "host": ["{{baseUrl}}"],
-          "path": ["cart"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "cart"
+          ]
         }
       },
       "event": [
@@ -227,15 +311,24 @@
       "name": "CSH-CHP-07 Checkout: place order",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"shippingAddress\": {\n    \"name\": \"Demo Customer\",\n    \"street\": \"1 Rink Road\",\n    \"city\": \"Minneapolis\",\n    \"state\": \"MN\",\n    \"postalCode\": \"55401\",\n    \"country\": \"US\"\n  }\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/orders",
-          "host": ["{{baseUrl}}"],
-          "path": ["orders"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders"
+          ]
         }
       },
       "event": [
@@ -264,8 +357,12 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/cart",
-          "host": ["{{baseUrl}}"],
-          "path": ["cart"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "cart"
+          ]
         }
       },
       "event": [
@@ -289,8 +386,13 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/orders/{{orderId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["orders", "{{orderId}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders",
+            "{{orderId}}"
+          ]
         }
       },
       "event": [
@@ -313,7 +415,10 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Content-Type", "value": "application/json" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
@@ -321,8 +426,12 @@
         },
         "url": {
           "raw": "{{baseUrl}}/team-orders",
-          "host": ["{{baseUrl}}"],
-          "path": ["team-orders"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "team-orders"
+          ]
         }
       },
       "event": [
@@ -347,7 +456,10 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Content-Type", "value": "application/json" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
@@ -355,8 +467,12 @@
         },
         "url": {
           "raw": "{{baseUrl}}/team-orders",
-          "host": ["{{baseUrl}}"],
-          "path": ["team-orders"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "team-orders"
+          ]
         }
       },
       "event": [

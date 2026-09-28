@@ -16,6 +16,13 @@ const SPEC = {
         responses: { "200": { description: "OK" } },
       },
     },
+    "/api/promos": {
+      get: {
+        summary: "Active promo-strip messages",
+        parameters: [{ name: "locale", in: "query", schema: { type: "string", enum: ["en", "fr"] } }],
+        responses: { "200": { description: "OK" } },
+      },
+    },
     "/api/products": {
       get: {
         summary: "List products",
