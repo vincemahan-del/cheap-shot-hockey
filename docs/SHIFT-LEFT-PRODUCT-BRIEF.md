@@ -94,7 +94,7 @@ few orthogonal axes:
 - **Traceability — Jira keys** (4): `TAMD-173`, `TAMD-180`, `TAMD-189` (+ the `TAMD-173-diagnostic` label) — *why it exists.*
 - **Descriptive** (6): `demo`, `csv`, `pdf`, `download-assertion`, `repro`, `i18n-failing-evidence` — free-form.
 
-Plans dispatch on the *intersection*: `type-smk,exec-pr` → the PR smoke; `type-rt,area-catalog`
+Plans dispatch on the `exec-*` / `area-*` label (deployment events match *any* sent label, so the distinctive label does the selecting): `type-smk,exec-pr` → the PR smoke; `type-rt,area-catalog`
 → catalog regression; `type-rt` → the nightly full suite.
 
 ### What's automated, and what isn't (deliberately)

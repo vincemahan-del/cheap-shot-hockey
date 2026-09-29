@@ -5,14 +5,14 @@
 # cross-browser credits — single-browser, results published back to the
 # mabl app for traceability.
 #
-# Cost note: this run passes --allow-billable-features so GenAI assertions
-# in the type-rt suite actually execute (the CLI skips them otherwise and
-# fails the assertion). AI assertions are a billable feature, so the
-# nightly is NOT zero-cost — it consumes per-assertion credits every night.
-# This is an intentional trade (TAMD-148, 2026-05-27): full AI-assertion
-# regression coverage at night was judged worth the per-assertion cost,
-# consistent with the per-PR local browser smoke (CLAUDE.md DoD step 4,
-# scripts/mabl-local-cli.sh), which already runs billable.
+# Cost note: this run passes --allow-billable-features so AI/visual
+# assertions in the type-rt suite actually execute (without the flag the
+# CLI fails the assertion with "AI assertions are not available in CLI
+# runs by default"). Despite the flag's name, local and CI runs consume
+# 0 credits, visual assertions included — they only consume credits in
+# cloud runs (help 46951187139860, "How usage is measured in mabl").
+# Corrected 2026-09-29 (TAMD-223); earlier wording said the nightly
+# consumed per-assertion credits, which was wrong.
 #
 # Why nightly: continuous-deploy teams ship multiple times per day. A
 # scheduled "every-15-min cloud heartbeat" would burn far more credits;

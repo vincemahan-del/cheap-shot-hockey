@@ -139,7 +139,8 @@ by mabl. This smoke test closes that gap (TAMD-137).
 
 **Labels:** `type-smk, type-ui, exec-pr, feat-teamorders`
 
-> `type-smk` + `exec-pr` is the intersection the PR gate dispatches
+> `exec-pr` is the label that makes the PR gate dispatch select this plan
+> (deployment events match any sent label; `type-smk` is descriptive)
 > (`CSH-SMOKE-PR`, Preview). `feat-teamorders` follows the `feat-<area>`
 > convention used by the CHP test. **mabl's MCP exposes no label-write
 > tool** — apply these in the mabl UI (Test → Add label) after the test

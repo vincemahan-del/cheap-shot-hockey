@@ -160,7 +160,7 @@ MABL_ENV_PREVIEW_ID  TpuarWvfj1hOREDT0JGvjA-e
 MABL_ENV_LOCAL_ID    DmlIvADtF8jPDm9J7Bpshw-e
 ```
 
-Plan-label intersections Jenkins/GHA dispatch (see [`docs/MABL-API-TESTS.md`](docs/MABL-API-TESTS.md)):
+Plan-label dispatch from Jenkins/GHA (deployment events match **any** sent label; the `exec-*` label is what makes each dispatch select one plan — see [`docs/MABL-API-TESTS.md`](docs/MABL-API-TESTS.md)):
 
 ```
 PR smoke         → type-smk,exec-pr           → CSH-SMOKE-PR (Preview)
