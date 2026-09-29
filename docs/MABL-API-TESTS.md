@@ -257,8 +257,8 @@ except for the `exec-*` dispatch token.
 ## CI dispatch (Jenkinsfile + GHA)
 
 Per the framework's "same plan, many triggers" pattern (page 8), the
-same `CSH-SMOKE-API` plan fires in three different contexts via label
-intersection:
+same `CSH-SMOKE-API` plan fires in three different contexts by sending
+a distinct `exec-*` label per pipeline stage:
 
 ```bash
 # PR gate
@@ -271,10 +271,16 @@ intersection:
 ./scripts/mabl-deployment.sh --labels type-smk,exec-nightly ...
 ```
 
-Mabl matches plans whose labels include **all** of the passed values.
-One durable plan handles three execution contexts — no duplicate plans.
+mabl matches plans that carry **any** of the passed labels, not all of
+them (CLI reference: `--labels` runs "plans that match any label";
+confirmed 2026-09-29 with a `?preview=true` deployment event: `type-smk`
+plus a nonexistent label ran the same single plan as `type-smk` alone).
+The dispatch selects exactly one plan because each plan's `exec-*` label
+is unique within its environment, and the event is scoped by application
+and environment. `type-smk` on its own would also match. Do not rely on
+a shared label to narrow a dispatch.
 
-These exact label intersections are wired up in:
+These label sets are wired up in:
 - `Jenkinsfile` — stage 7 dispatches `type-smk,exec-pr` → matches
   `CSH-SMOKE-PR` (Preview), stage 9 dispatches `type-smk,exec-postdeploy`
   → matches `CSH-SMOKE-POSTDEPLOY` (Prod)
