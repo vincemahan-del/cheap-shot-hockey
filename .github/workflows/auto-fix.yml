@@ -48,7 +48,7 @@ jobs:
       PR_TITLE: ${{ github.event.pull_request.title }}
       PR_AUTHOR: ${{ github.event.pull_request.user.login }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 5  # need recent commits for circuit breaker
