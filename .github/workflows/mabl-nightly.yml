@@ -67,7 +67,7 @@ jobs:
       - uses: actions/checkout@v4
         if: steps.precheck.outputs.skipped == 'false'
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: steps.precheck.outputs.skipped == 'false'
         with:
           node-version: "22"
