@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
   const region = readRegion(req.headers);
   const taxCents = Math.round(subtotalCents * taxRate(region, addr.state));
   const shippingCents = shippingForSubtotal(region, subtotalCents);
-  const totalCents = subtotalCents + shippingCents;
+  const totalCents = subtotalCents + taxCents + shippingCents;
 
   const order = await createOrder({
     userId: user?.id ?? null,

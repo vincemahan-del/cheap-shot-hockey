@@ -28,7 +28,7 @@ export default async function CheckoutPage() {
   // tax from the entered province on submit.
   const tax = Math.round(subtotal * taxRate(region, CA_DEFAULT_PROVINCE));
   const shipping = shippingForSubtotal(region, subtotal);
-  const total = subtotal + tax + shipping;
+  const total = subtotal + shipping;
 
   if (enriched.length === 0) {
     return (
