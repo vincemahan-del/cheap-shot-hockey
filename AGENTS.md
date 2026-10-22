@@ -20,7 +20,7 @@ Every PR that touches `src/` must satisfy all three before the branch is pushed:
 
 1. `npm run test:coverage` — all metrics ≥ 90%. If coverage drops, write the missing tests. Do not fake coverage to hit the number.
 2. `git diff --name-only main | node scripts/shift-left/audit.mjs impact -` — the area-coverage engine reports which mabl tests this change impacts (precise by changed testid, area-level by domain, CORE/BROAD for cross-cutting changes). List them in the PR description under "Test impact". Same engine the `test-impact` CI job runs, so the two agree.
-3. New UI pages or API routes → create a mabl test via MCP (`plan_new_test` → `create_mabl_test_cloud`) and cut a follow-up Jira ticket. **Label every created test with its Jira ticket key** (e.g. `TAMD-173`) via the cloud mabl MCP `edit_mabl_test` (`add_label`) — the local/headless MCP can't write labels, so this happens at authoring time (TAMD-176). Note the test, the ticket, and the applied label in the PR description.
+3. New UI pages or API routes → create a mabl test via MCP (`mabl_authoring_plan` → `mabl_authoring_initiate` → `mabl_authoring_status`) and cut a follow-up Jira ticket. **Label every created test with its Jira ticket key** (e.g. `TAMD-173`) at authoring time via `testInformation.labels`, or after with `edit_mabl_test_metadata` (`add_label`) (TAMD-176). Note the test, the ticket, and the applied label in the PR description.
 
 ## Tool selection
 
@@ -42,15 +42,14 @@ Every PR that touches `src/` must satisfy all three before the branch is pushed:
 - Tool call fails → retry once with adjusted parameters, then surface the error to the user with what you tried and why it failed.
 - Coverage gate fails and you can't identify the right tests → say so explicitly. Do not write trivial tests that hit lines without asserting behavior.
 - mabl test creation fails → cut a Jira ticket to track the gap, note it in the PR body, and continue.
-- CI gate fails → use `mcp__mabl__analyze_failure` to triage before escalating to the user.
+- CI gate fails → use `mcp__mabl__analyze_mabl_failure` to triage before escalating to the user.
 
 ## Data safety rules
 
 - Never change seed credentials (`demo@cheapshot.test / demo1234`, `admin@cheapshot.test / admin1234`).
 - Never move cart or recent-orders state out of cookies into the in-memory store.
 - Never require authentication for checkout.
-- Always reset demo mode after any test that flips it: `./scripts/demo-toggle.sh normal`.
-- `?demo=broken` makes production return 503s — treat resetting this as urgent if left on.
+- Demo mode is a per-browser cookie (`csh_demo`), not a global switch. A browser opened with `?demo=broken` gets API 503s until it opens `/?demo=normal` or the cookie expires. It never affects other visitors or mabl's scheduled runs. For a failure that mabl's plans catch, ship a real regression on a branch (`docs/SDLC-DEMO.md`, Act 5).
 
 ## Narration (ticket-to-prod demos)
 

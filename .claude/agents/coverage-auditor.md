@@ -7,7 +7,7 @@ description: >
   labels). Use when the user asks to "run the coverage audit", "refresh the
   coverage map", "what areas have no tests", "reconcile the area labels", or on a
   schedule. Implements docs/AREA-COVERAGE-AUDIT.md against scripts/shift-left/.
-tools: Bash, Read, Write, Glob, Grep, mcp__mabl__get_mabl_tests, mcp__mabl__mabl_get_test_steps, mcp__mabl__edit_mabl_test
+tools: Bash, Read, Write, Glob, Grep, mcp__mabl__list_mabl_tests, mcp__mabl__get_mabl_test_steps, mcp__mabl__edit_mabl_test_metadata
 ---
 
 # coverage-auditor
@@ -18,9 +18,10 @@ You maintain the app→test coverage map for cheap-shot-hockey. Source of truth:
 ## Procedure
 
 1. **Pull live mabl state** into `scripts/shift-left/.raw/` (gitignored):
-   - `mcp__mabl__get_mabl_tests` (workspace `pXXgThbNi4HfQOpiZptHfw-w`, limit 200) →
-     write the result to `.raw/tests.json`.
-   - For every **enabled browser** test, `mcp__mabl__mabl_get_test_steps(test_id)` →
+   - `mcp__mabl__list_mabl_tests` (workspaceId `pXXgThbNi4HfQOpiZptHfw-w`, limit 200;
+     follow `nextCursor` until it is absent) → write `{"tests":[...all pages]}` to
+     `.raw/tests.json`.
+   - For every **enabled browser** test, `mcp__mabl__get_mabl_test_steps(testId)` →
      write each to `.raw/steps/<id>.json`. (Parallelize in batches; this is the
      expensive step. Skip api/disabled tests.)
 2. **Refresh the index**: `node scripts/shift-left/refresh-index.mjs` → regenerates
@@ -31,7 +32,7 @@ You maintain the app→test coverage map for cheap-shot-hockey. Source of truth:
    - **Guard fail (unclassified surface):** STOP and surface it as a *new-area
      candidate* / manifest gap. Propose the `coverage.map.yml` change for human review;
      do NOT invent an area silently.
-   - **Reconcile `ADD area-X`:** apply via `mcp__mabl__edit_mabl_test` (`add_label`)
+   - **Reconcile `ADD area-X`:** apply via `mcp__mabl__edit_mabl_test_metadata` (`add_label`)
      — **only `area-*` labels**, add-only. Never touch non-area labels (WIP, Demo,
      demo, seed-db, dt-demo, ticket keys). Skip borderline route-fallback adds and
      flag them instead.

@@ -19,7 +19,7 @@ and the live mabl test catalog.
 4. DERIVE   for each mabl test, compute area-* from the testids/routes it VERIFIES
             (asserts on / meaningfully interacts with — not mere transit).
 5. RECONCILE derived area-* vs the test's current mabl labels:
-              - missing  → add  (area-*, GA edit_mabl_test)
+              - missing  → add  (area-*, GA edit_mabl_test_metadata)
               - stale    → remove (area-* only)
               - never touch non-area labels (WIP, Demo, demo, seed-db, dt-demo, TAMD-* …)
 6. REPORT   coverage by area · zero-coverage areas · label drift · unclassified surfaces · component-level gaps.
@@ -43,7 +43,7 @@ and the live mabl test catalog.
   interaction (`actionCode` assert > state-changing click), not a pass-through `VisitUrl`.
 - **Manifest = definitions only:** the audit never writes coverage status back into the manifest;
   it proposes manifest *definition* diffs (new/changed classifications) for human review.
-- **Writes are add/remove of labels (GA `edit_mabl_test`)** — not the flag-gated authoring path;
+- **Writes are add/remove of labels (GA `edit_mabl_test_metadata`)** — not the flag-gated authoring path;
   no test steps are modified. Reversible.
 - **Reports unclassified before mutating** — never silently force-fit a surface into an area.
 
@@ -60,7 +60,7 @@ and the live mabl test catalog.
 
 - `coverage.map.yml` (manifest) — the area definitions + core/excluded/platform.
 - Repo working tree — for the sweep (deterministic, AST/parse for testids incl. templated).
-- mabl MCP/CLI — `get_mabl_tests`, `mabl_get_test_steps` (read), `edit_mabl_test` add/remove_label (write).
+- mabl MCP/CLI — `get_mabl_tests`, `mabl_get_test_steps` (read), `edit_mabl_test_metadata` add/remove_label (write).
 - Degrades gracefully: if mabl is unreachable, steps 1–3 (sweep/classify/guard) + the manifest
   diff still run from cache; only the live reconcile (4–6) waits.
 

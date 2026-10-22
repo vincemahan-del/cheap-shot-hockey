@@ -145,10 +145,10 @@ You should get endpoint scaffolding for every route above.
 
 ### 4. Demo the failure modes
 
-Use the demo modes to show:
+Demo mode is a per-browser cookie, so put `?demo=<mode>` in the test's start URL for an ad hoc run. Scheduled and plan runs never see it. Use it to show:
 - **Auto-healing under latency** — run a UI test with `?demo=slow`
 - **Flake detection** — run the same suite 5× with `?demo=flaky` and watch mabl cluster the failures
-- **Failure analysis** — run with `?demo=broken` and let mabl's `analyze_failure` attribute the 503s
+- **Failure analysis** — run with `?demo=broken` and let mabl's `analyze_mabl_failure` attribute the 503s
 
 ### 5. The `/admin` coverage-gap demo
 

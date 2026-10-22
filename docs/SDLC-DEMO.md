@@ -155,13 +155,20 @@ stage-for-stage.
 
 ### Pre-flight (before screen-share)
 
-1. `?demo=normal` — make sure prod isn't stuck in slow/flaky/broken from
-   a previous demo: `./scripts/demo-toggle.sh normal`
+1. Demo mode is per browser, so prod can't be "stuck" in a mode. If your
+   own browser still shows slow/flaky/broken, open `/?demo=normal`.
 2. Slack channel open and pinned in your tab bar
 3. mabl workspace open in another tab
 4. Jira project filtered to TAMD, ordered by Updated
 5. Claude Code in this repo with the 3 subagents available
    (`.claude/agents/demo-orchestrator.md` etc.)
+6. T-60: re-authorize the `mabl` MCP server, then `mabl auth login`, `gh` and
+   `vercel`. Make one cheap mabl MCP call (list workspaces) to prove it.
+7. T-30: start any new-test agent authoring you plan to show. Sessions
+   can queue for tens of minutes, so the live beat is a step edit on an
+   existing test and the pre-started session is the fallback.
+8. In the mabl app, confirm automatic failure categorization is on
+   (Agents > Settings > Agent behavior, workspace owner).
 
 ---
 
@@ -175,8 +182,8 @@ coverage before they even push code."
    mabl-test-author subagent to draft a UI test that logs in, adds a
    product to the wishlist, and verifies it persists after refresh."*
 3. Claude delegates to the `mabl-test-author` subagent — it calls
-   `mabl plan_new_test` → `create_mabl_test_cloud` →
-   `get_cloud_test_gen_status` and tier-tags the test per
+   `mabl_authoring_plan` → `mabl_authoring_initiate` →
+   `mabl_authoring_status` and tier-tags the test per
    `docs/MABL-AI-ASSERTION-PROMPT.md` (structural assertions only — no
    marketing-copy assertions).
 4. Tab-switch to mabl — the new test is there, already wired to Preview.
@@ -275,7 +282,7 @@ in a brittle framework. Watch what happens here."
    entirely."* The `CSH-SMOKE-PR` gate fails. PR is blocked — auto-merge
    stays armed but won't fire. Show the Slack
    `:rotating_light: [TAMD-NN] BLOCKED` post and the mabl screenshot.
-5. **Triage in-flight:** prompt *"Use mabl `analyze_failure` on the last
+5. **Triage in-flight:** prompt *"Use mabl `analyze_mabl_failure` on the last
    plan run for this PR and tell me what broke."* Claude reads the run
    and posts a summary as a Jira comment. Push a fix → CI re-runs →
    green → auto-merge fires.
@@ -292,12 +299,13 @@ gating.
 
 1. In mabl, show the **scheduled run** of `CSH-SMOKE-POSTDEPLOY` on a
    recurring schedule against Prod (e.g. every 15 min).
-2. Run `./scripts/demo-toggle.sh flaky` — production now intermittently
-   fails (~25% of API calls stall, ~20% return 503).
-3. Wait for the next scheduled run (or trigger one manually via
-   `./scripts/mabl-deployment.sh --labels type-smk,exec-postdeploy ...`).
-4. Show mabl detecting the flake, grouping the failures, and routing
-   them to Slack via mabl's native app.
+2. Demo mode is a per-browser cookie, so it never reaches scheduled
+   runs. To show degraded behavior, run one smoke test ad hoc from the
+   mabl app with its start URL set to
+   `https://cheap-shot-hockey.vercel.app/?demo=flaky`. That run's browser
+   gets the cookie: ~25% of API calls stall, 15–20% return 503.
+3. Show mabl's result for that run: the failing step, the failure
+   analysis, and the failure category.
 
 **mabl value shown:** synthetic monitoring, flake detection, incident
 routing without instrumentation work.
@@ -306,28 +314,30 @@ routing without instrumentation work.
 
 ## Act 5 — Closed-loop failure response (4 min)
 
-**Story:** "Post-deploy mabl flagged a regression. The deterministic
-alert lands in Slack, a human reads the failure detail, and Claude
-Code drives the fix."
+**Story:** "A plausible refactor drops tax from the order total. Unit
+tests pass. mabl blocks the merge, explains why, and Claude Code drives
+the fix."
 
-1. **Set up the failure.** Open a small benign-looking PR through the
-   normal flow (Act 2). Just before the merge fires, run
-   `./scripts/demo-toggle.sh broken` — prod will return 503 once the
-   merge deploys.
-2. **Watch the chain.** Merge fires → Vercel deploys →
-   `T1 newman (Prod)` fails → `mabl CSH-SMOKE-POSTDEPLOY (Prod)` fails →
-   `scripts/ci-notify.sh fail "Prod post-deploy failed"` posts a
-   `:rotating_light:` Slack message with links to the failing run +
-   the mabl plan + the prod URL.
-3. **Tab-switch: Slack.** The deterministic post is short and
-   actionable — no AI handwaving, just "here's what failed, here's
-   where to look."
-4. **Closed-loop fix in Claude Code.** Prompt: *"Look at the latest
-   post-deploy failure in Slack. The mabl run shows /api/health 503s.
-   Triage and act."* Claude reads the mabl detail, spots the demo
-   toggle in the build-info endpoint, flips it back, drives the fix
-   through Acts 2–3.
-5. Reset with `./scripts/demo-toggle.sh normal`.
+1. **Set up the regression.** On a `TAMD-<N>/...` branch, change the
+   total in `src/app/api/orders/route.ts` from
+   `subtotalCents + taxCents + shippingCents` to
+   `subtotalCents + shippingCents`. Unit coverage is scoped to
+   `src/lib/**`, so unit tests stay green. Open the PR.
+2. **Watch the gate.** Vercel builds the preview →
+   `mabl CSH-SMOKE-PR (Preview)` runs →
+   `CSH-CHP-CHECKOUT-API-CustomerPlacesOrderEndToEnd` fails at step 7
+   (`totalCents is 21599`) and step 9. The PR cannot merge.
+3. **Read mabl's analysis.** Open the failed run in mabl: failing
+   assertion, AI failure analysis, failure category.
+4. **Closed-loop fix in Claude Code.** Prompt: *"The mabl PR gate failed
+   on this branch. Pull mabl's failure analysis, find the cause, and fix
+   it."* Claude calls `analyze_mabl_failure`, traces the wrong total to
+   the route, restores the tax term, pushes. The gate re-runs green.
+5. Nothing to reset: the regression never left the branch.
+
+The same failure on `main` would fail `CSH-SMOKE-POSTDEPLOY` and fire
+`scripts/ci-notify.sh fail "Prod post-deploy failed"`. Don't stage that
+live: it means shipping a broken checkout to prod.
 
 **Why this matters for the customer:** the post-deploy chain is
 deterministic by design — no LLM in the path between failure and
@@ -372,8 +382,8 @@ Agent SDK `query()` call invoked from a webhook handler (Phase 2).
 
 | What you want | Command |
 | --- | --- |
-| Flip production into a slow / flaky / broken state | `./scripts/demo-toggle.sh slow` (or `flaky` / `broken`) |
-| Reset prod to normal | `./scripts/demo-toggle.sh normal` |
+| Put one browser (yours, or an ad hoc mabl run via its start URL) into slow / flaky / broken | open `https://cheap-shot-hockey.vercel.app/?demo=broken`; `./scripts/demo-toggle.sh broken` prints the URL and checks the API |
+| Return that browser to normal | open `/?demo=normal` |
 | Kick off a mabl smoke manually against Prod | `./scripts/mabl-deployment.sh --labels type-smk,exec-postdeploy --environment $MABL_ENV_PROD_ID --application $MABL_APPLICATION_ID --url https://cheap-shot-hockey.vercel.app --wait` |
 | Run mabl test impact analysis locally | `git diff --name-only main \| node scripts/shift-left/audit.mjs impact -` |
 | See the current prod build | `curl https://cheap-shot-hockey.vercel.app/api/build-info` |

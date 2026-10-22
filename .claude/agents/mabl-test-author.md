@@ -1,7 +1,7 @@
 ---
 name: mabl-test-author
 description: Use to design new mabl tests for cheap-shot-hockey, either as a Postman collection (API layer) or via mabl MCP test creation (UI layer). Adheres to the tiered assertion policy in MABL-AI-ASSERTION-PROMPT.md. Examples — "design an API test for the new wishlist endpoints", "draft a UI test for the cart quantity update flow", "add an API smoke for the new health-check endpoint".
-tools: Read, Write, Edit, Bash, Grep, Glob, mcp__mabl__get_mabl_tests, mcp__mabl__plan_new_test, mcp__mabl__create_mabl_test_cloud, mcp__mabl__create_mabl_test_from_plan, mcp__mabl__get_cloud_test_gen_status, mcp__mabl__get_applications, mcp__mabl__get_environments, mcp__mabl__get_mabl_test_details
+tools: Read, Write, Edit, Bash, Grep, Glob, mcp__mabl__list_mabl_tests, mcp__mabl__search_mabl_tests, mcp__mabl__get_mabl_test, mcp__mabl__get_mabl_test_steps, mcp__mabl__analyze_test_impact, mcp__mabl__mabl_authoring_plan, mcp__mabl__mabl_authoring_initiate, mcp__mabl__mabl_authoring_status, mcp__mabl__mabl_authoring_answer, mcp__mabl__edit_mabl_test_metadata, mcp__mabl__list_mabl_applications, mcp__mabl__list_mabl_environments, mcp__mabl__list_mabl_branches
 ---
 
 # mabl-test-author
@@ -48,12 +48,9 @@ If an assertion fits neither, do not emit it.
 - Labels include `type-*`, `priority-*`, `feat-*`, `exec-*`, `team-*`
 - **Jira traceability label (non-negotiable, TAMD-176):** every test
   created for a ticket MUST also carry the **Jira ticket key** as a
-  label (e.g. `TAMD-173`). Apply it via the **cloud** mabl MCP
-  `edit_mabl_test` (`add_label`) — the local MCP this agent is wired
-  with can't write labels, so if only the local MCP is available,
-  report the test IDs + the required ticket-key label so the main
-  agent applies it via the cloud MCP. Never leave a ticket-linked test
-  unlabeled.
+  label (e.g. `TAMD-173`). Pass it in `testInformation.labels` when
+  initiating authoring, or add it after with `edit_mabl_test_metadata`
+  (`add_label`). Never leave a ticket-linked test unlabeled.
 - Branch in repo (if test source lives in a Postman file): the same
   ticket key as the parent work
 
@@ -86,27 +83,31 @@ If an assertion fits neither, do not emit it.
 
 ### B. For a new UI test
 
-1. **Plan the test first.** Use `mcp__mabl__plan_new_test` with a
-   detailed `originalIntent`. The plan defines the task list + assertions.
+1. **Check what already covers it.** `mcp__mabl__analyze_test_impact`
+   with a user-facing description of the feature. If an existing test
+   covers the flow, extend it instead of creating a new one.
 
-2. **Generate via cloud or local.** Try cloud first
-   (`mcp__mabl__create_mabl_test_from_plan` with `mode: "cloud"`).
-   If it fails, fall back to walking through the app via Preview MCP
-   to capture exact selectors, then guide the user through manual
-   authoring in the mabl Trainer.
+2. **Plan the test.** `mcp__mabl__mabl_authoring_plan` with a detailed
+   `intent` (workspaceId `pXXgThbNi4HfQOpiZptHfw-w`). Refine with
+   `requestedChanges` until the plan matches the tiered policy below.
 
-3. **Verify the test references real `data-testid` selectors.**
-   Walk the app with `preview_eval` to confirm every selector exists.
+3. **Generate in the cloud.** `mcp__mabl__mabl_authoring_initiate` with
+   the `planningSessionId`, then poll `mcp__mabl__mabl_authoring_status`.
+   Answer any paused question with `mcp__mabl__mabl_authoring_answer`.
+   Authoring can queue for many minutes; report the session id rather
+   than blocking. If it fails twice, walk the app in a browser to
+   capture exact selectors and guide the user through the mabl Trainer.
+
+4. **Verify the test references real `data-testid` selectors.**
+   Load the page in a browser and confirm every selector exists.
    This is THE most common cause of brittle tests.
 
-4. **Apply governance labels** when the test lands in mabl:
+5. **Apply governance labels** when the test lands in mabl:
    `type-chp, type-ui, priority-p0, feat-<area>, exec-pr, exec-postdeploy, exec-nightly, team-platform`
    **plus the Jira ticket key** (e.g. `TAMD-173`) — see hard rule #4.
-   The ticket-key label is applied via the cloud MCP `edit_mabl_test`
-   `add_label`; if only the local MCP is available, hand the test IDs
-   back to the main agent to label.
+   Apply them with `edit_mabl_test_metadata` (`add_label`).
 
-5. **Update `docs/MABL-UI-TESTS.md`** to add the new test under
+6. **Update `docs/MABL-UI-TESTS.md`** to add the new test under
    the appropriate plan + stage.
 
 ## Examples by feature surface
