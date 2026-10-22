@@ -49,13 +49,15 @@ jobs:
           test -n "$session_id"
           echo "session_id=$session_id" >> "$GITHUB_OUTPUT"
 
+      # An impact session only admits the tests it selected, so this run names
+      # tests directly to exercise per-test credentials and the mabl branch.
       - name: Selection deployment (branch + per-test credentials)
         run: |
           mabl deployments create \
             -a "$APP_ID" -e "$PREVIEW_ENV_ID" -b chrome \
             --test-ids "$LOW_STOCK_TEST" "$LOGIN_TEST" \
             --test-credentials "${LOGIN_TEST}=${DEMO_CUSTOMER_CRED}" \
-            --impact-session-id "${{ steps.impact.outputs.session_id }}" \
+            --selection-source user \
             --selection-name "TAMD-228 probe" \
             --mabl-branch "$GITHUB_REF_NAME" --auto-branch \
             --repository-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
