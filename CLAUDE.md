@@ -50,7 +50,9 @@ is the GHA equivalent.
   GHA workflow is canonical.
 - `scripts/mabl-deployment.sh` — POSTs to mabl `/events/deployment` and
   polls `/execution/result/event/<id>` with a 60s grace for no-plan-match
-- `scripts/demo-toggle.sh` — flip prod into slow/flaky/broken
+- `scripts/demo-toggle.sh` — prints the `?demo=<mode>` URL and checks the
+  API in that mode. Demo mode is a per-browser cookie: it never flips prod
+  for anyone else, and mabl scheduled/plan runs never see it
 - `docs/SDLC-DEMO.md` — the 5-act customer runbook
 
 ## Conventions (don't break these)
@@ -117,8 +119,8 @@ agentic DoD check run — all three agree. Review the output. If tests match:
 
 **3. mabl coverage gap check**
 If the change adds new UI flows, pages, or API routes that have no existing mabl test coverage:
-- Use the mabl MCP: `plan_new_test` → `create_mabl_test_cloud` (applicationId=`OZqmshBkUfVSesWy49g1eQ-a`, env=Preview)
-- **Label every created test with its Jira ticket key** (e.g. `TAMD-173`) for ticket→test traceability. Labels are written via the **cloud** mabl MCP `edit_mabl_test` (`add_label`) — the local/headless MCP can't write labels (see TAMD-176). Required at authoring time.
+- Use the mabl MCP: `mabl_authoring_plan` → `mabl_authoring_initiate` → poll `mabl_authoring_status` (applicationId=`OZqmshBkUfVSesWy49g1eQ-a`, env=Preview). `identify_coverage_gaps` with the ticket text pasted as `requirementDescription` shows what an existing test misses; a Jira key alone fails because the workspace has no Jira integration.
+- **Label every created test with its Jira ticket key** (e.g. `TAMD-173`) for ticket→test traceability: pass it in `testInformation.labels` at authoring time, or add it after with `edit_mabl_test_metadata` (`add_label`). Required (TAMD-176).
 - Cut a Jira ticket in TAMD to track the new test (link it to the feature ticket)
 - Note the gap, the new ticket, and the applied label in the PR description
 
@@ -139,16 +141,21 @@ These four steps are what "done" means for this repo. The GHA `test-impact` job 
 1. **"Add a <new feature>"** — add the page/component, keep
    `data-testid` naming consistent, update the OpenAPI spec if adding
    an API route, add a line in `docs/SDLC-DEMO.md` if it's demo-worthy.
-2. **"Analyze this mabl failure"** — use the mabl MCP `analyze_failure`
-   tool with the plan run id or link. Cross-reference against the
-   `?demo=flaky|broken` toggle state to distinguish real regressions
-   from simulated failures.
-3. **"Draft a mabl test for X"** — use the mabl MCP `plan_new_test`
-   then `create_mabl_test_cloud` with `applicationId=OZqmshBkUfVSesWy49g1eQ-a`
-   and the appropriate env id. If the work has a Jira ticket, **add the
-   ticket key as a label on each created test** (cloud MCP
-   `edit_mabl_test` → `add_label`) — non-negotiable for traceability
-   (TAMD-176).
+2. **"Analyze this mabl failure"** — use the mabl MCP
+   `analyze_mabl_failure` with the test or plan run id
+   (`analyze_mabl_results` for follow-up questions). Simulated failures
+   only come from a run whose start URL carried `?demo=flaky|broken`;
+   check the run's URL before calling something a regression.
+3. **"Draft a mabl test for X"** — use the mabl MCP `mabl_authoring_plan`
+   then `mabl_authoring_initiate` with `applicationId=OZqmshBkUfVSesWy49g1eQ-a`
+   and the appropriate env id; poll `mabl_authoring_status`. To change an
+   existing test use `mabl_authoring_edit` on a mabl branch. If the work
+   has a Jira ticket, **add the ticket key as a label on each created
+   test** (`testInformation.labels`, or `edit_mabl_test_metadata` →
+   `add_label`) — non-negotiable for traceability (TAMD-176).
+4. **"What does this change affect?"** — `analyze_test_impact` with a
+   user-facing description of the change returns the relevant tests with
+   reasons and flags uncovered areas.
 
 ## mabl workspace IDs (read-only reference)
 
@@ -358,5 +365,6 @@ canonical spec in `docs/MCP-NARRATION-PLAYBOOK.md`. Summary:
 - The entire demo is ephemeral — no real customer data, no real
   payments. The `"shipping cost: 0.00"` at checkout is a deliberate
   demo convenience (free shipping over $99).
-- `?demo=broken` makes production return 503s. **Always reset with
-  `?demo=normal` after a demo.** `scripts/demo-toggle.sh normal` does it.
+- `?demo=broken` makes the API return 503s **for the browser that sent
+  it** (cookie `csh_demo`, 60 min). It doesn't affect other visitors or
+  mabl's scheduled runs. Open `/?demo=normal` in that browser to reset.

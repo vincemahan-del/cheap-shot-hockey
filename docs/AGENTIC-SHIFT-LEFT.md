@@ -156,7 +156,7 @@ Files a defect if so. Fixes. Rerun. Merge when green.
 - GHA (`mabl-sdlc.yml`) dispatches mabl deployment events on PR push.
 - `CSH-SMOKE-PR` (labels `type-smk,exec-pr`) runs against the Vercel
   preview URL in mabl cloud, in parallel across Chrome / Firefox / Webkit.
-- **On failure:** a triage agent (Claude) calls `analyze_failure` with
+- **On failure:** a triage agent (Claude) calls `analyze_mabl_failure` with
   the plan run id, reads the DOM state + failure message, then either
   (a) files a linked Jira defect via the Atlassian MCP, or (b) if the
   failure is in the dev's own change, pushes a fix commit to the same
@@ -230,7 +230,7 @@ PagerDuty. Triages manually. Files a ticket. Fixes later.
   ($0; no cloud-minute consumption). Replaces the every-15-min cloud
   heartbeat — see the workflow header for rationale.
 - On failure, the triage agent:
-  1. Calls `analyze_failure`.
+  1. Calls `analyze_mabl_failure`.
   2. Cross-references known conditions (is there a `?demo=` toggle
      flipped? is there an active feature flag ramp?).
   3. If real incident: files a Jira incident ticket + posts to Slack +
@@ -333,9 +333,10 @@ For a workshop or deeper follow-up:
 
 - Walk the T1 → T2 delta in one phase end-to-end. Measure the time
   diff live.
-- Run `scripts/demo-toggle.sh broken` to show the triage agent
-  actually closing the loop on a real (simulated) prod incident.
-- Show `analyze_failure` output alongside the raw mabl result — the
+- Open a PR with a real regression the PR gate catches (see
+  `docs/SDLC-DEMO.md`, Act 5) to show the triage loop closing.
+  `scripts/demo-toggle.sh` can't do this: demo mode is per browser.
+- Show `analyze_mabl_failure` output alongside the raw mabl result — the
   before/after is the sale.
 
 ---
@@ -355,7 +356,7 @@ For a workshop or deeper follow-up:
 - `scripts/mabl-deployment.sh` — mabl REST event + poll loop
 - `scripts/mabl-analyze-last-failure.sh` — the primitive the triage
   agent wraps
-- `scripts/demo-toggle.sh` — flip prod into broken/flaky/slow for
-  demos
+- `scripts/demo-toggle.sh` — prints the per-browser demo-mode URL and
+  checks the API in that mode
 - `CLAUDE.md` — the brief every Claude agent reads before touching code
 - `docs/DEMO-TICKET-TO-PROD.md` — the driver's script for the live demo

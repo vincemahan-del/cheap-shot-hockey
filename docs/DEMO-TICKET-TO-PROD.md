@@ -90,7 +90,7 @@ curl -s https://cheap-shot-hockey.vercel.app/api/build-info | jq '{commit, env: 
 # jenkins up?
 curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/login  # expect 200
 
-# reset demo state in case last run left prod in a broken mode
+# demo mode is per browser; confirm the API answers normally
 ./scripts/demo-toggle.sh normal
 ```
 
@@ -138,8 +138,8 @@ by the same agent."
 3. Claude calls the Atlassian MCP → reads CSH-42 → reads `CLAUDE.md` →
    edits `src/app/products/[slug]/page.tsx` + creates
    `src/lib/recently-viewed-cookie.ts` + updates relevant components →
-   calls mabl `get_mabl_tests` with `query: "product detail"` and
-   reports affected tests.
+   calls mabl `analyze_test_impact` with a description of the product
+   detail change and reports the affected tests and any gaps.
 4. Accept the diff (or apply manually).
 
 **Value story:** **AI-native authoring + shift-left** — tests are
@@ -186,9 +186,9 @@ new surface."
    verify the row shows the first 3 in reverse order. Add it to the
    pr-gate plan. Run it once locally to confirm it passes.
    ```
-3. Claude: MCP `plan_new_test` → `create_mabl_test_cloud` with
+3. Claude: MCP `mabl_authoring_plan` → `mabl_authoring_initiate` with
    `applicationId=OZqmshBkUfVSesWy49g1eQ-a`, `environmentId` preview,
-   label `pr-gate` → polls `get_cloud_test_gen_status` → runs it
+   label `pr-gate` → polls `mabl_authoring_status` → runs it
    locally via `run_mabl_test_local` and reports green.
 
 **Value story:** **Coverage as a first-class signal.** mabl doesn't
@@ -286,33 +286,23 @@ gated by mabl; every prod deploy is validated by mabl post-flight.
 
 Only do this if you still have the room. Huge impact.
 
-**Say:** "But what if something slips? Let me simulate that."
+**Say:** "But what if a real bug gets past the unit tests? Let me ship one."
 
-**Show:**
-```bash
-./scripts/demo-toggle.sh broken
-```
-- Within 15 minutes (or trigger now), the scheduled mabl run catches
-  the 503s, flags the failure.
-- Open a new GitHub issue:
-  ```
-  @claude /claude write — prod is returning 503s. Pull the latest failed
-  mabl run, triage it, and open a PR with the fix if you find the cause.
-  ```
-- Claude calls `analyze_failure` → identifies the demo toggle → writes
-  the "reset" PR → pipeline runs → prod green again.
+**Show:** on a fresh branch, drop the tax term from the total shown at
+checkout in `src/app/checkout/page.tsx` (`subtotal + shipping`) and open
+the PR. The API is untouched, so unit tests and the newman smoke pass.
+- `mabl CSH-SMOKE-PR (Preview)` fails: the UI checkout test's
+  checkout-summary assertion sees a total equal to the item price. mabl
+  suggests the category *regression*. The PR can't merge.
+- In Claude Code: *"The mabl PR gate failed. Pull mabl's failure analysis,
+  find the cause, and fix it."* Claude calls `analyze_mabl_failure`,
+  restores the tax term, pushes, and the gate re-runs green.
 
-**Why the `/claude write` phrase?** Post-hardening (May 2026), the
-`@claude` action is read-only by default to prevent abuse on the public
-mirror. The `/claude write` escalation grants `Edit`/`Write`/mabl-create/
-Jira-create tools, and only fires for commenters whose
-`author_association` is `OWNER` or `MEMBER` — a drive-by GitHub user
-adding the phrase still no-ops. See [`AGENTS.md`](../AGENTS.md#agentic-surface--hardened-gates)
-for the full gate model.
+Use a UI-only bug. An API bug fails the newman smoke first, and the mabl
+job only runs when newman passes.
 
-```bash
-./scripts/demo-toggle.sh normal
-```
+Don't use `scripts/demo-toggle.sh` for this act. Demo mode is a
+per-browser cookie, so mabl's scheduled and plan runs never see it.
 
 **Value story:** **Closed-loop incident response.** From detection →
 triage → fix → verify, every step is backed by mabl data.
@@ -324,7 +314,6 @@ triage → fix → verify, every step is backed by mabl data.
 ### One-line resets
 
 ```bash
-./scripts/demo-toggle.sh normal              # reset demo modes
 git checkout main && git pull                 # return to the known-good main
 gh pr list --state open --json number --jq '.[] | .number' | xargs -n1 gh pr close  # clean stale PRs
 git branch | grep -v main | xargs git branch -D 2>/dev/null  # clean local branches

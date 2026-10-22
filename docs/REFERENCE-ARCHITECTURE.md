@@ -90,7 +90,7 @@ sections above explain *why*; this is the *where*.
 
 **mabl (`scripts/` + MCP)**
 - `mabl-deployment.sh` (trigger plan runs) · `shift-left/audit.mjs` (area-coverage engine — test-impact + guard) · `mabl-local-cli.sh` / `mabl-local-gate.sh` (local CLI gate, the compensating control when the cloud gate is paused) · `mabl-analyze-last-failure.sh` (triage).
-- MCP: `.mcp.json` pins the local (deprecated) mabl server; the cloud server (`mcp.mabl.com`) is the going-forward one, auth via OAuth **or** headless `x-api-key`. Authored coverage loop: `plan_new_test → create_mabl_test_cloud → label = Jira key (cloud edit_mabl_test) → run → analyze_failure → refine`.
+- MCP: `.mcp.json` points at the cloud mabl server (`mcp.mabl.com`); the local npx server was retired. Auth via OAuth **or** headless `x-api-key`. Authored coverage loop: `analyze_test_impact → mabl_authoring_plan → mabl_authoring_initiate (label = Jira key) → run → analyze_mabl_failure → refine`.
 - Plan-label intersections: `type-smk,exec-pr` (CSH-SMOKE-PR) · `type-smk,exec-postdeploy` (CSH-SMOKE-POSTDEPLOY) · `type-rt` (nightly).
 
 **Agentic surface (`.claude/agents/`)**
