@@ -1,0 +1,65 @@
+# Throwaway probe for TAMD-228: proves the CLI key can run test impact
+# analysis and a selection deployment from CI. Delete in the cut PR.
+name: mabl CLI probe
+
+on:
+  push:
+    branches: ['TAMD-228/**']
+    paths: ['.github/workflows/mabl-cli-probe.yml']
+
+permissions:
+  contents: read
+
+env:
+  MABL_CLI_VERSION: 2.138.4
+  APP_ID: OZqmshBkUfVSesWy49g1eQ-a
+  PREVIEW_ENV_ID: TpuarWvfj1hOREDT0JGvjA-e
+  LOW_STOCK_TEST: AmMpfvpHg6xUmsPu6o6RsA-j
+  LOGIN_TEST: kNNfAmIunAMpI9u3tdNHsA-j
+  DEMO_CUSTOMER_CRED: JxWK20l5gOOFOtWjaJHfOg-c
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install and authenticate mabl CLI
+        env:
+          MABL_API_KEY: ${{ secrets.MABL_API_KEY }}
+        run: |
+          npm install -g "@mablhq/mabl-cli@${MABL_CLI_VERSION}"
+          mabl auth activate-key "$MABL_API_KEY"
+          mabl auth info
+
+      - name: Test impact analysis
+        id: impact
+        run: |
+          mabl tests impact -a "$APP_ID" \
+            --change-description "On catalog product cards, the amber low-stock badge shows the exact count ('Only 4 left') instead of the generic 'Low stock' label, matching the product page." \
+            --guidance "just the top-priority handful" \
+            --reference "branch:${GITHUB_REF_NAME}" \
+            --revision "$GITHUB_SHA" \
+            -o json > impact.json
+          jq '{session_id, tests: [.tests[]? | {name, test_invariant_id}]}' impact.json
+          session_id=$(jq -r '.session_id // empty' impact.json)
+          test -n "$session_id"
+          echo "session_id=$session_id" >> "$GITHUB_OUTPUT"
+
+      - name: Selection deployment (branch + per-test credentials)
+        run: |
+          mabl deployments create \
+            -a "$APP_ID" -e "$PREVIEW_ENV_ID" -b chrome \
+            --test-ids "$LOW_STOCK_TEST" "$LOGIN_TEST" \
+            --test-credentials "${LOGIN_TEST}=${DEMO_CUSTOMER_CRED}" \
+            --impact-session-id "${{ steps.impact.outputs.session_id }}" \
+            --selection-name "TAMD-228 probe" \
+            --mabl-branch "$GITHUB_REF_NAME" --auto-branch \
+            --repository-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --revision "$GITHUB_SHA" \
+            --await-completion -o json > deployment.json || status=$?
+          jq '.' deployment.json
+          exit "${status:-0}"
