@@ -103,6 +103,9 @@ payload=$(
       application_id: ($app | opt),
       plan_labels:    ($labels | map(select(length>0))),
       revision:       $rev,
+      # Without this, plans run against the configured environment URL,
+      # not the deploy being tested (e.g. a PR preview).
+      plan_overrides: (if ($url|length)>0 then {web_url: $url, api_url: ($url + "/api")} else null end),
       properties: {
         # legacy keys, kept for anything already reading them
         app_version: $rev,
