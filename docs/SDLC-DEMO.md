@@ -314,26 +314,35 @@ routing without instrumentation work.
 
 ## Act 5 — Closed-loop failure response (4 min)
 
-**Story:** "A plausible refactor drops tax from the order total. Unit
-tests pass. mabl blocks the merge, explains why, and Claude Code drives
-the fix."
+**Story:** "A plausible refactor drops tax from the total shown at
+checkout. The API is still right, so unit and API tests pass. mabl sees
+the page a customer sees, blocks the merge, and explains why. Claude
+Code drives the fix."
 
 1. **Set up the regression.** On a `TAMD-<N>/...` branch, change the
-   total in `src/app/api/orders/route.ts` from
-   `subtotalCents + taxCents + shippingCents` to
-   `subtotalCents + shippingCents`. Unit coverage is scoped to
-   `src/lib/**`, so unit tests stay green. Open the PR.
-2. **Watch the gate.** Vercel builds the preview →
-   `mabl CSH-SMOKE-PR (Preview)` runs →
-   `CSH-CHP-CHECKOUT-API-CustomerPlacesOrderEndToEnd` fails at step 7
-   (`totalCents is 21599`) and step 9. The PR cannot merge.
-3. **Read mabl's analysis.** Open the failed run in mabl: failing
-   assertion, AI failure analysis, failure category.
+   displayed total in `src/app/checkout/page.tsx` from
+   `subtotal + tax + shipping` to `subtotal + shipping`. Open the PR.
+2. **Watch the gate.** Unit tests are scoped to `src/lib/**` and the
+   newman smoke only covers the API, which is unchanged, so both stay
+   out of the way. `mabl CSH-SMOKE-PR (Preview)` runs against the PR's
+   preview: the three API tests pass and
+   `CSH-CHP-CHECKOUT-UI-CustomerPlacesOrderEndToEnd` fails at step 3.15,
+   the checkout-summary assertion (total must exceed the item price;
+   the page shows $199.99 next to $16.00 tax). The PR cannot merge.
+3. **Read mabl's analysis.** Open the failed run in mabl: the screenshot,
+   the failure summary ("Subtotal plus Tax equals $215.99"), and the
+   suggested category, *regression*, with "no changes to the test are
+   needed."
 4. **Closed-loop fix in Claude Code.** Prompt: *"The mabl PR gate failed
    on this branch. Pull mabl's failure analysis, find the cause, and fix
-   it."* Claude calls `analyze_mabl_failure`, traces the wrong total to
-   the route, restores the tax term, pushes. The gate re-runs green.
+   it."* Claude calls `analyze_mabl_failure`, traces the total to the
+   checkout page, restores the tax term, pushes. The gate re-runs green.
 5. Nothing to reset: the regression never left the branch.
+
+Don't stage this with an API bug such as dropping tax in
+`src/app/api/orders/route.ts`. The newman smoke asserts the API total
+and fails first, and the mabl job only runs when newman passes, so mabl
+never gets to speak.
 
 The same failure on `main` would fail `CSH-SMOKE-POSTDEPLOY` and fire
 `scripts/ci-notify.sh fail "Prod post-deploy failed"`. Don't stage that

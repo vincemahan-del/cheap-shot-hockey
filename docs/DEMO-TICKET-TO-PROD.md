@@ -288,15 +288,18 @@ Only do this if you still have the room. Huge impact.
 
 **Say:** "But what if a real bug gets past the unit tests? Let me ship one."
 
-**Show:** on a fresh branch, drop the tax term from the order total in
-`src/app/api/orders/route.ts` (`subtotalCents + shippingCents`) and open
-the PR. Unit tests stay green because unit coverage is scoped to
-`src/lib/**`.
-- `mabl CSH-SMOKE-PR (Preview)` fails: the API checkout smoke asserts
-  `totalCents is 21599` at steps 7 and 9. The PR can't merge.
+**Show:** on a fresh branch, drop the tax term from the total shown at
+checkout in `src/app/checkout/page.tsx` (`subtotal + shipping`) and open
+the PR. The API is untouched, so unit tests and the newman smoke pass.
+- `mabl CSH-SMOKE-PR (Preview)` fails: the UI checkout test's
+  checkout-summary assertion sees a total equal to the item price. mabl
+  suggests the category *regression*. The PR can't merge.
 - In Claude Code: *"The mabl PR gate failed. Pull mabl's failure analysis,
   find the cause, and fix it."* Claude calls `analyze_mabl_failure`,
   restores the tax term, pushes, and the gate re-runs green.
+
+Use a UI-only bug. An API bug fails the newman smoke first, and the mabl
+job only runs when newman passes.
 
 Don't use `scripts/demo-toggle.sh` for this act. Demo mode is a
 per-browser cookie, so mabl's scheduled and plan runs never see it.
