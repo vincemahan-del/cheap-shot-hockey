@@ -368,3 +368,60 @@ canonical spec in `docs/MCP-NARRATION-PLAYBOOK.md`. Summary:
 - `?demo=broken` makes the API return 503s **for the browser that sent
   it** (cookie `csh_demo`, 60 min). It doesn't affect other visitors or
   mabl's scheduled runs. Open `/?demo=normal` in that browser to reset.
+
+## mabl testing
+
+This project uses [mabl](https://www.mabl.com) for end-to-end testing, driven
+through the hosted `mabl` MCP server. To create, run, or debug a mabl test, use
+the mabl MCP tools with the IDs below.
+
+### Workspace
+- **Cheap Shot Hockey Demo** — `pXXgThbNi4HfQOpiZptHfw-w`
+
+Pass `workspaceId: pXXgThbNi4HfQOpiZptHfw-w` on every mabl MCP call. Call
+`get_current_user` to double-check the active workspace.
+
+### Applications & environments
+
+Each environment has a web deployment and an `/api` deployment.
+
+| Application | Application ID | Environment | Environment ID | URL |
+|-------------|----------------|-------------|----------------|-----|
+| Cheap Shot Hockey | `OZqmshBkUfVSesWy49g1eQ-a` | Preview | `TpuarWvfj1hOREDT0JGvjA-e` | https://cheap-shot-hockey-git-main-vincemahan-1163s-projects.vercel.app |
+| Cheap Shot Hockey | `OZqmshBkUfVSesWy49g1eQ-a` | Local | `DmlIvADtF8jPDm9J7Bpshw-e` | http://localhost:3000 |
+| Cheap Shot Hockey | `OZqmshBkUfVSesWy49g1eQ-a` | Production | `vwf8Vni5e7H0XTfT5hbi6w-e` | https://cheap-shot-hockey.vercel.app |
+
+### Choosing an application & environment
+
+Default to **Cheap Shot Hockey** (`OZqmshBkUfVSesWy49g1eQ-a`) on **Preview**
+(`TpuarWvfj1hOREDT0JGvjA-e`) unless I say otherwise. For a PR, pass the PR's
+Vercel preview URL as `urlOverride`. Use **Local** only when I ask for a local
+run, and **Production** only for post-deploy checks.
+
+### Credentials
+
+Credential names, IDs, and types only — never usernames, passwords, or secrets.
+
+| Credential | ID | Type | Use when |
+|------------|-----|------|----------|
+| Demo customer | `JxWK20l5gOOFOtWjaJHfOg-c` | basic | Logged-in shopper flows (auth, checkout, orders) — used by recent Preview runs |
+
+If a test needs no login, omit the credential.
+
+### Create a test
+1. `mabl_authoring_plan` — describe the test in plain language (which app/URL,
+   the steps, what to verify). Refine with the returned session id if needed.
+2. `mabl_authoring_initiate` — generate it in the cloud from that plan.
+3. `mabl_authoring_status` — poll until `completed`; you get the created test id.
+
+Or, when you already have the steps, create directly with `create_mabl_test`
+(`name`, `testType`, `applicationId`, `environmentId`, plus `credentialsId` for
+authenticated tests) and pass the steps as `initial_flow.steps` — without them
+it creates an empty, non-runnable test envelope.
+
+### Run a test in the cloud
+- One test: `run_mabl_test_cloud` with `testId`, `environmentId`,
+  `applicationId`, and a `browsers` list (at least one, e.g. `["chrome"]`) —
+  mabl resolves the matching deployment/URL automatically. Pass `urlOverride`
+  to run against an ad-hoc URL such as a preview deploy.
+- A plan: `run_mabl_plan` with the `planId` (ends in `-p`).

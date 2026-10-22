@@ -94,10 +94,21 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'git diff --name-only HEAD 2>/dev/null | grep -q \"^src/lib/\" && echo \"\u2699 src/lib changed \u2014 running coverage gate\" && npm run test:coverage 2>&1 | tail -12 || true'"
+            "command": "bash -c 'git diff --name-only HEAD 2>/dev/null | grep -q \"^src/lib/\" && echo \"⚙ src/lib changed — running coverage gate\" && npm run test:coverage 2>&1 | tail -12 || true'"
           }
         ]
       }
     ]
+  },
+  "extraKnownMarketplaces": {
+    "mabl": {
+      "source": {
+        "source": "github",
+        "repo": "mablhq/skills"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "mabl@mabl": true
   }
 }
