@@ -808,6 +808,183 @@
       "testids": [],
       "routes": [],
       "area": []
+    },
+    {
+      "id": "w6pysZ1UA65513OINOSqug-j",
+      "name": "CSH-RT-CHECKOUT-UI-CartMultiItemLineTotals",
+      "testids": [
+        "add-to-cart-feedback-p-pck-003",
+        "add-to-cart-p-pck-002",
+        "add-to-cart-p-pck-003",
+        "cart-line-total-p-pck-002",
+        "cart-line-total-p-pck-003",
+        "cart-subtotal",
+        "nav-cart",
+        "nav-cart-count",
+        "nav-search-input",
+        "nav-search-submit",
+        "product-card-glow-in-the-dark-puck",
+        "product-card-practice-pucks-12-pack",
+        "qty-inc-p-pck-002",
+        "qty-p-pck-002",
+        "qty-p-pck-003"
+      ],
+      "routes": [
+        "/",
+        "/cart",
+        "/products/glow-in-the-dark-puck",
+        "/products/practice-pucks-12-pack",
+        "/products?q=Glow-in-the-Dark+Puck",
+        "/products?q=Practice+Pucks"
+      ],
+      "area": [
+        "checkout"
+      ]
+    },
+    {
+      "id": "AQqf3eJeH61JyTqAgERbpA-j",
+      "name": "CSH-RT-CHECKOUT-UI-CartDecreaseAndRemoveUpdateTotals",
+      "testids": [
+        "add-to-cart-feedback-p-pck-003",
+        "add-to-cart-p-pck-002",
+        "add-to-cart-p-pck-003",
+        "cart-line-total-p-pck-002",
+        "cart-line-total-p-pck-003",
+        "cart-subtotal",
+        "nav-cart",
+        "nav-cart-count",
+        "nav-search-input",
+        "nav-search-submit",
+        "product-card-glow-in-the-dark-puck",
+        "product-card-practice-pucks-12-pack",
+        "qty-dec-p-pck-002",
+        "qty-dec-p-pck-003",
+        "qty-inc-p-pck-002",
+        "qty-p-pck-002",
+        "qty-p-pck-003",
+        "qty-remove-p-pck-003"
+      ],
+      "routes": [
+        "/",
+        "/cart",
+        "/products/glow-in-the-dark-puck",
+        "/products/practice-pucks-12-pack",
+        "/products?q=Glow-in-the-Dark+Puck",
+        "/products?q=Practice+Pucks"
+      ],
+      "area": [
+        "checkout"
+      ]
+    },
+    {
+      "id": "Cmvfsk7Bpq2xhQ48zfooqg-j",
+      "name": "CSH-RT-CHECKOUT-UI-FreeShippingQualifiedThenLost",
+      "testids": [
+        "add-to-cart-feedback-p-pck-003",
+        "add-to-cart-p-pck-002",
+        "add-to-cart-p-pck-003",
+        "cart-line-total-p-pck-002",
+        "cart-line-total-p-pck-003",
+        "cart-subtotal",
+        "free-shipping-remaining",
+        "nav-cart",
+        "nav-cart-count",
+        "nav-search-input",
+        "nav-search-submit",
+        "product-card-glow-in-the-dark-puck",
+        "product-card-practice-pucks-12-pack",
+        "qty-dec-p-pck-002",
+        "qty-inc-p-pck-002",
+        "qty-p-pck-002",
+        "qty-p-pck-003"
+      ],
+      "routes": [
+        "/",
+        "/cart",
+        "/products/glow-in-the-dark-puck",
+        "/products/practice-pucks-12-pack",
+        "/products?q=Glow-in-the-Dark+Puck",
+        "/products?q=Practice+Pucks"
+      ],
+      "area": [
+        "checkout"
+      ]
+    },
+    {
+      "id": "Mtul0jTiXs6BEh8CRlqZwg-j",
+      "name": "CSH-RT-CHECKOUT-UI-CartPersistsAcrossReload",
+      "testids": [
+        "add-to-cart-feedback-p-pck-003",
+        "add-to-cart-p-pck-002",
+        "add-to-cart-p-pck-003",
+        "cart-line-total-p-pck-002",
+        "cart-line-total-p-pck-003",
+        "cart-subtotal",
+        "nav-cart",
+        "nav-cart-count",
+        "nav-home",
+        "nav-search-input",
+        "nav-search-submit",
+        "product-card-glow-in-the-dark-puck",
+        "product-card-practice-pucks-12-pack",
+        "qty-inc-p-pck-002",
+        "qty-p-pck-002",
+        "qty-p-pck-003"
+      ],
+      "routes": [
+        "/",
+        "/cart",
+        "/products/glow-in-the-dark-puck",
+        "/products/practice-pucks-12-pack",
+        "/products?q=Glow-in-the-Dark+Puck",
+        "/products?q=Practice+Pucks"
+      ],
+      "area": [
+        "checkout"
+      ]
+    },
+    {
+      "id": "lp4nKSIqLyPqn9x7GHkBAw-j",
+      "name": "CSH-RT-CHECKOUT-UI-GuestCheckoutSummaryAndRequiredFields",
+      "testids": [
+        "add-to-cart-feedback-p-pck-003",
+        "add-to-cart-p-pck-002",
+        "add-to-cart-p-pck-003",
+        "cart-checkout",
+        "cart-line-total-p-pck-002",
+        "cart-line-total-p-pck-003",
+        "cart-subtotal",
+        "checkout-heading",
+        "checkout-shipping",
+        "checkout-submit",
+        "checkout-subtotal",
+        "checkout-tax",
+        "checkout-total",
+        "guest-checkout-login-link",
+        "nav-cart",
+        "nav-cart-count",
+        "nav-search-input",
+        "nav-search-submit",
+        "product-card-glow-in-the-dark-puck",
+        "product-card-practice-pucks-12-pack",
+        "qty-inc-p-pck-002",
+        "qty-p-pck-002",
+        "qty-p-pck-003",
+        "qty-remove-p-pck-003",
+        "summary-line-p-pck-002"
+      ],
+      "routes": [
+        "/",
+        "/cart",
+        "/checkout",
+        "/products/glow-in-the-dark-puck",
+        "/products/practice-pucks-12-pack",
+        "/products?q=Glow-in-the-Dark+Puck",
+        "/products?q=Practice+Pucks"
+      ],
+      "area": [
+        "checkout"
+      ]
     }
   ]
 }
