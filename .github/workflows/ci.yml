@@ -108,6 +108,8 @@ jobs:
       - name: paused
         if: env.CLOUD_GATE == 'disabled'
         run: echo "mabl cloud runs paused (MABL_CLOUD_GATE=disabled); smoke not run." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/checkout@v4
+        if: env.CLOUD_GATE != 'disabled'
       - uses: actions/setup-node@v4
         if: env.CLOUD_GATE != 'disabled'
         with:
@@ -160,6 +162,7 @@ jobs:
       PR_URL: ${{ github.event.pull_request.html_url }}
       PR_TITLE: ${{ github.event.pull_request.title }}
       PR_BODY: ${{ github.event.pull_request.body }}
+      DEFAULT_CREDENTIALS_ID: JxWK20l5gOOFOtWjaJHfOg-c
       CLOUD_GATE: ${{ vars.MABL_CLOUD_GATE || 'enabled' }}
     steps:
       - uses: actions/checkout@v4
