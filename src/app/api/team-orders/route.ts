@@ -4,16 +4,9 @@ import {
   createTeamOrderQuote,
   type TeamOrderQuoteInput,
 } from "@/lib/team-orders";
-import { badRequest, created, serviceUnavailable } from "@/lib/api";
-import { applyDemoDelay, readDemoMode, shouldDemoFail } from "@/lib/demo";
+import { badRequest, created } from "@/lib/api";
 
 export async function POST(req: NextRequest) {
-  const mode = await readDemoMode(req.headers);
-  await applyDemoDelay(mode);
-  if (shouldDemoFail(mode, 0.15)) {
-    return serviceUnavailable("demo mode: team-orders intake temporarily unavailable");
-  }
-
   let body: unknown;
   try {
     body = await req.json();

@@ -61,7 +61,7 @@ export function seedTokenConfigured(): boolean {
 }
 
 /**
- * The seeded demo/admin accounts (docs/SDLC-DEMO.md) must never be rotated —
+ * The seeded demo/admin accounts (src/lib/seed.ts) must never be rotated —
  * every other demo flow depends on their documented passwords.
  */
 export function isSeedProtectedEmail(email: string): boolean {

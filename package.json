@@ -7,17 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint src",
-    "check:tool-surface": "node scripts/llm/check-tool-surface.mjs",
-    "check:security": "npm audit --audit-level=high",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "test:mabl:local": "./scripts/mabl-local-gate.sh",
-    "test:mabl:local:preview": "./scripts/mabl-local-gate.sh --base https://cheap-shot-hockey-git-main-vincemahan-1163s-projects.vercel.app/api",
-    "test:mabl:browser:local": "./scripts/mabl-local-cli.sh",
-    "test:mabl:browser:preview": "./scripts/mabl-local-cli.sh --url https://cheap-shot-hockey-git-main-vincemahan-1163s-projects.vercel.app",
-    "test:mabl:browser:prod": "./scripts/mabl-local-cli.sh --url https://cheap-shot-hockey.vercel.app",
-    "demo:preflight": "./scripts/demo-preflight.sh"
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@neondatabase/serverless": "1.1.0",

@@ -6,8 +6,7 @@ import {
   readCartLines,
   setCartLineCookie,
 } from "@/lib/cart-cookie";
-import { badRequest, ok, serviceUnavailable } from "@/lib/api";
-import { applyDemoDelay, readDemoMode, shouldDemoFail } from "@/lib/demo";
+import { badRequest, ok } from "@/lib/api";
 import type { CartLine } from "@/lib/types";
 
 function enrich(lines: CartLine[]) {
@@ -38,12 +37,6 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const mode = await readDemoMode(req.headers);
-  await applyDemoDelay(mode);
-  if (shouldDemoFail(mode, 0.15)) {
-    return serviceUnavailable("demo mode: cart write temporarily unavailable");
-  }
-
   let body: { productId?: string; quantity?: number; mode?: "add" | "set" };
   try {
     body = await req.json();

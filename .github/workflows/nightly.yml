@@ -1,10 +1,11 @@
 name: nightly
 
 # Full regression against prod, locally on the runner (0 credits); local
-# failures re-run in the mabl cloud for analysis. Manual dispatch only until
-# it replaces mabl-nightly.yml.
+# failures re-run in the mabl cloud for analysis.
 
 on:
+  schedule:
+    - cron: "17 6 * * *"
   workflow_dispatch: {}
 
 permissions:

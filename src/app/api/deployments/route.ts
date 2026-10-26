@@ -1,6 +1,5 @@
 import type { NextRequest } from "next/server";
-import { created, serviceUnavailable } from "@/lib/api";
-import { applyDemoDelay, readDemoMode, shouldDemoFail } from "@/lib/demo";
+import { created } from "@/lib/api";
 import { createDeployment, clampDuration, type DeploymentOutcome } from "@/lib/deployments";
 
 // POST /api/deployments?duration=<seconds>
@@ -12,12 +11,6 @@ import { createDeployment, clampDuration, type DeploymentOutcome } from "@/lib/d
 // label, so every subsequent poll/search is deterministic and serverless-safe
 // (no shared server state — the label is self-describing).
 export async function POST(req: NextRequest) {
-  const mode = await readDemoMode(req.headers);
-  await applyDemoDelay(mode);
-  if (shouldDemoFail(mode, 0.15)) {
-    return serviceUnavailable("demo mode: deployment intake temporarily unavailable");
-  }
-
   const outcome: DeploymentOutcome = Math.random() < 0.5 ? "success" : "fail";
 
   const deployment = createDeployment({

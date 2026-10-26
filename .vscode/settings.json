@@ -9,7 +9,7 @@
   "window.title": "${rootName} ${separator} ${dirty}${activeEditorShort}${separator}Cheap Shot Hockey demo",
 
   // Hide files that clutter the file tree during a demo (keep `.vscode/`
-  // visible so you can point at the recommended extensions + tasks).
+  // visible).
   "files.exclude": {
     "**/.git": true,
     "**/.DS_Store": true,
