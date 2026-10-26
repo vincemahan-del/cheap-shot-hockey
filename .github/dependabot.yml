@@ -22,11 +22,8 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
-    # TAMD-136: pin @types/node to the current major. Its major versions
-    # track Node.js majors — bumping to a Node version that CI/Vercel
-    # don't actually run (we're on Node 22) lets TS accept APIs that
-    # break at runtime. Revisit this when we coordinate a Node major
-    # upgrade across CI/Vercel/Jenkins.
+    # @types/node majors track Node.js majors. Node is pinned in .nvmrc and
+    # package.json engines (Node 24 on CI and Vercel); bump all three together.
     ignore:
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
@@ -58,7 +55,6 @@ updates:
         patterns:
           - "vitest"
           - "@vitest/*"
-          - "@vitejs/plugin-react"
       # Catch-all for major bumps of packages NOT covered by the family
       # groups above (e.g. `eslint`, `typescript`, `eslint-config-next`).
       # First-matching-group-wins ordering means this only catches what
