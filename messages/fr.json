@@ -49,7 +49,7 @@
     "createAccount": "Créer un compte"
   },
   "product": {
-    "lowStock": "Stock limité",
+    "lowStock": "Plus que {count} en stock",
     "addToCart": "Ajouter au panier",
     "adding": "Ajout…",
     "outOfStock": "En rupture de stock",

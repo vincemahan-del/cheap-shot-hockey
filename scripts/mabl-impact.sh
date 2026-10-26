@@ -4,7 +4,7 @@
 # event linked to the analysis. The analysis selects; this script dispatches and
 # decides pass/fail from mabl's results.
 #
-# Env: APP_ID ENV_ID PREVIEW_URL HEAD_SHA HEAD_REF REPO PR_NUMBER PR_URL
+# Env: WORKSPACE_ID APP_ID ENV_ID PREVIEW_URL HEAD_SHA HEAD_REF REPO PR_NUMBER PR_URL
 #      PR_TITLE PR_BODY GH_TOKEN; optional CLOUD_GATE (disabled = skip).
 set -euo pipefail
 
@@ -25,6 +25,17 @@ comment() {
   fi
   printf '%s\n' "$1" >> "$SUMMARY"
 }
+
+# The PR's mabl branch is the git branch with "/" replaced by "-" (mabl's
+# by-name branch lookup fails on "/" under API-key auth).
+MABL_BRANCH="${HEAD_REF//\//-}"
+branch_args=()
+if mabl branches describe "$MABL_BRANCH" --name -w "$WORKSPACE_ID" >/dev/null 2>&1; then
+  branch_args=(--mabl-branch "$MABL_BRANCH")
+  echo "mabl branch: $MABL_BRANCH" | tee -a "$SUMMARY"
+else
+  echo "mabl branch: master ($MABL_BRANCH not found)" | tee -a "$SUMMARY"
+fi
 
 # Labels are read live (not from the event payload) so re-running the job
 # after adding the exempt label picks it up.
@@ -48,11 +59,6 @@ if [[ -n "${section//[[:space:]]/}" ]]; then
   printf '%s\n' "$section" > change.md
 else
   { printf '%s\n\nFiles changed:\n' "$PR_TITLE"; gh pr diff "$PR_NUMBER" --repo "$REPO" --name-only; } > change.md
-fi
-
-branch_args=()
-if mabl branches describe "$HEAD_REF" >/dev/null 2>&1; then
-  branch_args=(--mabl-branch "$HEAD_REF")
 fi
 
 mabl tests impact -a "$APP_ID" \
@@ -121,6 +127,6 @@ ${gaps:+
 **Coverage gaps**
 $gaps}
 
-[mabl deployment]($href) · a test expected to fail by design should be updated on the mabl branch \`$HEAD_REF\`; to waive this gate apply \`$EXEMPT_LABEL\` and re-run the job."
+[mabl deployment]($href) · a test expected to fail by design should be updated on the mabl branch \`$MABL_BRANCH\`; to waive this gate apply \`$EXEMPT_LABEL\` and re-run the job."
 
 [[ "$verdict" == "passed" ]]

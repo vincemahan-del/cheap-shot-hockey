@@ -43,7 +43,7 @@ export async function ProductCard({
           className="absolute left-3 top-3 z-10 rounded-md bg-amber-500/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-black"
           data-testid={`low-stock-badge-${product.slug}`}
         >
-          {t("lowStock")}
+          {t("lowStock", { count: product.stock })}
         </span>
       )}
       <div className="px-3 pt-3">
