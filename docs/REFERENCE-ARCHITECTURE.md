@@ -32,7 +32,7 @@ production.
 ```
 Jira ticket
   └─ /ship TAMD-N (Claude Code + mablhq/skills)
-       implement → mabl-test-impact → mabl-test-edit on mabl branch = git branch with / → -
+       implement → mabl-test-impact → mabl-test-edit on mabl branch = git branch
        → mabl-test-edit-verify → local run (0 credits) → change description
        → human "go" → push + PR
 PR (ci.yml)

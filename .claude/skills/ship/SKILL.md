@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Take a TAMD Jira ticket from implementation to an open PR in cheap-shot-hockey — implement, check mabl test impact, update mabl tests on a mabl branch named after the git branch (/ → -), verify locally, write the change description, then stop for a human go before pushing. Use for "/ship TAMD-N", "ship this ticket", "take TAMD-N to a PR".
+description: Take a TAMD Jira ticket from implementation to an open PR in cheap-shot-hockey — implement, check mabl test impact, update mabl tests on a mabl branch named after the git branch, verify locally, write the change description, then stop for a human go before pushing. Use for "/ship TAMD-N", "ship this ticket", "take TAMD-N to a PR".
 ---
 
 # /ship TAMD-N
@@ -22,9 +22,7 @@ running preview; a human approves. You never push, merge a mabl branch, apply
   tests, any marked `fails_by_design`, and the coverage gaps.
 
 ## 4. Update tests on a mabl branch
-- Create the mabl branch: the git branch name with `/` replaced by `-`
-  (`TAMD-N/slug` → `TAMD-N-slug`; `create_mabl_branch`). Pass that name, not the
-  git branch, to every mabl skill and CLI call.
+- Create the mabl branch with the exact git branch name (`create_mabl_branch`).
 - For each `fails_by_design` test, use `mabl-test-edit` on that branch. For a
   real gap the ticket asks to cover, use `mabl-test-authoring` on that branch
   and label the test with the ticket key.
@@ -41,7 +39,7 @@ running preview; a human approves. You never push, merge a mabl branch, apply
 <what changed for users, in product terms — CI feeds this to mabl's test impact analysis>
 
 ## mabl tests
-<tests edited/authored on mabl branch TAMD-N-<slug>, with local results>
+<tests edited/authored on mabl branch TAMD-N/<slug>, with local results>
 
 ## Test impact
 <impacted tests and coverage gaps from step 3>
