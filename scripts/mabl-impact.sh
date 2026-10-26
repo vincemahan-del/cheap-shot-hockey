@@ -26,6 +26,9 @@ comment() {
   printf '%s\n' "$1" >> "$SUMMARY"
 }
 
+for n in "$HEAD_REF" "${HEAD_REF//\//-}"; do
+  if mabl branches describe "$n" --name -w "$WORKSPACE_ID" >/dev/null 2>&1; then echo "diag: $n found"; else echo "diag: $n not found"; fi
+done
 # Use the PR's mabl branch (named after the git branch) when one exists.
 branch_args=()
 # Lookup by name 404s under API-key auth, so match against the open-branch list.
