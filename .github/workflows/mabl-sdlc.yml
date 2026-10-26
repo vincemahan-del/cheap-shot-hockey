@@ -105,7 +105,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npm run lint
@@ -132,7 +132,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - name: npm audit (production app, high+critical only)
@@ -156,7 +156,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       # Vitest writes results JSON we can parse for counts; also produces
@@ -226,7 +226,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npm run build
@@ -460,7 +460,7 @@ jobs:
             --application "$MABL_APPLICATION_ID" \
             --labels type-smk,exec-pr \
             --url "${{ steps.preview.outputs.url }}" \
-            --commit "${{ github.sha }}" \
+            --commit "${{ github.event.pull_request.head.sha }}" \
             --branch "${{ github.head_ref }}" \
             --wait
       # Note: mabl's native Slack integration (mabl Slack app, installed
@@ -623,7 +623,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
 

@@ -70,7 +70,7 @@ jobs:
       - uses: actions/setup-node@v4
         if: steps.precheck.outputs.skipped == 'false'
         with:
-          node-version: "22"
+          node-version-file: .nvmrc
 
       - name: install mabl CLI
         if: steps.precheck.outputs.skipped == 'false'
