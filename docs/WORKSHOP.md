@@ -19,7 +19,7 @@ change).
 | Time | Act | What the audience sees | Measured |
 |---|---|---|---|
 | 0:00 | Frame (4) | Thesis: the author is never the verifier. One diagram. Local runs cost nothing; the cloud is where mabl's analysis lives. | — |
-| 0:04 | Developer loop (12) | `/ship TAMD-N`. Claude implements; `mabl-test-impact` names the test that fails by design, the related tests, and the coverage gaps; `mabl-test-edit` fixes the test on the mabl branch named after the git branch; a version compare shows one changed step; local headless runs pass (0 credits); Claude stops and asks for "go". | analysis ~3–5 min; local runs ~10–40 s each |
+| 0:04 | Developer loop (12) | `/ship TAMD-N`. Claude implements; `mabl-test-impact` names the test that fails by design, the related tests, and the coverage gaps; `mabl-test-edit` fixes the test on the mabl branch (the git branch name with `/` → `-`); a version compare shows one changed step; local headless runs pass (0 credits); Claude stops and asks for "go". | analysis ~3–5 min; local runs ~10–40 s each |
 | 0:16 | PR gates (10) | Push. `lint`/`unit`/`build`/`dependency-review` in under a minute; `preview` finds this PR's Vercel build; `mabl-smoke` runs `CSH-SMOKE-PR` on that URL; `mabl-impact` runs the analysis against the PR's mabl branch and dispatches only the tests it picks, linked to the analysis; the PR comment appears. Show `human-approved` red until the presenter applies it — and show Claude refusing to apply it. | preview ~1–2 min; smoke ~2–3 min; impact ~5–6 min |
 | 0:26 | Ship (8) | Auto-merge. Vercel deploys; `postdeploy.yml` smokes that exact production build. Presenter checks `mabl branches merge-status` and merges the mabl branch in the app. | ~3–4 min |
 | 0:34 | Triage (9) | Last night's regression ran locally for free; one failure was re-run in the cloud, where mabl's analysis and category say stale test vs regression. Ask "is this release healthy?" (`check_release_readiness`) from the Claude connector. | — |
@@ -40,11 +40,11 @@ change).
 - **Test impact varies run to run.** The same change returned 7 tests on one
   run and 1 on the next. Say so; it's why the gate starts advisory and has a
   waiver.
-- **Analyze with the mabl branch.** With `--mabl-branch`, a test fixed on the
-  branch is judged by its new steps; without it, by master's. The dry run's
-  first CI pass missed the branch because `mabl branches describe` looks up by
-  id unless given `--name` — the gate quietly fell back to master and failed
-  the fixed test.
+- **Analyze and run on the mabl branch.** With `--mabl-branch`, a test fixed on
+  the branch is judged and run by its new steps; without it, by master's. Name
+  mabl branches after the git branch with `/` replaced by `-`: under an API key,
+  mabl's by-name branch lookup 404s on a `/`, so CI silently fell back to master
+  in the dry run until the convention changed.
 - **Copy selectors exactly when editing steps.** The step-edit tools reject a
   hand-added field inside a stored selector.
 - **`mabl-test-edit-verify` re-runs in the cloud.** When cloud runs are off,
