@@ -1,0 +1,21 @@
+name: approval
+
+# A human applies `human-approved` before anything merges.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions: {}
+
+jobs:
+  human-approved:
+    name: human-approved
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ !contains(github.event.pull_request.labels.*.name, 'human-approved') }}
+        run: |
+          echo "::error::Waiting for a maintainer to apply the human-approved label."
+          exit 1
+      - run: echo "human-approved label present"
