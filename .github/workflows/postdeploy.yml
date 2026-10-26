@@ -1,7 +1,7 @@
 name: postdeploy
 
-# After a merge, wait until production serves the merged commit, then run
-# CSH-SMOKE-POSTDEPLOY against it.
+# After a merge, find this commit's production build by its unique URL and run
+# CSH-SMOKE-POSTDEPLOY against that exact build.
 
 on:
   push:
@@ -13,10 +13,10 @@ concurrency:
 
 permissions:
   contents: read
+  deployments: read
 
 env:
   MABL_CLI_VERSION: 2.138.25
-  PROD_URL: https://cheap-shot-hockey.vercel.app
 
 jobs:
   mabl-postdeploy:
@@ -24,22 +24,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      GH_TOKEN: ${{ github.token }}
       MABL_API_KEY: ${{ secrets.MABL_API_KEY }}
       APP_ID: ${{ secrets.MABL_APPLICATION_ID }}
       ENV_ID: ${{ secrets.MABL_ENV_PROD_ID }}
       CLOUD_GATE: ${{ vars.MABL_CLOUD_GATE || 'enabled' }}
     steps:
-      - name: wait for production to serve this commit
+      - name: wait for this commit's production build
+        id: prod
         run: |
           for _ in $(seq 1 60); do
-            served=$(curl -fsS -m 5 "$PROD_URL/api/build-info" | jq -r '.commit // empty' || true)
-            if [ "$served" = "$GITHUB_SHA" ]; then
-              echo "Production is on $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
-              exit 0
+            status_url=$(gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$GITHUB_SHA" \
+              --jq 'map(select(.environment=="Production")) | .[0].statuses_url // empty')
+            if [ -n "$status_url" ]; then
+              url=$(gh api "$status_url" --jq '[.[] | select(.state=="success")][0].environment_url // empty')
+              if [ -n "$url" ] && curl -fsS -m 5 "$url/api/health" >/dev/null; then
+                echo "url=$url" >> "$GITHUB_OUTPUT"
+                echo "Production build: $url" >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+              fi
             fi
             sleep 10
           done
-          echo "::error::Production never served $GITHUB_SHA"
+          echo "::error::No production build for $GITHUB_SHA after 10 minutes"
           exit 1
       - name: paused
         if: env.CLOUD_GATE == 'disabled'
@@ -50,21 +57,23 @@ jobs:
         if: env.CLOUD_GATE != 'disabled'
         with:
           node-version-file: .nvmrc
-      - name: CSH-SMOKE-POSTDEPLOY on production
+      - name: CSH-SMOKE-POSTDEPLOY on this production build
         if: env.CLOUD_GATE != 'disabled'
+        env:
+          PROD_BUILD_URL: ${{ steps.prod.outputs.url }}
         run: |
           npm install -g "@mablhq/mabl-cli@$MABL_CLI_VERSION"
           mabl auth activate-key "$MABL_API_KEY"
           status=0
           mabl deployments create -a "$APP_ID" -e "$ENV_ID" \
             --labels exec-postdeploy \
-            --app-url "$PROD_URL" --api-url "$PROD_URL/api" \
+            --app-url "$PROD_BUILD_URL" --api-url "$PROD_BUILD_URL/api" \
             --revision "$GITHUB_SHA" \
             --repository-url "https://github.com/$GITHUB_REPOSITORY" \
             --await-completion -o json > deployment.json || status=$?
           total=$(jq '.execution_results.plan_execution_metrics.total // 0' deployment.json)
           failed=$(jq '.execution_results.plan_execution_metrics.failed // 0' deployment.json)
-          echo "mabl post-deploy: $total plan(s), $failed failed — $(jq -r '.href // empty' deployment.json)" >> "$GITHUB_STEP_SUMMARY"
+          echo "mabl post-deploy smoke: $total plan(s), $failed failed — $(jq -r '.href // empty' deployment.json) (deployment id $(jq -r '.id // empty' deployment.json))" >> "$GITHUB_STEP_SUMMARY"
           if [ "$total" -eq 0 ]; then
             echo "::error::No mabl plan matched; nothing was tested"
             exit 1

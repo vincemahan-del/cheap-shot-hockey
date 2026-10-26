@@ -23,8 +23,9 @@ instructions, and the mabl skills plugin for coding agents.
 
 Deliberate differences: no GitHub merge queue (personal-account repo; `strict`
 branch protection tests the up-to-date head instead), approval is a label
-(GitHub doesn't let you approve your own PR), and regression runs nightly
-against production.
+(GitHub doesn't let you approve your own PR), production deploys on merge
+rather than by a manual release step, and regression runs nightly against
+production.
 
 ## Flow
 
@@ -41,7 +42,7 @@ PR (ci.yml)
                            retry once, each with its plan's login) → PR comment
   human-approved (label)
 merge → Vercel production
-  postdeploy.yml  wait for prod to serve the commit → CSH-SMOKE-POSTDEPLOY
+  postdeploy.yml  CSH-SMOKE-POSTDEPLOY on this commit's production build (unique URL)
   human merges the mabl branch (after merge-status)
 nightly.yml
   full type-rt regression locally vs prod → failures re-run once in the cloud

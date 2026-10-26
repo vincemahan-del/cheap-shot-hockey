@@ -52,5 +52,6 @@ running preview; a human approves. You never push, merge a mabl branch, apply
 
 ## After merge (human)
 - The human checks `mabl branches merge-status` and merges the mabl branch.
-- Production deploys on merge and `postdeploy.yml` smokes it. "Can we ship?"
-  questions go to `check_release_readiness` on the deployment.
+- Production deploys on merge and `postdeploy.yml` smokes that build.
+  "Is this release healthy?" is `check_release_readiness` on that mabl
+  deployment.
