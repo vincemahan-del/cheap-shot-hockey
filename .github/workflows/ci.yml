@@ -162,6 +162,7 @@ jobs:
       PR_URL: ${{ github.event.pull_request.html_url }}
       PR_TITLE: ${{ github.event.pull_request.title }}
       PR_BODY: ${{ github.event.pull_request.body }}
+      DEFAULT_CREDENTIALS_ID: JxWK20l5gOOFOtWjaJHfOg-c
       CLOUD_GATE: ${{ vars.MABL_CLOUD_GATE || 'enabled' }}
     steps:
       - uses: actions/checkout@v4
