@@ -1,15 +1,8 @@
 import type { NextRequest } from "next/server";
 import { listProducts } from "@/lib/store";
-import { applyDemoDelay, readDemoMode, shouldDemoFail } from "@/lib/demo";
-import { ok, serviceUnavailable } from "@/lib/api";
+import { ok } from "@/lib/api";
 
 export async function GET(req: NextRequest) {
-  const mode = await readDemoMode(req.headers);
-  await applyDemoDelay(mode);
-  if (shouldDemoFail(mode, 0.15)) {
-    return serviceUnavailable("demo mode: product catalog temporarily unavailable");
-  }
-
   const { searchParams } = new URL(req.url);
   const items = listProducts({
     category: searchParams.get("category") ?? undefined,

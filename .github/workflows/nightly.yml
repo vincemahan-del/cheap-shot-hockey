@@ -1,0 +1,33 @@
+name: nightly
+
+# Full regression against prod, locally on the runner (0 credits); local
+# failures re-run in the mabl cloud for analysis.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    name: nightly regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      MABL_API_KEY: ${{ secrets.MABL_API_KEY }}
+      APP_ID: ${{ secrets.MABL_APPLICATION_ID }}
+      ENV_ID: ${{ secrets.MABL_ENV_PROD_ID }}
+      PROD_URL: https://cheap-shot-hockey.vercel.app
+      CREDENTIALS_ID: JxWK20l5gOOFOtWjaJHfOg-c
+      CLOUD_GATE: ${{ vars.MABL_CLOUD_GATE || 'enabled' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm install -g @mablhq/mabl-cli@2.138.25
+      - run: mabl auth activate-key "$MABL_API_KEY"
+      - run: bash scripts/nightly-triage.sh

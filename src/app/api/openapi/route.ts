@@ -6,13 +6,19 @@ const SPEC = {
     title: "Cheap Shot Hockey API",
     version: "1.0.0",
     description:
-      "REST API for the Cheap Shot Hockey demo store. Use the X-Demo-Mode header (slow|flaky|broken) to simulate latency or failures.",
+      "REST API for the Cheap Shot Hockey demo store.",
   },
   servers: [{ url: "/" }],
   paths: {
     "/api/health": {
       get: {
         summary: "Service health check",
+        responses: { "200": { description: "OK" } },
+      },
+    },
+    "/api/build-info": {
+      get: {
+        summary: "Commit, branch and environment of the running deployment",
         responses: { "200": { description: "OK" } },
       },
     },
@@ -29,7 +35,7 @@ const SPEC = {
           { name: "minPriceCents", in: "query", schema: { type: "integer" } },
           { name: "maxPriceCents", in: "query", schema: { type: "integer" } },
         ],
-        responses: { "200": { description: "OK" }, "503": { description: "Demo failure" } },
+        responses: { "200": { description: "OK" } },
       },
     },
     "/api/products/{id}": {
@@ -68,7 +74,6 @@ const SPEC = {
         responses: {
           "200": { description: "OK" },
           "400": { description: "Bad request" },
-          "503": { description: "Demo failure" },
         },
       },
       delete: { summary: "Clear cart", responses: { "200": { description: "OK" } } },
@@ -124,7 +129,6 @@ const SPEC = {
         responses: {
           "201": { description: "Created" },
           "400": { description: "Bad request" },
-          "503": { description: "Demo failure" },
         },
       },
     },
@@ -267,7 +271,6 @@ const SPEC = {
         responses: {
           "201": { description: "Created" },
           "400": { description: "Validation failed" },
-          "503": { description: "Demo failure" },
         },
       },
     },
@@ -289,7 +292,6 @@ const SPEC = {
             description:
               "Created — returns the initial (queued) deployment state; Set-Cookie advances csh_deploy_seq",
           },
-          "503": { description: "Demo failure" },
         },
       },
     },
@@ -302,7 +304,6 @@ const SPEC = {
         responses: {
           "200": { description: "OK" },
           "404": { description: "Deployment not found (unparseable label)" },
-          "503": { description: "Demo failure" },
         },
       },
     },

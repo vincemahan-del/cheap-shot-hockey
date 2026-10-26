@@ -28,6 +28,6 @@ export function serverError(message = "internal error"): NextResponse {
   return NextResponse.json({ error: "server_error", message }, { status: 500 });
 }
 
-export function serviceUnavailable(message = "demo mode: simulated failure"): NextResponse {
+export function serviceUnavailable(message = "service unavailable"): NextResponse {
   return NextResponse.json({ error: "service_unavailable", message }, { status: 503 });
 }

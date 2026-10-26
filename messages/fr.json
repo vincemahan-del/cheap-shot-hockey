@@ -49,7 +49,7 @@
     "createAccount": "Créer un compte"
   },
   "product": {
-    "lowStock": "Stock limité",
+    "lowStock": "Plus que {count} en stock",
     "addToCart": "Ajouter au panier",
     "adding": "Ajout…",
     "outOfStock": "En rupture de stock",
@@ -137,6 +137,11 @@
     "brand": "Marque",
     "showOnSale": "Afficher seulement les soldes →",
     "noMatch": "Aucun produit ne correspond à ces filtres.",
-    "clearFilters": "Effacer les filtres"
+    "clearFilters": "Effacer les filtres",
+    "sortBy": "Trier par",
+    "sortFeatured": "En vedette",
+    "sortPriceAsc": "Prix : croissant",
+    "sortPriceDesc": "Prix : décroissant",
+    "sortNameAsc": "Nom : A à Z"
   }
 }

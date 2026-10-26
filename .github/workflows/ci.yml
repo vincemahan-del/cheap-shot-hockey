@@ -1,0 +1,181 @@
+name: ci
+
+# PR gates. Static checks first; mabl verifies the running PR preview only once
+# the build is green. See docs/PIPELINE-MODERNIZATION-2026-10.md.
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  MABL_CLI_VERSION: 2.138.25
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  dependency-review:
+    name: dependency-review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+  preview:
+    name: preview
+    runs-on: ubuntu-latest
+    permissions:
+      deployments: read
+    outputs:
+      url: ${{ steps.wait.outputs.url }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - id: wait
+        run: |
+          for _ in $(seq 1 60); do
+            status_url=$(gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$SHA" \
+              --jq 'map(select(.environment=="Preview")) | .[0].statuses_url // empty')
+            if [ -n "$status_url" ]; then
+              url=$(gh api "$status_url" --jq '[.[] | select(.state=="success")][0].environment_url // empty')
+              if [ -n "$url" ] && curl -fsS -m 5 "$url/api/health" >/dev/null; then
+                echo "url=$url" >> "$GITHUB_OUTPUT"
+                echo "Preview: $url" >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo "::error::No healthy Vercel preview for $SHA after 10 minutes"
+          exit 1
+
+  mabl-smoke:
+    name: mabl-smoke
+    needs: [build, preview]
+    runs-on: ubuntu-latest
+    env:
+      MABL_API_KEY: ${{ secrets.MABL_API_KEY }}
+      WORKSPACE_ID: ${{ secrets.MABL_WORKSPACE_ID }}
+      APP_ID: ${{ secrets.MABL_APPLICATION_ID }}
+      ENV_ID: ${{ secrets.MABL_ENV_PREVIEW_ID }}
+      PREVIEW_URL: ${{ needs.preview.outputs.url }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      HEAD_REF: ${{ github.head_ref }}
+      CLOUD_GATE: ${{ vars.MABL_CLOUD_GATE || 'enabled' }}
+    steps:
+      - name: paused
+        if: env.CLOUD_GATE == 'disabled'
+        run: echo "mabl cloud runs paused (MABL_CLOUD_GATE=disabled); smoke not run." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/checkout@v4
+        if: env.CLOUD_GATE != 'disabled'
+      - uses: actions/setup-node@v4
+        if: env.CLOUD_GATE != 'disabled'
+        with:
+          node-version-file: .nvmrc
+      - if: env.CLOUD_GATE != 'disabled'
+        run: |
+          npm install -g "@mablhq/mabl-cli@$MABL_CLI_VERSION"
+          mabl auth activate-key "$MABL_API_KEY"
+      - name: CSH-SMOKE-PR on this PR's preview
+        if: env.CLOUD_GATE != 'disabled'
+        run: |
+          # The PR's mabl branch has the git branch's name; --auto-branch resolves
+          # it (mabl's by-name lookup fails on "/" names).
+          branch_args=()
+          if mabl branches list -s open -l 100 -o json -w "$WORKSPACE_ID" 2>/dev/null \
+              | jq -e --arg b "$HEAD_REF" 'any(.[]; .name == $b)' >/dev/null; then
+            branch_args=(--mabl-branch "$HEAD_REF" --auto-branch)
+            echo "mabl branch: $HEAD_REF" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          status=0
+          mabl deployments create -a "$APP_ID" -e "$ENV_ID" \
+            --labels exec-pr \
+            --app-url "$PREVIEW_URL" --api-url "$PREVIEW_URL/api" \
+            --revision "$HEAD_SHA" \
+            --repository-url "https://github.com/$GITHUB_REPOSITORY" \
+            "${branch_args[@]}" \
+            --await-completion -o json > deployment.json || status=$?
+          total=$(jq '.execution_results.plan_execution_metrics.total // 0' deployment.json)
+          failed=$(jq '.execution_results.plan_execution_metrics.failed // 0' deployment.json)
+          echo "mabl smoke: $total plan(s), $failed failed — $(jq -r '.href // empty' deployment.json)" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$total" -eq 0 ]; then
+            echo "::error::No mabl plan matched; nothing was tested"
+            exit 1
+          fi
+          [ "$status" -eq 0 ] && [ "$failed" -eq 0 ]
+
+  mabl-impact:
+    name: mabl-impact
+    needs: [build, preview]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      MABL_API_KEY: ${{ secrets.MABL_API_KEY }}
+      GH_TOKEN: ${{ github.token }}
+      WORKSPACE_ID: ${{ secrets.MABL_WORKSPACE_ID }}
+      APP_ID: ${{ secrets.MABL_APPLICATION_ID }}
+      ENV_ID: ${{ secrets.MABL_ENV_PREVIEW_ID }}
+      PREVIEW_URL: ${{ needs.preview.outputs.url }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      HEAD_REF: ${{ github.head_ref }}
+      REPO: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_BODY: ${{ github.event.pull_request.body }}
+      DEFAULT_CREDENTIALS_ID: JxWK20l5gOOFOtWjaJHfOg-c
+      CLOUD_GATE: ${{ vars.MABL_CLOUD_GATE || 'enabled' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: |
+          npm install -g "@mablhq/mabl-cli@$MABL_CLI_VERSION"
+          mabl auth activate-key "$MABL_API_KEY"
+      - run: bash scripts/mabl-impact.sh

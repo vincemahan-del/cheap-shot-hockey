@@ -1,6 +1,6 @@
 // Deployment-job simulation for the polling-status demo surface.
 //
-// This mirrors the workflow an AutoRABIT user described: a deployment is
+// This mirrors a common release-tool workflow: a deployment is
 // created with a label, its status auto-updates in place
 // (queued → in progress → successful | failure), and once it reaches a
 // terminal state the user searches by the deployment label to find the

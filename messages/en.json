@@ -15,8 +15,8 @@
   },
   "promo": {
     "freeShipping": "🏒 Free shipping on orders {amount}+",
-    "cupFinal": "🏆 Cup Final — orders ship in 24h",
-    "returns": "30-day returns · Easy exchanges"
+    "cupFinal": "Season Kick off Sale - orders ship in 24 hours",
+    "returns": "30-day returns · Easy exchanges · Fast refunds"
   },
   "home": {
     "saleBadge": "🏒 Slapshot Special · Up to 85% off",
@@ -49,7 +49,7 @@
     "createAccount": "Create account"
   },
   "product": {
-    "lowStock": "Low stock",
+    "lowStock": "Only {count} left",
     "addToCart": "Add to cart",
     "adding": "Adding…",
     "outOfStock": "Out of stock",
@@ -137,6 +137,11 @@
     "brand": "Brand",
     "showOnSale": "Show only sale items →",
     "noMatch": "No products match those filters.",
-    "clearFilters": "Clear filters"
+    "clearFilters": "Clear filters",
+    "sortBy": "Sort by",
+    "sortFeatured": "Featured",
+    "sortPriceAsc": "Price: Low to High",
+    "sortPriceDesc": "Price: High to Low",
+    "sortNameAsc": "Name: A to Z"
   }
 }

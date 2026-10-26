@@ -1,13 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const DEMO_HEADER = "x-demo-mode";
-const DEMO_COOKIE = "csh_demo";
 const SESSION_COOKIE = "csh_session";
 const SESSION_HEADER = "x-csh-session";
-const ALLOWED = new Set(["normal", "slow", "flaky", "broken"]);
 
-// Region (TAMD-171). Same query→cookie→header shape as demo mode, with a
-// geo-IP fallback. Precedence: ?region= override → csh_region cookie →
+// Region (TAMD-171): query→cookie→header, with a geo-IP fallback. Precedence: ?region= override → csh_region cookie →
 // Vercel's x-vercel-ip-country geo header (CA → Canada) → US default.
 const REGION_HEADER = "x-csh-region";
 const REGION_COOKIE = "csh_region";
@@ -60,15 +56,6 @@ function randomSessionId(): string {
 }
 
 export function middleware(req: NextRequest) {
-  const queryMode = req.nextUrl.searchParams.get("demo");
-  const cookieMode = req.cookies.get(DEMO_COOKIE)?.value;
-  const effective =
-    queryMode && ALLOWED.has(queryMode)
-      ? queryMode
-      : cookieMode && ALLOWED.has(cookieMode)
-        ? cookieMode
-        : "normal";
-
   const { region, fromQuery: regionFromQuery } = resolveRegion(req);
   const { lang, fromQuery: langFromQuery } = resolveLang(req);
   // French is a Canada-only option (TAMD-175): the US storefront is always
@@ -80,20 +67,12 @@ export function middleware(req: NextRequest) {
   if (!sessionId) sessionId = randomSessionId();
 
   const reqHeaders = new Headers(req.headers);
-  reqHeaders.set(DEMO_HEADER, effective);
   reqHeaders.set(SESSION_HEADER, sessionId);
   reqHeaders.set(REGION_HEADER, region);
   reqHeaders.set(LANG_HEADER, effectiveLang);
 
   const res = NextResponse.next({ request: { headers: reqHeaders } });
 
-  if (queryMode && ALLOWED.has(queryMode)) {
-    res.cookies.set(DEMO_COOKIE, queryMode, {
-      path: "/",
-      sameSite: "lax",
-      maxAge: 60 * 60,
-    });
-  }
   if (regionFromQuery) {
     res.cookies.set(REGION_COOKIE, region, {
       path: "/",
@@ -118,7 +97,6 @@ export function middleware(req: NextRequest) {
       maxAge: 30 * 24 * 60 * 60,
     });
   }
-  res.headers.set(DEMO_HEADER, effective);
   res.headers.set(REGION_HEADER, region);
   res.headers.set(LANG_HEADER, effectiveLang);
   return res;

@@ -57,6 +57,8 @@ export function AddToCartButton({
       </button>
       {message && (
         <span
+          role="status"
+          aria-live="polite"
           data-testid={`add-to-cart-feedback-${productId}`}
           className={
             state === "error"

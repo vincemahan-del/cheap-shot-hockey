@@ -10,8 +10,7 @@ import { getCurrentUser } from "@/lib/session";
 import { clearCartCookie, readCartLines } from "@/lib/cart-cookie";
 import { rememberOrderInCookie } from "@/lib/order-cookie";
 import { rememberGuestOrder } from "@/lib/guest-orders";
-import { badRequest, created, ok, serviceUnavailable, unauthorized } from "@/lib/api";
-import { applyDemoDelay, readDemoMode, shouldDemoFail } from "@/lib/demo";
+import { badRequest, created, ok, unauthorized } from "@/lib/api";
 import { isValidEmail } from "@/lib/email";
 import { readRegion, shippingForSubtotal, taxRate } from "@/lib/region";
 
@@ -32,12 +31,6 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const mode = await readDemoMode(req.headers);
-  await applyDemoDelay(mode);
-  if (shouldDemoFail(mode, 0.2)) {
-    return serviceUnavailable("demo mode: order processor down");
-  }
-
   const user = await getCurrentUser();
 
   let body: {

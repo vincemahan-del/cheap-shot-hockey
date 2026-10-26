@@ -2,7 +2,9 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { getTranslations } from "next-intl/server";
 import { listProducts } from "@/lib/store";
+import type { Product } from "@/lib/types";
 import { ProductCard } from "@/components/ProductCard";
+import { SortDropdown } from "@/components/SortDropdown";
 import { categoryLabel } from "@/lib/format";
 import { readRegion } from "@/lib/region";
 
@@ -33,6 +35,7 @@ export default async function ProductsPage({
     brand?: string;
     q?: string;
     onSale?: string;
+    sort?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -45,6 +48,17 @@ export default async function ProductsPage({
     search: sp.q,
     onSale: sp.onSale === "true" ? true : undefined,
   });
+  const sort = sp.sort ?? "featured";
+  const sorted = sortProducts(items, sort);
+  const sortOptions = [
+    { value: "featured", label: t("sortFeatured") },
+    { value: "price-asc", label: t("sortPriceAsc") },
+    { value: "price-desc", label: t("sortPriceDesc") },
+    { value: "name-asc", label: t("sortNameAsc") },
+  ];
+  const query = Object.fromEntries(
+    Object.entries(sp).filter(([k, v]) => k !== "sort" && v != null),
+  ) as Record<string, string>;
   const brands = Array.from(new Set(listProducts().map((p) => p.brand))).sort();
   const activeFilters: { label: string; href: string }[] = [];
   if (sp.category) activeFilters.push({ label: categoryLabel(sp.category), href: removeParam(sp, "category") });
@@ -227,6 +241,14 @@ export default async function ProductsPage({
         </aside>
 
         <div>
+          <div className="mb-4 flex items-center justify-end" data-testid="catalog-toolbar">
+            <SortDropdown
+              options={sortOptions}
+              current={sort}
+              label={t("sortBy")}
+              query={query}
+            />
+          </div>
           {items.length === 0 ? (
             <div
               className="rounded-xl border border-dashed border-[color:var(--border)] p-14 text-center text-[color:var(--muted)]"
@@ -245,7 +267,7 @@ export default async function ProductsPage({
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {items.map((p) => (
+              {sorted.map((p) => (
                 <ProductCard key={p.id} product={p} region={region} />
               ))}
             </div>
@@ -254,6 +276,20 @@ export default async function ProductsPage({
       </div>
     </div>
   );
+}
+
+function sortProducts(items: Product[], sort: string): Product[] {
+  const price = (p: Product) => p.salePriceCents ?? p.priceCents;
+  switch (sort) {
+    case "price-asc":
+      return [...items].sort((a, b) => price(a) - price(b));
+    case "price-desc":
+      return [...items].sort((a, b) => price(b) - price(a));
+    case "name-asc":
+      return [...items].sort((a, b) => a.name.localeCompare(b.name));
+    default:
+      return items;
+  }
 }
 
 function removeParam(

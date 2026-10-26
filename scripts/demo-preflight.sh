@@ -1,104 +1,48 @@
 #!/usr/bin/env bash
-# demo-preflight.sh — 20-second sanity check before starting the
-# ticket-to-prod demo. Fails loud on anything missing so you're not
-# debugging on stage.
-set -u
+# Workshop preflight: everything the 45-minute flow depends on, checked in
+# under a minute. Exits non-zero if any check fails.
+set -uo pipefail
 
-# Resolve repo root so `gh` + `git` always operate on the right repo,
-# regardless of the caller's working directory.
-repo_root="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel 2>/dev/null)"
-[ -n "$repo_root" ] && cd "$repo_root"
+REPO=${REPO:-vincemahan-del/cheap-shot-hockey}
+PROD_URL=https://cheap-shot-hockey.vercel.app
+fails=0
+ok()   { printf '  \033[32m✓\033[0m %s\n' "$1"; }
+bad()  { printf '  \033[31m✗\033[0m %s\n' "$1"; fails=$((fails + 1)); }
+warn() { printf '  \033[33m!\033[0m %s\n' "$1"; }
 
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-TICK="${GREEN}✓${NC}"
-CROSS="${RED}✗${NC}"
-WARN="${YELLOW}⚠${NC}"
+echo "Auth"
+gh auth status >/dev/null 2>&1 && ok "gh" || bad "gh: run gh auth login"
+mabl auth info >/dev/null 2>&1 && ok "mabl CLI ($(mabl --version))" || bad "mabl: run mabl auth login --auto"
+vercel whoami >/dev/null 2>&1 && ok "vercel" || bad "vercel: run vercel login"
 
-issues=0
+echo "Pipeline"
+gate=$(gh variable get MABL_CLOUD_GATE --repo "$REPO" 2>/dev/null || echo enabled)
+[ "$gate" = "enabled" ] && ok "cloud runs enabled" || warn "cloud runs paused (MABL_CLOUD_GATE=$gate): the mabl gates won't test anything"
 
-echo "🏒 Demo pre-flight — cheap-shot-hockey"
-echo ""
+required=$(gh api "repos/$REPO/branches/main/protection/required_status_checks" --jq '.contexts | sort | join(",")' 2>/dev/null)
+expected="CodeQL,build,dependency-review,human-approved,lint,mabl-impact,mabl-smoke,unit"
+[ "$required" = "$expected" ] && ok "required checks" || bad "required checks are '$required'"
 
-# ─── 1. Working tree clean ──────────────────────────────────
-if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
-  echo -e "  ${WARN} uncommitted changes in working tree"
-  git status --short | head -5 | sed 's/^/      /'
-  issues=$((issues+1))
-else
-  echo -e "  ${TICK} working tree clean"
-fi
+armed=$(gh pr list --repo "$REPO" --state open --json number,autoMergeRequest --jq '[.[] | select(.autoMergeRequest)] | length')
+[ "$armed" = "0" ] && ok "no other PRs armed to auto-merge" || warn "$armed open PR(s) armed to auto-merge could race the demo"
+deps=$(gh pr list --repo "$REPO" --state open --author app/dependabot --json number --jq 'length')
+[ "$deps" = "0" ] && ok "no open Dependabot PRs" || warn "$deps open Dependabot PR(s)"
 
-# ─── 2. On main branch ──────────────────────────────────────
-branch=$(git branch --show-current 2>/dev/null)
-if [ "$branch" = "main" ]; then
-  echo -e "  ${TICK} on branch main"
-else
-  echo -e "  ${WARN} on branch $branch (demo usually starts from main)"
-fi
+echo "Production"
+main_sha=$(gh api "repos/$REPO/commits/main" --jq .sha 2>/dev/null)
+served=$(curl -fsS -m 10 "$PROD_URL/api/build-info" | jq -r '.commit // empty' 2>/dev/null)
+if [ -z "$served" ]; then bad "production not answering /api/build-info"
+elif [ "$served" = "$main_sha" ]; then ok "production serves main (${served:0:7})"
+else warn "production serves ${served:0:7}, main is ${main_sha:0:7}"; fi
 
-# ─── 3. Dev server up ───────────────────────────────────────
-if curl -fsS -m 3 http://localhost:3000/api/health >/dev/null 2>&1; then
-  echo -e "  ${TICK} dev server responding on :3000"
-else
-  echo -e "  ${CROSS} dev server NOT responding on :3000 — run 'npm run dev'"
-  issues=$((issues+1))
-fi
+echo "Regression"
+nightly=$(gh run list --repo "$REPO" --workflow nightly.yml --limit 1 --json conclusion,createdAt --jq '.[0] // empty | "\(.conclusion) \(.createdAt)"' 2>/dev/null)
+case "$nightly" in
+  success*) ok "last nightly: $nightly" ;;
+  "") warn "no nightly run yet" ;;
+  *) warn "last nightly: $nightly (fine for the triage act if it's the exhibit)" ;;
+esac
 
-# ─── 4. Required GitHub secrets ─────────────────────────────
-secrets=$(gh secret list 2>/dev/null | awk '{print $1}')
-for s in MABL_API_TOKEN MABL_APPLICATION_ID MABL_ENV_PREVIEW_ID MABL_ENV_PROD_ID JIRA_USER_EMAIL JIRA_API_TOKEN; do
-  if echo "$secrets" | grep -q "^${s}\$"; then
-    echo -e "  ${TICK} secret set: $s"
-  else
-    echo -e "  ${CROSS} missing secret: $s"
-    issues=$((issues+1))
-  fi
-done
-if ! echo "$secrets" | grep -q "^SLACK_WEBHOOK_URL\$"; then
-  echo -e "  ${WARN} SLACK_WEBHOOK_URL not set — ci-notify.sh Slack skips. MCP narration covers."
-fi
-
-# ─── 5. Branch protection still on main ─────────────────────
-protection=$(gh api repos/vincemahan-del/cheap-shot-hockey/branches/main/protection 2>/dev/null | jq -r '.required_status_checks.contexts | length' 2>/dev/null)
-if [ "$protection" = "5" ] || [ "$protection" = "4" ]; then
-  echo -e "  ${TICK} branch protection active (${protection} required checks)"
-else
-  echo -e "  ${CROSS} branch protection misconfigured (got: ${protection:-?})"
-  issues=$((issues+1))
-fi
-
-# ─── 6. Live prod reachable ─────────────────────────────────
-if curl -fsS -m 5 https://cheap-shot-hockey.vercel.app/api/health >/dev/null 2>&1; then
-  echo -e "  ${TICK} live prod reachable"
-else
-  echo -e "  ${CROSS} live prod not reachable — Vercel issue?"
-  issues=$((issues+1))
-fi
-
-# ─── 7. Jenkins status (informational) ──────────────────────
-if pgrep -fl jenkins >/dev/null 2>&1 || curl -fsS -m 1 http://localhost:8080/login >/dev/null 2>&1; then
-  echo -e "  ${WARN} Jenkins looks active — consider stopping for single-CI demo"
-else
-  echo -e "  ${TICK} Jenkins not running (single-CI demo)"
-fi
-
-# ─── 8. mabl plans discoverable ─────────────────────────────
-echo ""
-echo "Open in browser (Cmd+Click):"
-echo "  • https://github.com/vincemahan-del/cheap-shot-hockey/pulls"
-echo "  • https://mabl.atlassian.net/projects/TAMD"
-echo "  • https://mablhq.slack.com/archives/C0A321B477Y"
-echo "  • https://app.mabl.com/workspaces/pXXgThbNi4HfQOpiZptHfw-w"
-echo "  • https://cheap-shot-hockey.vercel.app"
-echo ""
-
-if [ "$issues" -gt 0 ]; then
-  echo -e "${RED}Pre-flight FAILED: ${issues} blocker(s). Fix before starting the demo.${NC}"
-  exit 1
-else
-  echo -e "${GREEN}Pre-flight OK. Ready to demo.${NC}"
-  exit 0
-fi
+echo
+[ "$fails" -eq 0 ] && echo "Ready." || echo "$fails check(s) failed."
+exit "$fails"
