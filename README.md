@@ -17,7 +17,8 @@ and a human approves every merge.
 | | `mabl-smoke`: `CSH-SMOKE-PR` on **this PR's** Vercel preview | required |
 | | `mabl-impact`: mabl test impact analysis picks the existing tests the change reaches and runs them on the preview; sticky PR comment | required (`test-impact-gate-exempt` waives) |
 | | `human-approved`: a maintainer applies the label | required |
-| Merge to `main` (`postdeploy.yml`) | Wait for production to serve the commit, then `CSH-SMOKE-POSTDEPLOY` | — |
+| Merge to `main` (`postdeploy.yml`) | Production is **staged** (built, not live). `CSH-SMOKE-POSTDEPLOY` runs on that exact build | — |
+| Release (human) | "Can we ship?" (`check_release_readiness`), then `vercel promote <staged url>`; same build, no rebuild | human |
 | Nightly (`nightly.yml`) | Full `type-rt` regression locally on the runner against prod (0 credits); local failures re-run once in the cloud for mabl's failure analysis | — |
 
 Repo variable `MABL_CLOUD_GATE=disabled` pauses every mabl cloud run (the jobs
