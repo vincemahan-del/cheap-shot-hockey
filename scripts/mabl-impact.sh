@@ -28,11 +28,13 @@ comment() {
 
 # Use the PR's mabl branch (named after the git branch) when one exists.
 branch_args=()
-if lookup=$(mabl branches describe "$HEAD_REF" --name -w "$WORKSPACE_ID" 2>&1); then
+# Lookup by name 404s under API-key auth, so match against the open-branch list.
+if mabl branches list -s open -l 100 -o json -w "$WORKSPACE_ID" 2>/dev/null \
+    | jq -e --arg b "$HEAD_REF" 'any(.[]; .name == $b)' >/dev/null; then
   branch_args=(--mabl-branch "$HEAD_REF")
   echo "mabl branch: $HEAD_REF" | tee -a "$SUMMARY"
 else
-  echo "mabl branch: master ($HEAD_REF not found: $(printf '%s' "$lookup" | grep -v '^ *at ' | head -n 3 | tr '\n' ' '))" | tee -a "$SUMMARY"
+  echo "mabl branch: master ($HEAD_REF not found)" | tee -a "$SUMMARY"
 fi
 
 # Labels are read live (not from the event payload) so re-running the job

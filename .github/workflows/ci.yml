@@ -123,7 +123,8 @@ jobs:
         if: env.CLOUD_GATE != 'disabled'
         run: |
           branch_args=()
-          if mabl branches describe "$HEAD_REF" --name -w "$WORKSPACE_ID" >/dev/null 2>&1; then
+          if mabl branches list -s open -l 100 -o json -w "$WORKSPACE_ID" 2>/dev/null \
+              | jq -e --arg b "$HEAD_REF" 'any(.[]; .name == $b)' >/dev/null; then
             branch_args=(--mabl-branch "$HEAD_REF")
           fi
           status=0
