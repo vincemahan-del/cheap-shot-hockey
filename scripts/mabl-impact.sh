@@ -32,7 +32,7 @@ if lookup=$(mabl branches describe "$HEAD_REF" --name -w "$WORKSPACE_ID" 2>&1); 
   branch_args=(--mabl-branch "$HEAD_REF")
   echo "mabl branch: $HEAD_REF" | tee -a "$SUMMARY"
 else
-  echo "mabl branch: master ($HEAD_REF not found: $(printf '%s' "$lookup" | tail -n 2 | tr '\n' ' '))" | tee -a "$SUMMARY"
+  echo "mabl branch: master ($HEAD_REF not found: $(printf '%s' "$lookup" | grep -v '^ *at ' | head -n 3 | tr '\n' ' '))" | tee -a "$SUMMARY"
 fi
 
 # Labels are read live (not from the event payload) so re-running the job
