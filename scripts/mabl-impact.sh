@@ -51,7 +51,7 @@ else
 fi
 
 branch_args=()
-if mabl branches describe "$HEAD_REF" >/dev/null 2>&1; then
+if mabl branches describe "$HEAD_REF" --name >/dev/null 2>&1; then
   branch_args=(--mabl-branch "$HEAD_REF")
 fi
 
