@@ -98,6 +98,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       MABL_API_KEY: ${{ secrets.MABL_API_KEY }}
+      WORKSPACE_ID: ${{ secrets.MABL_WORKSPACE_ID }}
       APP_ID: ${{ secrets.MABL_APPLICATION_ID }}
       ENV_ID: ${{ secrets.MABL_ENV_PREVIEW_ID }}
       PREVIEW_URL: ${{ needs.preview.outputs.url }}
@@ -121,9 +122,13 @@ jobs:
       - name: CSH-SMOKE-PR on this PR's preview
         if: env.CLOUD_GATE != 'disabled'
         run: |
+          # The PR's mabl branch has the git branch's name; --auto-branch resolves
+          # it (mabl's by-name lookup fails on "/" names).
           branch_args=()
-          if mabl branches describe "$HEAD_REF" >/dev/null 2>&1; then
-            branch_args=(--mabl-branch "$HEAD_REF")
+          if mabl branches list -s open -l 100 -o json -w "$WORKSPACE_ID" 2>/dev/null \
+              | jq -e --arg b "$HEAD_REF" 'any(.[]; .name == $b)' >/dev/null; then
+            branch_args=(--mabl-branch "$HEAD_REF" --auto-branch)
+            echo "mabl branch: $HEAD_REF" | tee -a "$GITHUB_STEP_SUMMARY"
           fi
           status=0
           mabl deployments create -a "$APP_ID" -e "$ENV_ID" \
@@ -152,6 +157,7 @@ jobs:
     env:
       MABL_API_KEY: ${{ secrets.MABL_API_KEY }}
       GH_TOKEN: ${{ github.token }}
+      WORKSPACE_ID: ${{ secrets.MABL_WORKSPACE_ID }}
       APP_ID: ${{ secrets.MABL_APPLICATION_ID }}
       ENV_ID: ${{ secrets.MABL_ENV_PREVIEW_ID }}
       PREVIEW_URL: ${{ needs.preview.outputs.url }}
@@ -169,8 +175,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-      - if: env.CLOUD_GATE != 'disabled'
-        run: |
+      - run: |
           npm install -g "@mablhq/mabl-cli@$MABL_CLI_VERSION"
           mabl auth activate-key "$MABL_API_KEY"
       - run: bash scripts/mabl-impact.sh

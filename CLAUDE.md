@@ -62,6 +62,8 @@ Labels: `type-smk` + `exec-pr` / `exec-postdeploy` (smoke plans), `type-rt`
 (full regression, nightly), `area-*` (app area), `exhibit` (fails on purpose;
 never `type-rt`), and the ticket key on every test created for a ticket.
 
-Test edits for a PR happen on the mabl branch named exactly after the git
+Test edits for a PR happen on the mabl branch with the same name as the git
+branch (slashes included). CI passes `--auto-branch` with it, because mabl's
+by-name branch lookup fails on `/`; creating an existing branch returns it.
 branch. Failure triage: `analyze_mabl_failure` / `analyze_mabl_results` on the
 run; "can we ship?": `check_release_readiness` on the deployment.
