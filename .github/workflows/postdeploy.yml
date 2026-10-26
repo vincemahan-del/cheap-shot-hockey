@@ -1,8 +1,7 @@
 name: postdeploy
 
-# Production is staged: a merge builds a production deployment that serves no
-# traffic until a human promotes it. This smokes that exact build by its unique
-# URL; promotion reuses the same build, so what passed is what goes live.
+# After a merge, find this commit's production build by its unique URL and run
+# CSH-SMOKE-POSTDEPLOY against that exact build.
 
 on:
   push:
@@ -20,8 +19,8 @@ env:
   MABL_CLI_VERSION: 2.138.25
 
 jobs:
-  mabl-staged:
-    name: mabl-staged
+  mabl-postdeploy:
+    name: mabl-postdeploy
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -32,7 +31,7 @@ jobs:
       CLOUD_GATE: ${{ vars.MABL_CLOUD_GATE || 'enabled' }}
     steps:
       - name: wait for this commit's production build
-        id: staged
+        id: prod
         run: |
           for _ in $(seq 1 60); do
             status_url=$(gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$GITHUB_SHA" \
@@ -41,11 +40,7 @@ jobs:
               url=$(gh api "$status_url" --jq '[.[] | select(.state=="success")][0].environment_url // empty')
               if [ -n "$url" ] && curl -fsS -m 5 "$url/api/health" >/dev/null; then
                 echo "url=$url" >> "$GITHUB_OUTPUT"
-                {
-                  echo "Staged production build: $url"
-                  echo
-                  echo "To release: ask \"can we ship?\" (check_release_readiness on this run's mabl deployment), then run \`vercel promote $url\`."
-                } >> "$GITHUB_STEP_SUMMARY"
+                echo "Production build: $url" >> "$GITHUB_STEP_SUMMARY"
                 exit 0
               fi
             fi
@@ -55,30 +50,30 @@ jobs:
           exit 1
       - name: paused
         if: env.CLOUD_GATE == 'disabled'
-        run: echo "mabl cloud runs paused (MABL_CLOUD_GATE=disabled); staged smoke not run." >> "$GITHUB_STEP_SUMMARY"
+        run: echo "mabl cloud runs paused (MABL_CLOUD_GATE=disabled); post-deploy smoke not run." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@v4
         if: env.CLOUD_GATE != 'disabled'
       - uses: actions/setup-node@v4
         if: env.CLOUD_GATE != 'disabled'
         with:
           node-version-file: .nvmrc
-      - name: CSH-SMOKE-POSTDEPLOY on the staged build
+      - name: CSH-SMOKE-POSTDEPLOY on this production build
         if: env.CLOUD_GATE != 'disabled'
         env:
-          STAGED_URL: ${{ steps.staged.outputs.url }}
+          PROD_BUILD_URL: ${{ steps.prod.outputs.url }}
         run: |
           npm install -g "@mablhq/mabl-cli@$MABL_CLI_VERSION"
           mabl auth activate-key "$MABL_API_KEY"
           status=0
           mabl deployments create -a "$APP_ID" -e "$ENV_ID" \
             --labels exec-postdeploy \
-            --app-url "$STAGED_URL" --api-url "$STAGED_URL/api" \
+            --app-url "$PROD_BUILD_URL" --api-url "$PROD_BUILD_URL/api" \
             --revision "$GITHUB_SHA" \
             --repository-url "https://github.com/$GITHUB_REPOSITORY" \
             --await-completion -o json > deployment.json || status=$?
           total=$(jq '.execution_results.plan_execution_metrics.total // 0' deployment.json)
           failed=$(jq '.execution_results.plan_execution_metrics.failed // 0' deployment.json)
-          echo "mabl staged smoke: $total plan(s), $failed failed — $(jq -r '.href // empty' deployment.json) (deployment id $(jq -r '.id // empty' deployment.json))" >> "$GITHUB_STEP_SUMMARY"
+          echo "mabl post-deploy smoke: $total plan(s), $failed failed — $(jq -r '.href // empty' deployment.json) (deployment id $(jq -r '.id // empty' deployment.json))" >> "$GITHUB_STEP_SUMMARY"
           if [ "$total" -eq 0 ]; then
             echo "::error::No mabl plan matched; nothing was tested"
             exit 1

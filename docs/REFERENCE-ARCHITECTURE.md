@@ -23,8 +23,9 @@ instructions, and the mabl skills plugin for coding agents.
 
 Deliberate differences: no GitHub merge queue (personal-account repo; `strict`
 branch protection tests the up-to-date head instead), approval is a label
-(GitHub doesn't let you approve your own PR), and regression runs nightly
-against production.
+(GitHub doesn't let you approve your own PR), production deploys on merge
+rather than by a manual release step, and regression runs nightly against
+production.
 
 ## Flow
 
@@ -40,12 +41,9 @@ PR (ci.yml)
            └─ mabl-impact  test impact analysis → impacted tests (cap 10,
                            retry once, each with its plan's login) → PR comment
   human-approved (label)
-merge → Vercel builds a staged production deployment (no traffic)
-  postdeploy.yml  CSH-SMOKE-POSTDEPLOY on that build's unique URL
+merge → Vercel production
+  postdeploy.yml  CSH-SMOKE-POSTDEPLOY on this commit's production build (unique URL)
   human merges the mabl branch (after merge-status)
-release (human)
-  "can we ship?" → check_release_readiness on the staged deployment event
-  → vercel promote <staged url>   (same build, no rebuild; vercel rollback to undo)
 nightly.yml
   full type-rt regression locally vs prod → failures re-run once in the cloud
   → mabl's analysis + category say stale test vs regression
@@ -70,7 +68,6 @@ nightly.yml
 | Waiving the impact gate | `test-impact-gate-exempt` label; agent denied it too |
 | mabl branch → master | Human merge; agent denied `mabl branches merge` and the MCP merge tools |
 | Push / PR | `/ship` stops for an explicit "go" |
-| Release to production | Staged production; human runs `vercel promote`; agent denied `vercel promote` |
 
 These deny rules are guardrails on the agent, not a security boundary.
 

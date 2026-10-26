@@ -52,6 +52,6 @@ running preview; a human approves. You never push, merge a mabl branch, apply
 
 ## After merge (human)
 - The human checks `mabl branches merge-status` and merges the mabl branch.
-- A merge stages a production build; `postdeploy.yml` smokes it and prints its
-  URL. "Can we ship?" is `check_release_readiness` on that mabl deployment; the
-  human then runs `vercel promote <url>`.
+- Production deploys on merge and `postdeploy.yml` smokes that build.
+  "Is this release healthy?" is `check_release_readiness` on that mabl
+  deployment.
