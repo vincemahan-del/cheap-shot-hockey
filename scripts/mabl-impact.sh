@@ -28,11 +28,11 @@ comment() {
 
 # Use the PR's mabl branch (named after the git branch) when one exists.
 branch_args=()
-if mabl branches describe "$HEAD_REF" --name -w "$WORKSPACE_ID" >/dev/null 2>&1; then
+if lookup=$(mabl branches describe "$HEAD_REF" --name -w "$WORKSPACE_ID" 2>&1); then
   branch_args=(--mabl-branch "$HEAD_REF")
   echo "mabl branch: $HEAD_REF" | tee -a "$SUMMARY"
 else
-  echo "mabl branch: master ($HEAD_REF not found)" | tee -a "$SUMMARY"
+  echo "mabl branch: master ($HEAD_REF not found: $(printf '%s' "$lookup" | tail -n 2 | tr '\n' ' '))" | tee -a "$SUMMARY"
 fi
 
 # Labels are read live (not from the event payload) so re-running the job
