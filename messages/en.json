@@ -49,7 +49,7 @@
     "createAccount": "Create account"
   },
   "product": {
-    "lowStock": "Low stock",
+    "lowStock": "Only {count} left",
     "addToCart": "Add to cart",
     "adding": "Adding…",
     "outOfStock": "Out of stock",
