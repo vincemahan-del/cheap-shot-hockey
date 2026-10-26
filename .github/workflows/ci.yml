@@ -123,9 +123,9 @@ jobs:
         if: env.CLOUD_GATE != 'disabled'
         run: |
           branch_args=()
-          if mabl branches list -s open -l 100 -o json -w "$WORKSPACE_ID" 2>/dev/null \
-              | jq -e --arg b "$HEAD_REF" 'any(.[]; .name == $b)' >/dev/null; then
-            branch_args=(--mabl-branch "$HEAD_REF")
+          mabl_branch="${HEAD_REF//\//-}"
+          if mabl branches describe "$mabl_branch" --name -w "$WORKSPACE_ID" >/dev/null 2>&1; then
+            branch_args=(--mabl-branch "$mabl_branch")
           fi
           status=0
           mabl deployments create -a "$APP_ID" -e "$ENV_ID" \

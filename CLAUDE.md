@@ -62,6 +62,9 @@ Labels: `type-smk` + `exec-pr` / `exec-postdeploy` (smoke plans), `type-rt`
 (full regression, nightly), `area-*` (app area), `exhibit` (fails on purpose;
 never `type-rt`), and the ticket key on every test created for a ticket.
 
-Test edits for a PR happen on the mabl branch named exactly after the git
+Test edits for a PR happen on the mabl branch named after the git branch with
+`/` replaced by `-` (`TAMD-252/low-stock-count` → `TAMD-252-low-stock-count`;
+mabl's by-name branch lookup fails on `/` under API-key auth). Use that name
+wherever a mabl skill would derive the branch from git.
 branch. Failure triage: `analyze_mabl_failure` / `analyze_mabl_results` on the
 run; "can we ship?": `check_release_readiness` on the deployment.

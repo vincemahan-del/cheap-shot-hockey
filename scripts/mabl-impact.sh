@@ -26,18 +26,15 @@ comment() {
   printf '%s\n' "$1" >> "$SUMMARY"
 }
 
-for n in "$HEAD_REF" "${HEAD_REF//\//-}"; do
-  if mabl branches describe "$n" --name -w "$WORKSPACE_ID" >/dev/null 2>&1; then echo "diag: $n found"; else echo "diag: $n not found"; fi
-done
-# Use the PR's mabl branch (named after the git branch) when one exists.
+# The PR's mabl branch is the git branch with "/" replaced by "-" (mabl's
+# by-name branch lookup fails on "/" under API-key auth).
+MABL_BRANCH="${HEAD_REF//\//-}"
 branch_args=()
-# Lookup by name 404s under API-key auth, so match against the open-branch list.
-if mabl branches list -s open -l 100 -o json -w "$WORKSPACE_ID" 2>/dev/null \
-    | jq -e --arg b "$HEAD_REF" 'any(.[]; .name == $b)' >/dev/null; then
-  branch_args=(--mabl-branch "$HEAD_REF")
-  echo "mabl branch: $HEAD_REF" | tee -a "$SUMMARY"
+if mabl branches describe "$MABL_BRANCH" --name -w "$WORKSPACE_ID" >/dev/null 2>&1; then
+  branch_args=(--mabl-branch "$MABL_BRANCH")
+  echo "mabl branch: $MABL_BRANCH" | tee -a "$SUMMARY"
 else
-  echo "mabl branch: master ($HEAD_REF not found)" | tee -a "$SUMMARY"
+  echo "mabl branch: master ($MABL_BRANCH not found)" | tee -a "$SUMMARY"
 fi
 
 # Labels are read live (not from the event payload) so re-running the job
@@ -130,6 +127,6 @@ ${gaps:+
 **Coverage gaps**
 $gaps}
 
-[mabl deployment]($href) · a test expected to fail by design should be updated on the mabl branch \`$HEAD_REF\`; to waive this gate apply \`$EXEMPT_LABEL\` and re-run the job."
+[mabl deployment]($href) · a test expected to fail by design should be updated on the mabl branch \`$MABL_BRANCH\`; to waive this gate apply \`$EXEMPT_LABEL\` and re-run the job."
 
 [[ "$verdict" == "passed" ]]
