@@ -122,10 +122,13 @@ jobs:
       - name: CSH-SMOKE-PR on this PR's preview
         if: env.CLOUD_GATE != 'disabled'
         run: |
+          # The PR's mabl branch has the git branch's name; --auto-branch resolves
+          # it (mabl's by-name lookup fails on "/" names).
           branch_args=()
-          mabl_branch="${HEAD_REF//\//-}"
-          if mabl branches describe "$mabl_branch" --name -w "$WORKSPACE_ID" >/dev/null 2>&1; then
-            branch_args=(--mabl-branch "$mabl_branch")
+          if mabl branches list -s open -l 100 -o json -w "$WORKSPACE_ID" 2>/dev/null \
+              | jq -e --arg b "$HEAD_REF" 'any(.[]; .name == $b)' >/dev/null; then
+            branch_args=(--mabl-branch "$HEAD_REF" --auto-branch)
+            echo "mabl branch: $HEAD_REF" | tee -a "$GITHUB_STEP_SUMMARY"
           fi
           status=0
           mabl deployments create -a "$APP_ID" -e "$ENV_ID" \

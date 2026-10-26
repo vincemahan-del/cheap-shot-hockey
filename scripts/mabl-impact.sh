@@ -26,11 +26,12 @@ comment() {
   printf '%s\n' "$1" >> "$SUMMARY"
 }
 
-# The PR's mabl branch is the git branch with "/" replaced by "-" (mabl's
-# by-name branch lookup fails on "/" under API-key auth).
-MABL_BRANCH="${HEAD_REF//\//-}"
+# The PR's mabl branch has the git branch's name. Detect it from the open-branch
+# list: mabl's by-name lookup fails on "/" names.
+MABL_BRANCH="$HEAD_REF"
 branch_args=()
-if mabl branches describe "$MABL_BRANCH" --name -w "$WORKSPACE_ID" >/dev/null 2>&1; then
+if mabl branches list -s open -l 100 -o json -w "$WORKSPACE_ID" 2>/dev/null \
+    | jq -e --arg b "$MABL_BRANCH" 'any(.[]; .name == $b)' >/dev/null; then
   branch_args=(--mabl-branch "$MABL_BRANCH")
   echo "mabl branch: $MABL_BRANCH" | tee -a "$SUMMARY"
 else
@@ -104,7 +105,7 @@ mabl deployments create -a "$APP_ID" -e "$ENV_ID" \
   --app-url "$PREVIEW_URL" --api-url "$PREVIEW_URL/api" \
   --revision "$HEAD_SHA" \
   --repository-url "https://github.com/$REPO" \
-  "${branch_args[@]}" \
+  "${branch_args[@]}" ${branch_args:+--auto-branch} \
   --await-completion -o json > deployment.json || status=$?
 
 failed=$(jq '.execution_results.plan_execution_metrics.failed // 0' deployment.json)
