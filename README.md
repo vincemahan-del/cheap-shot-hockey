@@ -6,7 +6,8 @@ mabl verifies the running preview, deterministic CI jobs gate on mabl's results,
 and a human approves every merge.
 
 **Live:** https://cheap-shot-hockey.vercel.app · **Architecture:**
-[`docs/REFERENCE-ARCHITECTURE.md`](docs/REFERENCE-ARCHITECTURE.md)
+[`docs/REFERENCE-ARCHITECTURE.md`](docs/REFERENCE-ARCHITECTURE.md) · **Workshop:**
+[`docs/WORKSHOP.md`](docs/WORKSHOP.md) (preflight: `bash scripts/demo-preflight.sh`)
 
 ## The pipeline in one screen
 
