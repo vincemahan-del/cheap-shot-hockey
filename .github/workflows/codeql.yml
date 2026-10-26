@@ -2,9 +2,7 @@
 # Runs on every PR + push to main, plus a weekly cron to catch new
 # advisories against unchanged code. Uploads SARIF to the Security tab.
 #
-# Required check (promoted from advisory 2026-05-26, TAMD-139): a
-# high-severity code-scanning alert blocks merge. One of the required
-# status checks in branch protection on main — see docs/MERGE-POLICY.md.
+# Required check: a high-severity code-scanning alert blocks merge.
 
 name: CodeQL
 

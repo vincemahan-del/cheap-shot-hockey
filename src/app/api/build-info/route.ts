@@ -7,10 +7,7 @@ export async function GET() {
     branch: process.env.VERCEL_GIT_COMMIT_REF ?? process.env.GIT_BRANCH ?? "local",
     environment:
       process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "development",
-    deployedAt:
-      process.env.VERCEL_GIT_COMMIT_AUTHOR_LOGIN
-        ? new Date().toISOString()
-        : new Date().toISOString(),
+    deployedAt: new Date().toISOString(),
     region: process.env.VERCEL_REGION ?? "local",
     apiVersion: "1.0.0",
     uiVersion: "1.0.0",

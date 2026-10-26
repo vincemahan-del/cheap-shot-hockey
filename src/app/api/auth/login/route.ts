@@ -3,12 +3,8 @@ import { verifyPassword } from "@/lib/auth-crypto";
 import { getUserByEmail } from "@/lib/store";
 import { login } from "@/lib/session";
 import { badRequest, ok, unauthorized } from "@/lib/api";
-import { applyDemoDelay, readDemoMode } from "@/lib/demo";
 
 export async function POST(req: NextRequest) {
-  const mode = await readDemoMode(req.headers);
-  await applyDemoDelay(mode);
-
   let body: { email?: string; password?: string };
   try {
     body = await req.json();

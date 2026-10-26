@@ -1,362 +1,67 @@
----
-last-verified: 2026-05-22
-verifies: [".github/workflows/mabl-sdlc.yml", ".github/workflows/auto-fix.yml", "vitest.config.ts", "scripts/orchestrator-plan/detect-blast-radius.js", "scripts/ci-notify.sh", "Jenkinsfile"]
----
-
-@AGENTS.md
-
 # Claude context — cheap-shot-hockey
 
-This file is the handoff brief for any Claude agent (CLI, GitHub app,
-Agent SDK) working in this repo. Read it first before making changes.
-
-## What this repo is
-
-A **fake hockey e-commerce store** built as a live customer demo for
-[mabl](https://www.mabl.com). It is intentionally full-stack (UI + API
-+ OpenAPI spec + build-info endpoint + Jenkinsfile + GitHub Actions)
-so a single URL can demonstrate mabl's value across the full SDLC.
-
-**Live:** https://cheap-shot-hockey.vercel.app
-**Workspace in mabl:** `pXXgThbNi4HfQOpiZptHfw-w` ("Cheap Shot Hockey Demo")
-**CI:** Jenkinsfile runs on a local Jenkins; `.github/workflows/mabl-sdlc.yml`
-is the GHA equivalent.
+A fake hockey store used to demonstrate a mabl-driven agentic development
+lifecycle. Read [`docs/REFERENCE-ARCHITECTURE.md`](docs/REFERENCE-ARCHITECTURE.md)
+for the pipeline. This is a public repo: no customer names, people, internal
+hostnames or session links in code, commits, PRs or comments.
 
 ## Stack
 
-- **Framework:** Next.js 16 App Router + React 19 + TypeScript
-- **Styling:** Tailwind v4 + Archivo Black display font; dark theme
-- **Deploy:** Vercel (auto-deploys from `main`)
-- **Data layer:** in-memory singleton in `src/lib/store.ts` + cookie
-  storage for cart (`src/lib/cart-cookie.ts`) and recent guest orders
-  (`src/lib/order-cookie.ts`). **Carts and recent orders MUST stay in
-  cookies** — Vercel's serverless instances don't share in-memory state.
-
-## Key files
-
-- `src/app/` — App Router pages and API routes
-- `src/app/api/openapi/route.ts` — the OpenAPI 3.1 spec mabl imports
-- `src/app/api/build-info/route.ts` — reports commit SHA / env / region
-- `src/middleware.ts` — mints `csh_session` cookie, translates
-  `?demo=<mode>` into an `x-demo-mode` header
-- `src/lib/demo.ts` — implements slow/flaky/broken modes
-- `src/components/*` — Nav, ProductCard, ProductThumb, CategoryTile,
-  BrandRow, Footer, PromoStrip, DemoBanner, StarRating
-- `public/product-photos/*.jpg` — real Wikimedia/Pexels photography
-  (NOT AI — keep them real)
-- `Jenkinsfile` — 9-stage SDLC pipeline (lint → unit + coverage → build →
-  mabl PR smoke → promote → mabl post-deploy). Older than `mabl-sdlc.yml`;
-  does NOT mirror the GHA's security gate or cycle-time receipt. The
-  GHA workflow is canonical.
-- `scripts/mabl-deployment.sh` — POSTs to mabl `/events/deployment` and
-  polls `/execution/result/event/<id>` with a 60s grace for no-plan-match
-- `scripts/demo-toggle.sh` — flip prod into slow/flaky/broken
-- `docs/SDLC-DEMO.md` — the 5-act customer runbook
-
-## Conventions (don't break these)
-
-- **`data-testid` attributes** are present on every interactive element
-  for mabl selector stability. When you add a new UI element, add a
-  `data-testid` that matches the pattern used nearby (e.g.
-  `data-testid="add-to-cart-${productId}"`).
-- **Demo credentials** are seeded in `src/lib/seed.ts`:
-  `demo@cheapshot.test` / `demo1234` and `admin@cheapshot.test` / `admin1234`.
-  Don't change them without updating `docs/SDLC-DEMO.md` too.
-- **Demo mode toggles** live in a cookie (`csh_demo`) set by middleware
-  from the `?demo=` query param. Values: `normal | slow | flaky | broken`.
-- **Seed product data** is in `src/lib/seed.ts`. Keep brand names fake
-  (Apex, Ironline, Glacier, Coldfire, etc.) so there are no real-brand
-  conflicts with photography.
-- **Guest checkout** is a first-class flow — `Order.userId` is nullable
-  and `Order.guestEmail` fills in. Don't require auth for checkout.
-
-## Build / test / deploy
-
-```bash
-npm run dev     # http://localhost:3000
-npm run build   # Next.js production build (used by Jenkinsfile stage 2)
-npm run lint    # eslint (required gate in GHA + Jenkinsfile stage 3)
-```
-
-Deploys are **automatic** on every push to `main` via Vercel. The
-Jenkins pipeline mirrors a realistic customer CI flow — it does NOT
-deploy, Vercel does; it only triggers mabl to gate.
-
-## When Claude should push back
-
-- **Don't replace real product photos with AI/SVG illustrations.** This
-  was explicitly redone in commit 92e1574 — user called the SVGs "AI
-  slop." Keep real photography.
-- **Don't move cart/recent-orders back into the in-memory store.** That
-  was the serverless bug we fixed in commit e080e6e. Cookies travel
-  with the request; Lambda memory doesn't.
-- **Don't require login for checkout.** Guest checkout is a demo
-  feature.
-
-## Definition of done (agentic — non-negotiable)
-
-Before opening a PR or pushing a branch, Claude MUST run these steps in order:
-
-**1. Unit coverage gate**
-```bash
-npm run test:coverage
-```
-If coverage drops below 90% on any metric, write the missing unit tests and re-run until green. Do not open the PR until this passes. Coverage is scoped to `src/lib/**` — UI and API routes are covered by mabl/newman.
-
-**2. mabl test impact analysis**
-```bash
-git diff --name-only main | node scripts/shift-left/audit.mjs impact -
-```
-The area-coverage engine (`scripts/shift-left/`) reports which mabl tests this
-change impacts: a plain-English `▶ Recommendation`, precise tests (by changed
-`data-testid`), area-level tests (by impacted domain), and a CORE/BROAD flag for
-cross-cutting changes. It's the **same** engine the `test-impact` CI job and the
-agentic DoD check run — all three agree. Review the output. If tests match:
-- Note them explicitly in the PR description under a "Test impact" section
-- Add a Jira comment listing the affected tests so QA can verify
-
-**3. mabl coverage gap check**
-If the change adds new UI flows, pages, or API routes that have no existing mabl test coverage:
-- Use the mabl MCP: `plan_new_test` → `create_mabl_test_cloud` (applicationId=`OZqmshBkUfVSesWy49g1eQ-a`, env=Preview)
-- **Label every created test with its Jira ticket key** (e.g. `TAMD-173`) for ticket→test traceability. Labels are written via the **cloud** mabl MCP `edit_mabl_test` (`add_label`) — the local/headless MCP can't write labels (see TAMD-176). Required at authoring time.
-- Cut a Jira ticket in TAMD to track the new test (link it to the feature ticket)
-- Note the gap, the new ticket, and the applied label in the PR description
-
-**4. Local mabl browser smoke (required when `MABL_CLOUD_GATE=disabled`)**
-```bash
-npm run test:mabl:browser:local        # against the local dev server
-npm run test:mabl:browser:preview      # against the Vercel preview URL
-npm run test:mabl:browser:prod         # against prod (post-deploy verification)
-```
-Wraps `mabl tests run --headless --reporter mabl --allow-billable-features --labels type-rt`. The `--allow-billable-features` flag is required so GenAI assertions in mabl tests actually execute in CLI runs (otherwise they fail with `AI assertions are not available in CLI runs by default`).
-
-Why this exists: when `MABL_CLOUD_GATE` is set to `disabled` (cost-control mode), the cloud `CSH-SMOKE-PR` plan short-circuits with "paused" and PRs get **zero browser-layer verification** in CI. This local gate is the compensating control. Advisory when the cloud gate is `enabled`; required when paused. See TAMD-128 for context.
-
-These four steps are what "done" means for this repo. The GHA `test-impact` job runs the same analysis automatically and posts results as a PR comment — Claude's pre-PR check and the CI job should agree.
-
-## Common PR patterns the user will ask for
-
-1. **"Add a <new feature>"** — add the page/component, keep
-   `data-testid` naming consistent, update the OpenAPI spec if adding
-   an API route, add a line in `docs/SDLC-DEMO.md` if it's demo-worthy.
-2. **"Analyze this mabl failure"** — use the mabl MCP `analyze_failure`
-   tool with the plan run id or link. Cross-reference against the
-   `?demo=flaky|broken` toggle state to distinguish real regressions
-   from simulated failures.
-3. **"Draft a mabl test for X"** — use the mabl MCP `plan_new_test`
-   then `create_mabl_test_cloud` with `applicationId=OZqmshBkUfVSesWy49g1eQ-a`
-   and the appropriate env id. If the work has a Jira ticket, **add the
-   ticket key as a label on each created test** (cloud MCP
-   `edit_mabl_test` → `add_label`) — non-negotiable for traceability
-   (TAMD-176).
-
-## mabl workspace IDs (read-only reference)
-
-```
-MABL_WORKSPACE_ID    pXXgThbNi4HfQOpiZptHfw-w
-MABL_APPLICATION_ID  OZqmshBkUfVSesWy49g1eQ-a
-MABL_ENV_PROD_ID     vwf8Vni5e7H0XTfT5hbi6w-e
-MABL_ENV_PREVIEW_ID  TpuarWvfj1hOREDT0JGvjA-e
-MABL_ENV_LOCAL_ID    DmlIvADtF8jPDm9J7Bpshw-e
-```
-
-Plan-label intersections Jenkins/GHA dispatch (see [`docs/MABL-API-TESTS.md`](docs/MABL-API-TESTS.md)):
-
-```
-PR smoke         → type-smk,exec-pr           → CSH-SMOKE-PR (Preview)
-Post-deploy      → type-smk,exec-postdeploy   → CSH-SMOKE-POSTDEPLOY (Prod)
-Area regression  → type-rt,area-<X>           → matching regression tests
-Nightly          → type-rt                    → all regression tier
-```
-
-## Custom Claude Code subagents
-
-Three repo-level subagents in `.claude/agents/` codify the orchestration
-patterns you'd otherwise re-prompt from scratch. Use the `Agent` tool to
-delegate:
-
-- **`demo-orchestrator`** — drives full ticket-to-prod for a small change
-- **`pr-reviewer`** — convention audit on a PR (read-only)
-- **`mabl-test-author`** — designs new mabl tests, tier-tagged
-
-See `docs/CLAUDE-AGENTS.md` for examples + invocation patterns.
-
-## Security + supply-chain gate
-
-Three pieces. `npm audit` is required (PR #82, 2026-05-21) and CodeQL
-is required (2026-05-26, TAMD-139); Dependabot is advisory:
-
-- **`npm audit --audit-level=high`** runs as the `security` job in
-  `.github/workflows/mabl-sdlc.yml`, alongside `lint`. **Blocks merge
-  on high/critical findings** — one of the 7 required PR checks per
-  `docs/MERGE-POLICY.md`. Moderate vulnerabilities still surface in the
-  run summary but don't block.
-- **CodeQL** runs as a separate workflow at
-  `.github/workflows/codeql.yml` — on every PR + push to main, plus a
-  weekly Monday cron. Uploads SARIF to the GitHub Security tab. Uses
-  the `security-extended` query suite. **Required (2026-05-26,
-  TAMD-139)**: the `CodeQL` check (github-advanced-security app, id
-  57789) is in branch protection; a high-severity code-scanning alert
-  blocks merge. Promoted after a ReDoS shipped to prod under the prior
-  advisory regime (TAMD-138).
-- **Dependabot** (`.github/dependabot.yml`) opens weekly dep-update
-  PRs for npm and `github-actions`. Each PR goes through the same SDLC
-  pipeline as a human PR.
-
-CodeQL was promoted from advisory to required on 2026-05-26 (TAMD-139).
-The baseline was cleared first: two ReDoS findings fixed (TAMD-138 +
-TAMD-139) and one weak-hash finding (`auth-crypto.ts`) dismissed as
-risk-accepted-by-design (fake-auth demo, no real user data) with a
-justification in the Security tab. Accepted findings are dismissed
-with documentation, not left to block.
-
-## Auto-fix workflow (v1 — deterministic)
-
-When a PR's lint fails on a fixable issue (formatting, unused imports,
-etc.), `.github/workflows/auto-fix.yml` runs `eslint --fix` and commits
-the result on the PR branch — re-triggering CI on the cleaned commit.
-
-**Circuit breaker (non-negotiable):** the workflow counts consecutive
-commits authored by `github-actions[bot]` with `auto-fix` in the
-subject. If >= 2, it skips with a Slack notification ("circuit
-breaker tripped — human investigation needed"). This prevents fix-fail
-loops.
-
-**Sandbox:**
-- Only operates on the PR's head branch; never touches main
-- Skips Dependabot PRs (already messy with major bumps)
-- Skips cross-repo fork PRs (security; `GITHUB_TOKEN` can't push back anyway)
-- Single command: `npm run lint -- --fix`. No other shell.
-- Verifies lint actually passes after the fix; reverts if not
-
-v1 is **deterministic** (no LLM). v2 (TAMD-113) layers an Agent SDK
-loop on top for non-formatter fixes (type-annotation typos, missing
-imports beyond eslint's auto-import scope, etc.) — same circuit
-breaker pattern.
-
-Mirrors mabl's published auto-fix-agent pattern with circuit breakers.
-
-## Regression coverage
-
-PR-time tier-4 area-targeted regression was removed in
-`chore/collapse-tier4-matrix`. The PR-time mabl gate (`CSH-SMOKE-PR`
-Preview) covers browser-layer smoke; the nightly workflow
-(`.github/workflows/mabl-nightly.yml`) runs the full `type-rt` suite
-against production via mabl CLI for drift detection.
-
-Optional CI secret: `MABL_API_KEY` (separate from the cloud-API
-`MABL_API_TOKEN`) unlocks the nightly CLI job. Currently NOT set (per
-`gh secret list`) — the nightly runs but skips with a warning.
-
-## Cost + cycle-time receipt per ticket
-
-Every shipped ticket gets a final `:receipt:` Slack post computed by
-`scripts/cycle-time-receipt.sh`. Metrics:
-
-- **Lead time** — PR-open → merged, humanized (e.g. `8m`, `2h 14m`)
-- **GHA minutes** — sum of all workflow run durations across the PR's
-  CI runs + the main-push run
-- **CI attempts** — count of pull_request workflow runs on the PR head,
-  split by `failure` vs `success`. Surfaces "this PR took 4 attempts"
-  friction signal.
-- **Human touches** — review count + approver handles + manual rerun
-  count (`workflow_dispatch` events AND `run_attempt > 1` UI-driven
-  reruns on head_sha). Says `0 reviews, 0 manual reruns (fully
-  autonomous)` only when nothing humans did.
-
-Fully deterministic — no LLM calls. All creds (`GITHUB_TOKEN`,
-`MABL_API_TOKEN`, `MABL_APPLICATION_ID`) are already wired for other gates.
-
-Customer ROI story: per-ticket cost AND friction (retries, human touches)
-are **auditable** and **trend over time** with no special instrumentation.
-The receipt is a single Slack message at ship time — readable in the
-channel, parseable from history.
-
-## Cost-control: pausing mabl cloud runs
-
-Each PR fires 2 mabl cloud plan runs (`CSH-SMOKE-PR` Preview + `CSH-SMOKE-POSTDEPLOY` Prod). For dev iteration / build-out phases where cost matters more than per-PR UI verification, set the `MABL_CLOUD_GATE` repo variable to `disabled`:
-
-```bash
-gh variable set MABL_CLOUD_GATE --body "disabled" --repo OWNER/REPO
-```
-
-The mabl jobs still run (so branch protection stays satisfied) but skip the `mabl-deployment.sh` invocation. ci-notify posts a clear "mabl cloud gate paused" message instead of the usual mabl gate posts. T1 newman API smoke (local CLI, no mabl charge) remains the always-on review surface. Reenable:
-
-```bash
-gh variable set MABL_CLOUD_GATE --body "enabled" --repo OWNER/REPO
-```
-
-(Or unset entirely — default is `enabled` when missing.)
-
-When disabled, you lose: browser-layer UI verification on every PR, post-deploy mabl verification, and mabl's native Slack screenshots. Acceptable for build-out; reenable for release-candidate runs.
-
-**Compensating local control:** when paused, the DoD pass MUST run `npm run test:mabl:browser:local` (or `:preview`) — that wraps `mabl tests run --headless --allow-billable-features --labels type-rt` and exercises the browser layer locally. See step 4 of the *Definition of done* above. The script is `scripts/mabl-local-cli.sh`.
-
-## Plan-mode for high-blast-radius changes
-
-Before opening a PR, the orchestrator subagent runs the deterministic
-blast-radius detector at `scripts/orchestrator-plan/detect-blast-radius.js`.
-It reads `git diff --numstat main` and flags `blast_radius: "high"`
-when any of these are touched: `src/lib/auth*`, `src/lib/session*`,
-`src/app/api/auth/**`, `src/app/api/openapi/**`, `mabl/postman/**`,
-`.github/workflows/**`, `scripts/ci-notify.sh`,
-`scripts/orchestrator-plan/**`, `.claude/agents/**`,
-`src/lib/store.ts`, `src/lib/seed.ts`, `src/lib/types.ts`, OR total
-LOC delta exceeds 200.
-
-When it fires, the orchestrator emits a structured plan in Jira
-wiki-markup and posts it to the ticket via
-`scripts/orchestrator-plan/post-plan.sh`. The human reviews the plan
-in Jira, then replies *Approved* (or *Reject: <reason>*) to the
-orchestrator in Claude Code. The orchestrator only proceeds to commit
-+ push + PR after explicit approval.
-
-This closes the *"AI just merges to prod?"* objection: high-risk
-changes pause for a human checkpoint by deterministic rule, not by
-prompt convention. Detection combines:
-
-- **Path-based** (high-risk surfaces): `src/lib/auth*`, API contract,
-  CI infra, agent prompts, shared data layer
-- **LOC threshold**: > 200 lines added+removed
-- **Breaking-change signals** (deterministic from diff): removed
-  exports in TS/TSX, scope > 5 files, new `package.json` dependencies
-
-## Post-deploy failure response
-
-When `mabl CSH-SMOKE-POSTDEPLOY` (or T1 newman Prod) fails on `main`,
-`scripts/ci-notify.sh fail "Prod post-deploy failed"` posts a
-deterministic Slack alert with links to the failing run + mabl plan.
-A human triages from there — investigate the failed test, decide
-revert vs forward-fix, act manually. No autonomous LLM-driven
-diagnosis in v1.
-
-An earlier implementation included an Agent SDK loop that emitted a
-structured recommendation (revert / forward-fix / page-human) on each
-post-deploy failure. That code is preserved at git tag
-`archive/recovery-agent-and-receipts-v1` and can be reinstated by a
-fork that has `ANTHROPIC_API_KEY` configured.
-
-## Ticket-to-prod demo narration
-
-When the user is driving a ticket-to-prod demo and Claude should
-narrate CI events (because `SLACK_WEBHOOK_URL` isn't set), follow the
-canonical spec in `docs/MCP-NARRATION-PLAYBOOK.md`. Summary:
-
-- **Channel:** `#vince-agentic-workflow-demos` (`C0A321B477Y`)
-- **All messages at channel root, prefixed `[TAMD-XX]`** — Slack
-  Workflow Builder webhooks can't thread, so we don't use threads.
-  Per-ticket grouping uses the prefix + `Cmd+F`.
-- **Gate messages** match the format `scripts/ci-notify.sh` would
-  post — same canonical event format on both transports (autonomous
-  webhook + interactive MCP), though dialect differs (see playbook).
-- **Comment on Jira** in parallel, with the same metrics + links
-- **Auto-transition tickets**: To Do → In Progress on first CI green,
-  In Progress → Done on post-deploy ship
-
-## Deploy safety
-
-- The entire demo is ephemeral — no real customer data, no real
-  payments. The `"shipping cost: 0.00"` at checkout is a deliberate
-  demo convenience (free shipping over $99).
-- `?demo=broken` makes production return 503s. **Always reset with
-  `?demo=normal` after a demo.** `scripts/demo-toggle.sh normal` does it.
+Next.js 16 App Router + React 19 + TypeScript, Tailwind v4, Vercel (production
+deploys from `main`), Postgres (Neon) for users and orders.
+
+This is **not** the Next.js in your training data: APIs and conventions changed.
+Read the relevant guide in `node_modules/next/dist/docs/` before writing code.
+
+## Conventions
+
+- Every interactive element gets a `data-testid` matching the pattern nearby
+  (e.g. `add-to-cart-${productId}`).
+- Carts and recent guest orders stay in cookies (`src/lib/cart-cookie.ts`,
+  `src/lib/order-cookie.ts`); serverless instances don't share memory.
+- Guest checkout stays; never require login to check out.
+- Seeded demo accounts in `src/lib/seed.ts` (`demo@cheapshot.test`,
+  `admin@cheapshot.test`) don't change.
+- Keep brand names fake and product photos real (`public/product-photos/`).
+- Comments only where the code can't say it.
+
+## Work
+
+- One TAMD Jira ticket per piece of work. Branch `TAMD-N/<slug>`, commits
+  prefixed `TAMD-N: `.
+- Use `/ship TAMD-N` (`.claude/skills/ship/`) to take a ticket to a PR.
+- Before pushing: `npm run lint && npm test && npm run build`.
+- Never apply `human-approved` or `test-impact-gate-exempt`, merge a mabl
+  branch, or promote production. Those are the human's.
+- Never start mabl cloud runs from the agent; CI starts them. Local CLI runs
+  are free.
+
+## Gates
+
+Required on `main`: `lint`, `unit`, `build`, `dependency-review`, `CodeQL`,
+`mabl-smoke`, `mabl-impact`, `human-approved`. `MABL_CLOUD_GATE=disabled`
+pauses mabl cloud runs; the mabl jobs then pass and say "paused".
+
+## mabl
+
+Use the mabl skills plugin (`mabl@mabl`, enabled in `.claude/settings.json`):
+`mabl-test-impact`, `mabl-test-authoring`, `mabl-test-coverage-design`,
+`mabl-test-edit`, `mabl-test-edit-verify`, `mabl-version-compare`, `mabl-debug`.
+
+| | ID |
+|---|---|
+| Workspace "Cheap Shot Hockey Demo" | `pXXgThbNi4HfQOpiZptHfw-w` |
+| Application "Cheap Shot Hockey" | `OZqmshBkUfVSesWy49g1eQ-a` |
+| Preview environment (default) | `TpuarWvfj1hOREDT0JGvjA-e` — pass the PR preview URL as the URL override |
+| Production environment | `vwf8Vni5e7H0XTfT5hbi6w-e` |
+| Local environment | `DmlIvADtF8jPDm9J7Bpshw-e` — http://localhost:3000 |
+| Credential "Demo customer" | `JxWK20l5gOOFOtWjaJHfOg-c` |
+| Credential "Admin user" | `cllS2frME2tXYwTOu5cJrw-c` |
+
+Labels: `type-smk` + `exec-pr` / `exec-postdeploy` (smoke plans), `type-rt`
+(full regression, nightly), `area-*` (app area), `exhibit` (fails on purpose;
+never `type-rt`), and the ticket key on every test created for a ticket.
+
+Test edits for a PR happen on the mabl branch named exactly after the git
+branch. Failure triage: `analyze_mabl_failure` / `analyze_mabl_results` on the
+run; "can we ship?": `check_release_readiness` on the deployment.

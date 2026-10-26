@@ -7,7 +7,6 @@ import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
-import { DemoBanner } from "@/components/DemoBanner";
 import { MemorialDayBanner } from "@/components/MemorialDayBanner";
 import { PromoStrip } from "@/components/PromoStrip";
 
@@ -43,7 +42,6 @@ export default async function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <DemoBanner />
           <MemorialDayBanner />
           <PromoStrip />
           <Nav />

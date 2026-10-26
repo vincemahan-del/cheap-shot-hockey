@@ -85,4 +85,3 @@ export interface Order {
   createdAt: string;
 }
 
-export type DemoMode = "normal" | "slow" | "flaky" | "broken";

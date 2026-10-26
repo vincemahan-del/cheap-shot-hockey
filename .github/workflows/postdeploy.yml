@@ -1,0 +1,72 @@
+name: postdeploy
+
+# After a merge, wait until production serves the merged commit, then run
+# CSH-SMOKE-POSTDEPLOY against it.
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: postdeploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  MABL_CLI_VERSION: 2.138.25
+  PROD_URL: https://cheap-shot-hockey.vercel.app
+
+jobs:
+  mabl-postdeploy:
+    name: mabl-postdeploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MABL_API_KEY: ${{ secrets.MABL_API_KEY }}
+      APP_ID: ${{ secrets.MABL_APPLICATION_ID }}
+      ENV_ID: ${{ secrets.MABL_ENV_PROD_ID }}
+      CLOUD_GATE: ${{ vars.MABL_CLOUD_GATE || 'enabled' }}
+    steps:
+      - name: wait for production to serve this commit
+        run: |
+          for _ in $(seq 1 60); do
+            served=$(curl -fsS -m 5 "$PROD_URL/api/build-info" | jq -r '.commit // empty' || true)
+            if [ "$served" = "$GITHUB_SHA" ]; then
+              echo "Production is on $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Production never served $GITHUB_SHA"
+          exit 1
+      - name: paused
+        if: env.CLOUD_GATE == 'disabled'
+        run: echo "mabl cloud runs paused (MABL_CLOUD_GATE=disabled); post-deploy smoke not run." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/checkout@v4
+        if: env.CLOUD_GATE != 'disabled'
+      - uses: actions/setup-node@v4
+        if: env.CLOUD_GATE != 'disabled'
+        with:
+          node-version-file: .nvmrc
+      - name: CSH-SMOKE-POSTDEPLOY on production
+        if: env.CLOUD_GATE != 'disabled'
+        run: |
+          npm install -g "@mablhq/mabl-cli@$MABL_CLI_VERSION"
+          mabl auth activate-key "$MABL_API_KEY"
+          status=0
+          mabl deployments create -a "$APP_ID" -e "$ENV_ID" \
+            --labels exec-postdeploy \
+            --app-url "$PROD_URL" --api-url "$PROD_URL/api" \
+            --revision "$GITHUB_SHA" \
+            --repository-url "https://github.com/$GITHUB_REPOSITORY" \
+            --await-completion -o json > deployment.json || status=$?
+          total=$(jq '.execution_results.plan_execution_metrics.total // 0' deployment.json)
+          failed=$(jq '.execution_results.plan_execution_metrics.failed // 0' deployment.json)
+          echo "mabl post-deploy: $total plan(s), $failed failed — $(jq -r '.href // empty' deployment.json)" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$total" -eq 0 ]; then
+            echo "::error::No mabl plan matched; nothing was tested"
+            exit 1
+          fi
+          [ "$status" -eq 0 ] && [ "$failed" -eq 0 ]
