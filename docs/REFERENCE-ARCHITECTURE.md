@@ -42,7 +42,8 @@ PR (ci.yml)
                            retry once, each with its plan's login) → PR comment
   human-approved (label)
 merge → Vercel production
-  postdeploy.yml  CSH-SMOKE-POSTDEPLOY on this commit's production build (unique URL)
+  postdeploy.yml  CSH-SMOKE-POSTDEPLOY on this commit's production build (unique URL),
+                  after app-changing merges only
   human merges the mabl branch (after merge-status)
 nightly.yml
   full type-rt regression locally vs prod → failures re-run once in the cloud
@@ -89,4 +90,5 @@ These deny rules are guardrails on the agent, not a security boundary.
 | Plans | `CSH-SMOKE-PR` (label `exec-pr`), `CSH-SMOKE-POSTDEPLOY` (`exec-postdeploy`) |
 | Regression | label `type-rt`; intentional-failure tests carry `exhibit` and never `type-rt` |
 | Secrets | `MABL_API_KEY`, `MABL_APPLICATION_ID`, `MABL_ENV_PREVIEW_ID`, `MABL_ENV_PROD_ID` (Actions and Dependabot) |
+| When mabl runs | App-changing PRs and merges (`scripts/app-changed.sh`); Dependabot PRs smoke only; docs/CI-only skip |
 | Pause switch | repo variable `MABL_CLOUD_GATE=disabled` |

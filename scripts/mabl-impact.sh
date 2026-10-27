@@ -5,7 +5,8 @@
 # decides pass/fail from mabl's results.
 #
 # Env: WORKSPACE_ID APP_ID ENV_ID PREVIEW_URL HEAD_SHA HEAD_REF REPO PR_NUMBER PR_URL
-#      PR_TITLE PR_BODY GH_TOKEN; optional CLOUD_GATE (disabled = skip).
+#      PR_TITLE PR_BODY GH_TOKEN; optional CLOUD_GATE (disabled = skip),
+#      APP_CHANGED (false = skip), IS_DEPENDABOT (true = skip; smoke only).
 set -euo pipefail
 
 CAP=10
@@ -17,14 +18,38 @@ comment() {
   local body="$MARKER"$'\n'"$1"
   local id
   id=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
-    --jq "[.[] | select(.body | startswith(\"$MARKER\"))][0].id // empty")
+    --jq "[.[] | select(.body | startswith(\"$MARKER\"))][0].id // empty" 2>/dev/null || true)
+  # Dependabot runs get a read-only token, so a failed post must not fail the gate.
   if [[ -n "$id" ]]; then
-    gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" >/dev/null
+    gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" >/dev/null || echo "::warning::could not update the PR comment"
   else
-    gh api "repos/$REPO/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null
+    gh api "repos/$REPO/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null || echo "::warning::could not post the PR comment"
   fi
   printf '%s\n' "$1" >> "$SUMMARY"
 }
+
+# Labels are read live (not from the event payload) so re-running the job
+# after adding the exempt label picks it up.
+labels=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels --jq '[.labels[].name] | join(" ")')
+if [[ " $labels " == *" $EXEMPT_LABEL "* ]]; then
+  comment "### mabl test impact — exempt
+\`$EXEMPT_LABEL\` is applied, so impacted tests were not run."
+  exit 0
+fi
+
+skip=""
+if [[ "${CLOUD_GATE:-enabled}" == "disabled" ]]; then
+  skip="Cloud runs are paused (\`MABL_CLOUD_GATE=disabled\`)."
+elif [[ "${APP_CHANGED:-true}" != "true" ]]; then
+  skip="No app change in this PR."
+elif [[ "${IS_DEPENDABOT:-false}" == "true" ]]; then
+  skip="Dependabot PR: smoke only."
+fi
+if [[ -n "$skip" ]]; then
+  comment "### mabl test impact — skipped
+$skip No analysis or runs."
+  exit 0
+fi
 
 # The PR's mabl branch has the git branch's name. Detect it from the open-branch
 # list: mabl's by-name lookup fails on "/" names.
@@ -36,21 +61,6 @@ if mabl branches list -s open -l 100 -o json -w "$WORKSPACE_ID" 2>/dev/null \
   echo "mabl branch: $MABL_BRANCH" | tee -a "$SUMMARY"
 else
   echo "mabl branch: master ($MABL_BRANCH not found)" | tee -a "$SUMMARY"
-fi
-
-# Labels are read live (not from the event payload) so re-running the job
-# after adding the exempt label picks it up.
-labels=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels --jq '[.labels[].name] | join(" ")')
-if [[ " $labels " == *" $EXEMPT_LABEL "* ]]; then
-  comment "### mabl test impact — exempt
-\`$EXEMPT_LABEL\` is applied, so impacted tests were not run."
-  exit 0
-fi
-
-if [[ "${CLOUD_GATE:-enabled}" == "disabled" ]]; then
-  comment "### mabl test impact — paused
-Cloud runs are paused (\`MABL_CLOUD_GATE=disabled\`). No analysis or runs."
-  exit 0
 fi
 
 # Change description: the PR body's "## Change description" section (written

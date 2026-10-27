@@ -21,8 +21,11 @@ and a human approves every merge.
 | Merge to `main` (`postdeploy.yml`) | Vercel deploys production; `CSH-SMOKE-POSTDEPLOY` runs on that exact build by its unique URL | — |
 | Nightly (`nightly.yml`) | Full `type-rt` regression locally on the runner against prod (0 credits); local failures re-run once in the cloud for mabl's failure analysis | — |
 
-Repo variable `MABL_CLOUD_GATE=disabled` pauses every mabl cloud run (the jobs
-report "paused" in their summary).
+**When mabl runs in the cloud:** only for PRs and merges that change app code
+(`src/`, `messages/`, `public/`, package files, Next/TS config, `.nvmrc`) or the
+gate itself. Docs- and CI-only changes skip mabl and the checks say why.
+Dependabot PRs get the smoke gate only. Repo variable `MABL_CLOUD_GATE=disabled`
+pauses every mabl cloud run. Expect roughly 20–35 credits a week at ~3 PRs a week.
 
 ## The app
 
