@@ -92,11 +92,31 @@ jobs:
           echo "::error::No healthy Vercel preview for $SHA after 10 minutes"
           exit 1
 
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      app: ${{ steps.detect.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          app=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --name-only | bash scripts/app-changed.sh)
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+          echo "App change: $app" >> "$GITHUB_STEP_SUMMARY"
+
   mabl-smoke:
     name: mabl-smoke
-    needs: [build, preview]
+    needs: [build, preview, changes]
     runs-on: ubuntu-latest
     env:
+      APP_CHANGED: ${{ needs.changes.outputs.app }}
       MABL_API_KEY: ${{ secrets.MABL_API_KEY }}
       WORKSPACE_ID: ${{ secrets.MABL_WORKSPACE_ID }}
       APP_ID: ${{ secrets.MABL_APPLICATION_ID }}
@@ -106,21 +126,29 @@ jobs:
       HEAD_REF: ${{ github.head_ref }}
       CLOUD_GATE: ${{ vars.MABL_CLOUD_GATE || 'enabled' }}
     steps:
-      - name: paused
-        if: env.CLOUD_GATE == 'disabled'
-        run: echo "mabl cloud runs paused (MABL_CLOUD_GATE=disabled); smoke not run." >> "$GITHUB_STEP_SUMMARY"
+      - name: decide
+        run: |
+          if [ "$CLOUD_GATE" = "disabled" ]; then reason="mabl cloud runs paused (MABL_CLOUD_GATE=disabled)"
+          elif [ "$APP_CHANGED" != "true" ]; then reason="no app change in this PR"
+          fi
+          if [ -n "${reason:-}" ]; then
+            echo "RUN_MABL=false" >> "$GITHUB_ENV"
+            echo "Smoke not run: $reason." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "RUN_MABL=true" >> "$GITHUB_ENV"
+          fi
       - uses: actions/checkout@v4
-        if: env.CLOUD_GATE != 'disabled'
+        if: env.RUN_MABL == 'true'
       - uses: actions/setup-node@v4
-        if: env.CLOUD_GATE != 'disabled'
+        if: env.RUN_MABL == 'true'
         with:
           node-version-file: .nvmrc
-      - if: env.CLOUD_GATE != 'disabled'
+      - if: env.RUN_MABL == 'true'
         run: |
           npm install -g "@mablhq/mabl-cli@$MABL_CLI_VERSION"
           mabl auth activate-key "$MABL_API_KEY"
       - name: CSH-SMOKE-PR on this PR's preview
-        if: env.CLOUD_GATE != 'disabled'
+        if: env.RUN_MABL == 'true'
         run: |
           # The PR's mabl branch has the git branch's name; --auto-branch resolves
           # it (mabl's by-name lookup fails on "/" names).
@@ -149,7 +177,7 @@ jobs:
 
   mabl-impact:
     name: mabl-impact
-    needs: [build, preview]
+    needs: [build, preview, changes]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -170,12 +198,15 @@ jobs:
       PR_BODY: ${{ github.event.pull_request.body }}
       DEFAULT_CREDENTIALS_ID: JxWK20l5gOOFOtWjaJHfOg-c
       CLOUD_GATE: ${{ vars.MABL_CLOUD_GATE || 'enabled' }}
+      APP_CHANGED: ${{ needs.changes.outputs.app }}
+      IS_DEPENDABOT: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-      - run: |
+      - if: env.CLOUD_GATE != 'disabled' && env.APP_CHANGED == 'true' && env.IS_DEPENDABOT != 'true'
+        run: |
           npm install -g "@mablhq/mabl-cli@$MABL_CLI_VERSION"
           mabl auth activate-key "$MABL_API_KEY"
       - run: bash scripts/mabl-impact.sh

@@ -1,7 +1,7 @@
 name: postdeploy
 
-# After a merge, find this commit's production build by its unique URL and run
-# CSH-SMOKE-POSTDEPLOY against that exact build.
+# After a merge that changes app code, find this commit's production build by
+# its unique URL and run CSH-SMOKE-POSTDEPLOY against that exact build.
 
 on:
   push:
@@ -30,7 +30,25 @@ jobs:
       ENV_ID: ${{ secrets.MABL_ENV_PROD_ID }}
       CLOUD_GATE: ${{ vars.MABL_CLOUD_GATE || 'enabled' }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: decide
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          app=$(git diff --name-only "$BEFORE" "$GITHUB_SHA" | bash scripts/app-changed.sh)
+          if [ "$CLOUD_GATE" = "disabled" ]; then reason="mabl cloud runs paused (MABL_CLOUD_GATE=disabled)"
+          elif [ "$app" != "true" ]; then reason="no app change in this merge"
+          fi
+          if [ -n "${reason:-}" ]; then
+            echo "RUN_MABL=false" >> "$GITHUB_ENV"
+            echo "Post-deploy smoke not run: $reason." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "RUN_MABL=true" >> "$GITHUB_ENV"
+          fi
       - name: wait for this commit's production build
+        if: env.RUN_MABL == 'true'
         id: prod
         run: |
           for _ in $(seq 1 60); do
@@ -48,17 +66,12 @@ jobs:
           done
           echo "::error::No production build for $GITHUB_SHA after 10 minutes"
           exit 1
-      - name: paused
-        if: env.CLOUD_GATE == 'disabled'
-        run: echo "mabl cloud runs paused (MABL_CLOUD_GATE=disabled); post-deploy smoke not run." >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/checkout@v4
-        if: env.CLOUD_GATE != 'disabled'
       - uses: actions/setup-node@v4
-        if: env.CLOUD_GATE != 'disabled'
+        if: env.RUN_MABL == 'true'
         with:
           node-version-file: .nvmrc
       - name: CSH-SMOKE-POSTDEPLOY on this production build
-        if: env.CLOUD_GATE != 'disabled'
+        if: env.RUN_MABL == 'true'
         env:
           PROD_BUILD_URL: ${{ steps.prod.outputs.url }}
         run: |

@@ -39,8 +39,10 @@ Read the relevant guide in `node_modules/next/dist/docs/` before writing code.
 ## Gates
 
 Required on `main`: `lint`, `unit`, `build`, `dependency-review`, `CodeQL`,
-`mabl-smoke`, `mabl-impact`, `human-approved`. `MABL_CLOUD_GATE=disabled`
-pauses mabl cloud runs; the mabl jobs then pass and say "paused".
+`mabl-smoke`, `mabl-impact`, `human-approved`. The mabl gates run in the cloud
+only when the PR changes app code or the gate (`scripts/app-changed.sh`);
+otherwise they pass and say why. Dependabot PRs get smoke only.
+`MABL_CLOUD_GATE=disabled` pauses all mabl cloud runs.
 
 ## mabl
 
