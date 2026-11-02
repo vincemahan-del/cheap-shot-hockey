@@ -82,8 +82,10 @@ mabl tests impact -a "$APP_ID" \
   -o json > impact.json
 
 session=$(jq -r '.session_id' impact.json)
+# exec-pr tests already run in mabl-smoke on the same preview.
 jq -c "[.tests[] | select(.run_context.enabled != false)
-  | select((.run_context.labels // []) | index(\"exhibit\") | not)]" impact.json > eligible.json
+  | select((.run_context.labels // []) | index(\"exhibit\") | not)
+  | select((.run_context.labels // []) | index(\"exec-pr\") | not)]" impact.json > eligible.json
 # seed-db tests seed through mabl's DB connection, which points at production;
 # previews have their own database, so those tests run only against production.
 jq -c "[.[] | select((.run_context.labels // []) | index(\"seed-db\") | not)] | .[:$CAP]" eligible.json > selected.json
