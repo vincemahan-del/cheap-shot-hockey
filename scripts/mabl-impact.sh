@@ -83,13 +83,21 @@ mabl tests impact -a "$APP_ID" \
 
 session=$(jq -r '.session_id' impact.json)
 jq -c "[.tests[] | select(.run_context.enabled != false)
-  | select((.run_context.labels // []) | index(\"exhibit\") | not)] | .[:$CAP]" impact.json > selected.json
+  | select((.run_context.labels // []) | index(\"exhibit\") | not)]" impact.json > eligible.json
+# seed-db tests seed through mabl's DB connection, which points at production;
+# previews have their own database, so those tests run only against production.
+jq -c "[.[] | select((.run_context.labels // []) | index(\"seed-db\") | not)] | .[:$CAP]" eligible.json > selected.json
+skipped=$(jq -r '.[] | select((.run_context.labels // []) | index("seed-db")) | "- \(.test_name)"' eligible.json)
 count=$(jq 'length' selected.json)
 gaps=$(jq -r '.coverage_gaps[]? | "- " + (if type == "string" then . else (.description // .area // tostring) end)' impact.json)
+skipped_note=${skipped:+
+**Not run on the preview** (\`seed-db\`: they seed the production database; \`type-rt\` ones run in the nightly)
+$skipped}
 
 if [[ "$count" -eq 0 ]]; then
   comment "### mabl test impact — no impacted tests
 $(jq -r '.summary' impact.json)
+$skipped_note
 ${gaps:+
 **Coverage gaps**
 $gaps}"
@@ -134,6 +142,7 @@ $(jq -r '.summary' impact.json)
 | Test | Expected | Result |
 |---|---|---|
 $rows
+$skipped_note
 ${gaps:+
 **Coverage gaps**
 $gaps}

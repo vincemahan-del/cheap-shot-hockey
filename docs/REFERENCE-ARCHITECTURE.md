@@ -89,6 +89,7 @@ These deny rules are guardrails on the agent, not a security boundary.
 | Environments | Preview `TpuarWvfj1hOREDT0JGvjA-e`, Production `vwf8Vni5e7H0XTfT5hbi6w-e` |
 | Plans | `CSH-SMOKE-PR` (label `exec-pr`), `CSH-SMOKE-POSTDEPLOY` (`exec-postdeploy`) |
 | Regression | label `type-rt`; intentional-failure tests carry `exhibit` and never `type-rt` |
+| Databases | Previews use Neon branch `preview`; production uses `main`. mabl's DB connection points at production, so `mabl-impact` skips `seed-db` tests; those with `type-rt` run in the nightly |
 | Secrets | `MABL_API_KEY`, `MABL_APPLICATION_ID`, `MABL_ENV_PREVIEW_ID`, `MABL_ENV_PROD_ID` (Actions and Dependabot) |
 | When mabl runs | App-changing PRs and merges (`scripts/app-changed.sh`); Dependabot PRs smoke only; docs/CI-only skip |
 | Pause switch | repo variable `MABL_CLOUD_GATE=disabled` |
