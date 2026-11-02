@@ -17,6 +17,7 @@ export default defineConfig({
         "src/lib/session.ts",
         "src/lib/cart-cookie.ts",
         "src/lib/order-cookie.ts",
+        "src/lib/promo-cookie.ts",
         "src/lib/guest-orders.ts",
         "src/lib/orders-db.ts",
         "src/lib/users-db.ts",

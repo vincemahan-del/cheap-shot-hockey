@@ -99,7 +99,23 @@
     "placingOrder": "Traitement de la commande…",
     "placeGuestOrder": "Commander en tant qu'invité",
     "placeOrder": "Passer la commande",
-    "demoNotice": "Aucun paiement réel n'est prélevé — il s'agit d'une boutique de démonstration."
+    "demoNotice": "Aucun paiement réel n'est prélevé — il s'agit d'une boutique de démonstration.",
+    "discount": "Rabais",
+    "promo": {
+      "label": "Code promo",
+      "placeholder": "Entrez un code",
+      "apply": "Appliquer",
+      "applied": "Appliqué :",
+      "remove": "Retirer",
+      "failed": "Impossible d'appliquer ce code. Réessayez.",
+      "reasons": {
+        "empty": "Entrez un code promo.",
+        "unknown": "Ce code promo n'est pas valide.",
+        "expired": "Ce code promo est expiré.",
+        "region": "Ce code promo n'est pas offert dans votre région.",
+        "min_subtotal": "Ce code exige un sous-total d'au moins {min}."
+      }
+    }
   },
   "footer": {
     "tagline": "De l'équipement de hockey à prix imbattable. Équipement de joueur et de gardien expédié rapidement depuis notre pro shop.",

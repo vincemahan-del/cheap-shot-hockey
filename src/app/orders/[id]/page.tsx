@@ -81,6 +81,14 @@ export default async function OrderDetailPage({
             <span className="text-[color:var(--muted)]">Subtotal</span>
             <span data-testid="order-subtotal">{formatPrice(order.subtotalCents, order.region)}</span>
           </div>
+          {(order.discountCents ?? 0) > 0 && (
+            <div className="flex justify-between">
+              <span className="text-[color:var(--muted)]">Discount ({order.promoCode})</span>
+              <span data-testid="order-discount">
+                −{formatPrice(order.discountCents ?? 0, order.region)}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-[color:var(--muted)]">Tax</span>
             <span data-testid="order-tax">{formatPrice(order.taxCents, order.region)}</span>
