@@ -61,7 +61,7 @@
     "empty": "Votre panier est vide. Le temps de faire le plein.",
     "startShopping": "Commencer à magasiner",
     "qualifyFree": "Vous avez droit à la LIVRAISON GRATUITE",
-    "addMoreForFree": "Ajoutez {amount} de plus pour la LIVRAISON GRATUITE",
+    "addMoreForFree": "Plus que {amount} pour la LIVRAISON GRATUITE",
     "each": "chacun",
     "summary": "Sommaire",
     "subtotal": "Sous-total",

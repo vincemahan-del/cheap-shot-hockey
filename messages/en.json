@@ -61,7 +61,7 @@
     "empty": "Your cart is empty. Time to load up.",
     "startShopping": "Start shopping",
     "qualifyFree": "You qualify for FREE shipping",
-    "addMoreForFree": "Add {amount} more for FREE shipping",
+    "addMoreForFree": "You're {amount} away from FREE shipping",
     "each": "each",
     "summary": "Summary",
     "subtotal": "Subtotal",
