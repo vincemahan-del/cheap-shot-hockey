@@ -6,7 +6,8 @@
 #
 # Env: WORKSPACE_ID APP_ID ENV_ID PREVIEW_URL HEAD_SHA HEAD_REF REPO PR_NUMBER PR_URL
 #      PR_TITLE PR_BODY GH_TOKEN; optional CLOUD_GATE (disabled = skip),
-#      APP_CHANGED (false = skip), IS_DEPENDABOT (true = skip; smoke only).
+#      APP_CHANGED (false = skip), IS_DEPENDABOT (true = skip; smoke only),
+#      IS_DRAFT (true = skip until ready for review).
 set -euo pipefail
 
 CAP=10
@@ -44,6 +45,8 @@ elif [[ "${APP_CHANGED:-true}" != "true" ]]; then
   skip="No app change in this PR."
 elif [[ "${IS_DEPENDABOT:-false}" == "true" ]]; then
   skip="Dependabot PR: smoke only."
+elif [[ "${IS_DRAFT:-false}" == "true" ]]; then
+  skip="Draft PR: runs when it is marked ready for review."
 fi
 if [[ -n "$skip" ]]; then
   comment "### mabl test impact — skipped

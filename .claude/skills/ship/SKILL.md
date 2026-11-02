@@ -29,9 +29,10 @@ running preview; a human approves. You never push, merge a mabl branch, apply
 - Verify each edit with `mabl-test-edit-verify`.
 
 ## 5. Run locally (0 credits)
-- `mabl tests run --id <test> --mabl-branch <branch> --headless --url http://localhost:3000`
-  for each edited or impacted test, against `npm run dev`. Never start cloud
-  runs; CI does that.
+- With `npm run dev` up: `scripts/mabl-local.sh run <test-id>...` for each
+  edited test, then `scripts/mabl-local.sh smoke`. It runs serially on the mabl
+  branch named after the git branch. AI assertions need `MABL_LOCAL_AI=1`.
+  Never start cloud runs; CI does that.
 
 ## 6. Write the PR body
 ```

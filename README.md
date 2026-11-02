@@ -13,9 +13,9 @@ and a human approves every merge.
 
 | When | What runs | Gate |
 |---|---|---|
-| Developer, before the PR | `/ship TAMD-N` (Claude Code + the mabl skills plugin): implement → mabl test impact → edit tests on a mabl branch named after the git branch → local mabl run (0 credits) → human "go" | — |
+| Developer, before the PR | `/ship TAMD-N` (Claude Code + the mabl skills plugin): implement → mabl test impact → edit tests on a mabl branch named after the git branch → local mabl runs with `scripts/mabl-local.sh` against `npm run dev` (0 credits) → human "go" | — |
 | Every PR (`ci.yml`) | `lint`, `unit`, `build`, `dependency-review`, `CodeQL` | required |
-| | `mabl-smoke`: `CSH-SMOKE-PR` on **this PR's** Vercel preview | required |
+| | `mabl-smoke`: `CSH-SMOKE-PR` on **this PR's** Vercel preview (both mabl gates wait until a draft is marked ready) | required |
 | | `mabl-impact`: mabl test impact analysis picks the existing tests the change reaches (the changed behavior, then its blast radius, up to 10, skipping tests `mabl-smoke` already runs) and runs them on the preview; sticky PR comment | required (`test-impact-gate-exempt` waives) |
 | | Copilot code review: requested on every PR and push by a repository ruleset; a different vendor from the coding agent reviews its code | advisory |
 | | `human-approved`: a maintainer applies the label | required |

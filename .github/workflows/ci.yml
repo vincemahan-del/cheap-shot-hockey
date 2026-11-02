@@ -6,6 +6,7 @@ name: ci
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
   group: ci-${{ github.event.pull_request.number }}
@@ -125,11 +126,13 @@ jobs:
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       HEAD_REF: ${{ github.head_ref }}
       CLOUD_GATE: ${{ vars.MABL_CLOUD_GATE || 'enabled' }}
+      IS_DRAFT: ${{ github.event.pull_request.draft }}
     steps:
       - name: decide
         run: |
           if [ "$CLOUD_GATE" = "disabled" ]; then reason="mabl cloud runs paused (MABL_CLOUD_GATE=disabled)"
           elif [ "$APP_CHANGED" != "true" ]; then reason="no app change in this PR"
+          elif [ "$IS_DRAFT" = "true" ]; then reason="draft PR; runs when marked ready for review"
           fi
           if [ -n "${reason:-}" ]; then
             echo "RUN_MABL=false" >> "$GITHUB_ENV"
@@ -200,12 +203,13 @@ jobs:
       CLOUD_GATE: ${{ vars.MABL_CLOUD_GATE || 'enabled' }}
       APP_CHANGED: ${{ needs.changes.outputs.app }}
       IS_DEPENDABOT: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
+      IS_DRAFT: ${{ github.event.pull_request.draft }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-      - if: env.CLOUD_GATE != 'disabled' && env.APP_CHANGED == 'true' && env.IS_DEPENDABOT != 'true'
+      - if: env.CLOUD_GATE != 'disabled' && env.APP_CHANGED == 'true' && env.IS_DEPENDABOT != 'true' && env.IS_DRAFT != 'true'
         run: |
           npm install -g "@mablhq/mabl-cli@$MABL_CLI_VERSION"
           mabl auth activate-key "$MABL_API_KEY"
