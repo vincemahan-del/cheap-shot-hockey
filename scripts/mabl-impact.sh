@@ -135,11 +135,14 @@ failed=$(jq '.execution_results.plan_execution_metrics.failed // 0' deployment.j
 href=$(jq -r '.href // empty' deployment.json)
 rows=$(jq -r --slurpfile d deployment.json '.[] as $t
   | ([$d[0].execution_results.executions[]?.journey_executions[]?
-      | select((.test_id | split(":")[0]) == $t.test_invariant_id) | .success] | last) as $ok
-  | "| \($t.test_name) | \($t.expected_outcome) | \(if $ok == true then "passed" elif $ok == false then "**failed**" else "not run" end) |"' selected.json)
+      | select((.test_id | split(":")[0]) == $t.test_invariant_id)] | last) as $r
+  | ($r.app_href // "") as $u
+  | "| \(if $u != "" then "[\($t.test_name)](\($u))" else $t.test_name end) | \($t.expected_outcome) | \(if $r.success == true then "passed" elif $r.success == false then "**failed**" else "not run" end) |"' selected.json)
 
 verdict="passed"
 [[ "$status" -ne 0 || "$failed" -ne 0 ]] && verdict="failed"
+hint=""
+[[ "$verdict" == "failed" ]] && hint=" · a test expected to fail by design should be updated on the mabl branch \`$MABL_BRANCH\`; to waive this gate apply \`$EXEMPT_LABEL\` and re-run the job."
 
 comment "### mabl test impact — $verdict
 $(jq -r '.summary' impact.json)
@@ -152,6 +155,6 @@ ${gaps:+
 **Coverage gaps**
 $gaps}
 
-[mabl deployment]($href) · a test expected to fail by design should be updated on the mabl branch \`$MABL_BRANCH\`; to waive this gate apply \`$EXEMPT_LABEL\` and re-run the job."
+[mabl deployment]($href)$hint"
 
 [[ "$verdict" == "passed" ]]
