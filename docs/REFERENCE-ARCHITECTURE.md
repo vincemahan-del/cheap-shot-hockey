@@ -35,6 +35,7 @@ production.
 | Starts | Whenever you like | `git push` |
 | mabl | Test impact analysis, test edits on the mabl branch, `scripts/mabl-local.sh` (`smoke`, `impact "<change>"`, `run <ids>`) | `mabl-smoke`, `mabl-impact`, post-deploy smoke, nightly |
 | Run credits | 0 (AI assertions opt-in with `MABL_LOCAL_AI=1`) | Cloud runs |
+| In mabl | Only with `MABL_LOCAL_REPORT=1` (browser tests, step results, no screenshots); `/ship` publishes its final check | Every run |
 | Gives up | Screenshots, mabl's failure analysis, a deployment record | — |
 
 Draft PRs get the static checks only; the mabl cloud gates run when the PR is

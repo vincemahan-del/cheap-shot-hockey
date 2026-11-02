@@ -30,9 +30,13 @@ running preview; a human approves. You never push, merge a mabl branch, apply
 
 ## 5. Run locally (0 credits)
 - With `npm run dev` up: `scripts/mabl-local.sh run <test-id>...` for each
-  edited test, then `scripts/mabl-local.sh smoke`. It runs serially on the mabl
-  branch named after the git branch. AI assertions need `MABL_LOCAL_AI=1`.
-  Never start cloud runs; CI does that.
+  edited test while iterating. It runs serially on the mabl branch named after
+  the git branch. AI assertions need `MABL_LOCAL_AI=1`.
+- Final check before the PR, published to mabl so reviewers can see it:
+  `MABL_LOCAL_REPORT=1 scripts/mabl-local.sh run <edited test ids>`, then
+  `MABL_LOCAL_REPORT=1 scripts/mabl-local.sh smoke`. Iteration runs stay
+  unpublished so test history isn't full of work in progress.
+- Never start cloud runs; CI does that.
 
 ## 6. Write the PR body
 ```
