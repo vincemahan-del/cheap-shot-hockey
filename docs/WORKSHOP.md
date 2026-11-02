@@ -61,10 +61,30 @@ change).
 - **Tests outside any enabled plan have no plan login.** `mabl-impact` falls
   back to the demo customer.
 
+## What to tell customers plainly
+
+The shape (fast checks, end-to-end tests selected by impact on a per-PR
+preview, smoke after deploy, scheduled regression, a human approving with the
+evidence in front of them) is what mature teams run, and mabl's own team runs
+it too. Say where this demo has it easier:
+
+- **An isolated environment and database per PR.** Most teams test on shared
+  staging with shared data; without isolation, per-PR end-to-end tests collide.
+- **A small suite.** Real suites are bigger and flakier. Broad impact selection
+  pulls in unreliable tests, so a team needs to fix or quarantine them or the
+  gate stops being trusted.
+- **The impact gate went straight to required here.** Customers should run it
+  advisory first and promote it once its false reds are no worse than their
+  smoke gate's, the way mabl's own new gates start advisory. Its selection
+  varies run to run.
+- **No merge queue here** (personal-account repo). Teams on GitHub
+  organizations should run the expensive checks once in a merge queue.
+
+Adoption order: smoke after every deploy; scheduled regression with someone
+triaging it; PR gates once a preview and isolated test data exist; test impact
+advisory, then required; a merge queue and an agent-driven developer loop.
+
 ## After the session
 
-```bash
-gh variable set MABL_CLOUD_GATE --body disabled
-```
-
-Resume Dependabot. Delete scratch branches (git and mabl).
+Leave `MABL_CLOUD_GATE` enabled: the mabl gates only run for PRs that change
+app code. Resume Dependabot. Delete scratch branches (git and mabl).

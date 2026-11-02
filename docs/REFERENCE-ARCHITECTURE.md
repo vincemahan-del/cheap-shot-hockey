@@ -27,6 +27,19 @@ branch protection tests the up-to-date head instead), approval is a label
 rather than by a manual release step, and regression runs nightly against
 production.
 
+## Two loops
+
+| | Local developer loop | CI/CD |
+|---|---|---|
+| Where | Your machine: `npm run dev`, on the Neon `preview` branch (Vercel's Development environment) | GitHub Actions, Vercel, the mabl cloud |
+| Starts | Whenever you like | `git push` |
+| mabl | Test impact analysis, test edits on the mabl branch, `scripts/mabl-local.sh` (`smoke`, `impact "<change>"`, `run <ids>`) | `mabl-smoke`, `mabl-impact`, post-deploy smoke, nightly |
+| Run credits | 0 (AI assertions opt-in with `MABL_LOCAL_AI=1`) | Cloud runs |
+| Gives up | Screenshots, mabl's failure analysis, a deployment record | — |
+
+Draft PRs get the static checks only; the mabl cloud gates run when the PR is
+marked ready for review.
+
 ## Flow
 
 ```
