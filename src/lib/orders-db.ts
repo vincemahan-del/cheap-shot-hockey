@@ -62,6 +62,8 @@ async function ensureSchema(): Promise<void> {
     )`;
   // Idempotent migration for tables created before TAMD-171 added the column.
   await db`ALTER TABLE orders ADD COLUMN IF NOT EXISTS region text NOT NULL DEFAULT 'us'`;
+  await db`ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_cents integer NOT NULL DEFAULT 0`;
+  await db`ALTER TABLE orders ADD COLUMN IF NOT EXISTS promo_code text`;
   await db`
     CREATE TABLE IF NOT EXISTS order_lines (
       id               bigserial PRIMARY KEY,
@@ -91,12 +93,13 @@ async function insertOrderRow(order: Order): Promise<void> {
     db`INSERT INTO orders (
          id, user_id, guest_email, subtotal_cents, tax_cents, shipping_cents,
          total_cents, status, shipping_name, shipping_street, shipping_city,
-         shipping_state, shipping_postal_code, shipping_country, region, created_at
+         shipping_state, shipping_postal_code, shipping_country, region,
+         discount_cents, promo_code, created_at
        ) VALUES (
          ${order.id}, ${order.userId}, ${order.guestEmail}, ${order.subtotalCents},
          ${order.taxCents}, ${order.shippingCents}, ${order.totalCents}, ${order.status},
          ${a.name}, ${a.street}, ${a.city}, ${a.state}, ${a.postalCode}, ${a.country},
-         ${order.region}, ${order.createdAt}
+         ${order.region}, ${order.discountCents ?? 0}, ${order.promoCode ?? null}, ${order.createdAt}
        )
        ON CONFLICT (id) DO NOTHING`,
     ...order.lines.map(
@@ -125,6 +128,8 @@ type OrderRow = {
   shipping_postal_code: string;
   shipping_country: string;
   region: string | null;
+  discount_cents: number | null;
+  promo_code: string | null;
   created_at: string;
 };
 
@@ -135,6 +140,8 @@ function rowToOrder(row: OrderRow, lines: OrderLine[]): Order {
     guestEmail: row.guest_email,
     lines,
     subtotalCents: row.subtotal_cents,
+    discountCents: row.discount_cents ?? 0,
+    promoCode: row.promo_code,
     taxCents: row.tax_cents,
     shippingCents: row.shipping_cents,
     totalCents: row.total_cents,

@@ -68,6 +68,9 @@ export interface Order {
   guestEmail: string | null;
   lines: OrderLine[];
   subtotalCents: number;
+  /** Absent on orders placed before TAMD-245. */
+  discountCents?: number;
+  promoCode?: string | null;
   taxCents: number;
   shippingCents: number;
   totalCents: number;

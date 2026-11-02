@@ -5,8 +5,11 @@ import { currentPrice, getProduct } from "@/lib/store";
 import { readCartLines } from "@/lib/cart-cookie";
 import { getCurrentUser } from "@/lib/session";
 import { formatPrice } from "@/lib/format";
-import { CA_DEFAULT_PROVINCE, readRegion, shippingForSubtotal, taxRate } from "@/lib/region";
+import { CA_DEFAULT_PROVINCE, readRegion } from "@/lib/region";
+import { evaluatePromo, priceOrder } from "@/lib/promo";
+import { readPromoCode } from "@/lib/promo-cookie";
 import { CheckoutForm } from "./CheckoutForm";
+import { PromoCodeForm } from "./PromoCodeForm";
 
 export default async function CheckoutPage() {
   const t = await getTranslations("checkout");
@@ -26,9 +29,14 @@ export default async function CheckoutPage() {
   // Summary preview: province isn't known until the form is submitted, so the
   // Canadian preview uses the default province rate. The order route recomputes
   // tax from the entered province on submit.
-  const tax = Math.round(subtotal * taxRate(region, CA_DEFAULT_PROVINCE));
-  const shipping = shippingForSubtotal(region, subtotal);
-  const total = subtotal + tax + shipping;
+  const promoCode = await readPromoCode();
+  const promo = promoCode ? evaluatePromo(promoCode, { subtotalCents: subtotal, region }) : null;
+  const {
+    discountCents: discount,
+    taxCents: tax,
+    shippingCents: shipping,
+    totalCents: total,
+  } = priceOrder({ subtotalCents: subtotal, region, province: CA_DEFAULT_PROVINCE, promo });
 
   if (enriched.length === 0) {
     return (
@@ -99,6 +107,14 @@ export default async function CheckoutPage() {
             <span className="text-[color:var(--muted)]">{t("subtotal")}</span>
             <span data-testid="checkout-subtotal">{formatPrice(subtotal, region)}</span>
           </div>
+          {promo?.ok && discount > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-[color:var(--muted)]">
+                {t("discount")} ({promo.promo.code})
+              </span>
+              <span data-testid="checkout-discount">−{formatPrice(discount, region)}</span>
+            </div>
+          )}
           <div className="flex justify-between text-sm">
             <span className="text-[color:var(--muted)]">{t("tax")}</span>
             <span data-testid="checkout-tax">{formatPrice(tax, region)}</span>
@@ -113,6 +129,15 @@ export default async function CheckoutPage() {
             <span>{t("total")}</span>
             <span data-testid="checkout-total">{formatPrice(total, region)}</span>
           </div>
+          <PromoCodeForm
+            appliedCode={promo?.ok ? promo.promo.code : null}
+            stale={
+              promo && !promo.ok
+                ? { reason: promo.reason, minSubtotalCents: promo.minSubtotalCents }
+                : null
+            }
+            region={region}
+          />
         </aside>
       </div>
     </div>
