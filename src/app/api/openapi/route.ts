@@ -109,6 +109,11 @@ const SPEC = {
                     description:
                       "Required for guest checkout, ignored when the caller is logged in.",
                   },
+                  promoCode: {
+                    type: "string",
+                    description:
+                      "Optional promo code. Must be valid when supplied (400 otherwise). When omitted, a code applied via POST /api/promo is used if still eligible.",
+                  },
                   shippingAddress: {
                     type: "object",
                     required: ["name", "street", "city", "state", "postalCode", "country"],
@@ -130,6 +135,43 @@ const SPEC = {
           "201": { description: "Created" },
           "400": { description: "Bad request" },
         },
+      },
+    },
+    "/api/promo": {
+      get: {
+        summary: "Get the promo applied to the current cart",
+        description:
+          "Re-evaluates the applied code against the current cart. `rejection` is set when a previously applied code is no longer eligible (e.g. the subtotal dropped below its minimum). Quote amounts are USD base cents; Canadian tax uses the default province until an address is entered.",
+        responses: { "200": { description: "OK" } },
+      },
+      post: {
+        summary: "Apply a promo code to the current cart",
+        description:
+          "Codes are case-insensitive. Kinds: percent off the subtotal, fixed amount off, or free shipping. Codes can be region-restricted, require a minimum subtotal, or be expired. On success the code is stored in the csh_promo cookie and honored by POST /api/orders.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["code"],
+                properties: { code: { type: "string", example: "HATTRICK" } },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Applied; returns the promo and a price quote" },
+          "400": {
+            description:
+              "Rejected. details.reason is one of empty | unknown | expired | region | min_subtotal; cart is empty also returns 400.",
+          },
+          "503": { description: "Demo failure" },
+        },
+      },
+      delete: {
+        summary: "Remove the applied promo code",
+        responses: { "200": { description: "OK" } },
       },
     },
     "/api/orders/{id}": {

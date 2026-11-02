@@ -12,7 +12,9 @@ import { rememberOrderInCookie } from "@/lib/order-cookie";
 import { rememberGuestOrder } from "@/lib/guest-orders";
 import { badRequest, created, ok, unauthorized } from "@/lib/api";
 import { isValidEmail } from "@/lib/email";
-import { readRegion, shippingForSubtotal, taxRate } from "@/lib/region";
+import { readRegion } from "@/lib/region";
+import { evaluatePromo, priceOrder, promoRejectionMessage, type PromoResult } from "@/lib/promo";
+import { clearPromoCode, readPromoCode } from "@/lib/promo-cookie";
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
@@ -35,6 +37,7 @@ export async function POST(req: NextRequest) {
 
   let body: {
     customerEmail?: string;
+    promoCode?: string;
     shippingAddress?: {
       name: string;
       street: string;
@@ -95,15 +98,35 @@ export async function POST(req: NextRequest) {
   // Amounts stay in USD base cents; region drives the tax rate (by province for
   // Canada) and shipping config. Display converts to the region's currency.
   const region = readRegion(req.headers);
-  const taxCents = Math.round(subtotalCents * taxRate(region, addr.state));
-  const shippingCents = shippingForSubtotal(region, subtotalCents);
-  const totalCents = subtotalCents + taxCents + shippingCents;
+  // An explicit body promoCode must be valid; a stale cookie code is ignored.
+  let promo: PromoResult | null = null;
+  if (body.promoCode !== undefined) {
+    promo = evaluatePromo(body.promoCode, { subtotalCents, region });
+    if (!promo.ok) {
+      return badRequest(promoRejectionMessage(promo, region), {
+        reason: promo.reason,
+        code: promo.code,
+        minSubtotalCents: promo.minSubtotalCents,
+      });
+    }
+  } else {
+    const cookieCode = await readPromoCode();
+    if (cookieCode) promo = evaluatePromo(cookieCode, { subtotalCents, region });
+  }
+  const { discountCents, taxCents, shippingCents, totalCents, promoCode } = priceOrder({
+    subtotalCents,
+    region,
+    province: addr.state,
+    promo,
+  });
 
   const order = await createOrder({
     userId: user?.id ?? null,
     guestEmail,
     lines,
     subtotalCents,
+    discountCents,
+    promoCode,
     taxCents,
     shippingCents,
     totalCents,
@@ -112,6 +135,7 @@ export async function POST(req: NextRequest) {
     shippingAddress: addr,
   });
   await clearCartCookie();
+  await clearPromoCode();
   await rememberOrderInCookie(order);
   if (!user) await rememberGuestOrder(order.id);
 

@@ -63,6 +63,16 @@ describe("buildReceiptLines", () => {
     expect(lines).toContain("Shipping: $7.99");
   });
 
+  it("shows the promo discount when one was applied", () => {
+    const lines = buildReceiptLines(makeOrder({ discountCents: 4200, promoCode: "HATTRICK" }));
+    expect(lines).toContain("Discount (HATTRICK): -$42.00");
+  });
+
+  it("omits the discount line when no promo was applied", () => {
+    const lines = buildReceiptLines(makeOrder());
+    expect(lines.some((l) => l.startsWith("Discount"))).toBe(false);
+  });
+
   it("includes the guest email line for guest orders", () => {
     const lines = buildReceiptLines(makeOrder({ guestEmail: "fan@example.com" }));
     expect(lines).toContain("Email: fan@example.com");

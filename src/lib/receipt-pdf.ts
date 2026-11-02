@@ -35,6 +35,9 @@ export function buildReceiptLines(order: Order): string[] {
   }
   lines.push("");
   lines.push(`Subtotal: ${formatPrice(order.subtotalCents, order.region)}`);
+  if (order.discountCents) {
+    lines.push(`Discount (${order.promoCode}): -${formatPrice(order.discountCents, order.region)}`);
+  }
   lines.push(`Tax: ${formatPrice(order.taxCents, order.region)}`);
   lines.push(
     `Shipping: ${order.shippingCents === 0 ? "FREE" : formatPrice(order.shippingCents, order.region)}`,

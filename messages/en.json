@@ -99,7 +99,23 @@
     "placingOrder": "Placing order…",
     "placeGuestOrder": "Place guest order",
     "placeOrder": "Place order",
-    "demoNotice": "No real payment is taken — this is a demo store."
+    "demoNotice": "No real payment is taken — this is a demo store.",
+    "discount": "Discount",
+    "promo": {
+      "label": "Promo code",
+      "placeholder": "Enter code",
+      "apply": "Apply",
+      "applied": "Applied:",
+      "remove": "Remove",
+      "failed": "Couldn't apply that code. Try again.",
+      "reasons": {
+        "empty": "Enter a promo code.",
+        "unknown": "That promo code isn't valid.",
+        "expired": "That promo code has expired.",
+        "region": "That promo code isn't available in your region.",
+        "min_subtotal": "That code needs a subtotal of at least {min}."
+      }
+    }
   },
   "footer": {
     "tagline": "Hockey gear at a fighting price. Player and goalie equipment shipped fast from our pro shop.",
