@@ -40,6 +40,8 @@ PR (ci.yml)
   preview ─┬─ mabl-smoke   CSH-SMOKE-PR on this PR's preview URL
            └─ mabl-impact  test impact analysis → impacted tests (cap 10,
                            retry once, each with its plan's login) → PR comment
+  Copilot code review   advisory, a different vendor from the coding agent
+                        (ruleset "Copilot code review"; every PR and push)
   human-approved (label)
 merge → Vercel production
   postdeploy.yml  CSH-SMOKE-POSTDEPLOY on this commit's production build (unique URL),
@@ -59,7 +61,7 @@ nightly.yml
 | mabl branches, merge status, fast-forward merge | `scripts/nightly-triage.sh`: local loop → one cloud re-run of failures |
 | Failure analysis, categorization, Slack posts | |
 | Agent instructions, the skills plugin, the cloud MCP | |
-| Dependabot, dependency review, CodeQL, branch protection | |
+| Dependabot, dependency review, CodeQL, branch protection, Copilot code review | |
 
 ## Human checkpoints (and how they're enforced)
 
