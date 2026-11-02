@@ -74,7 +74,7 @@ fi
 
 mabl tests impact -a "$APP_ID" \
   --change-description-file change.md \
-  --guidance "just the top-priority handful" \
+  --guidance "Every test this change could affect: tests that exercise the changed behavior first, then blast-radius tests that should still pass, especially ones asserting totals, layout or API responses in the changed areas." \
   --reference "$PR_URL" \
   --revision "$HEAD_SHA" \
   --include-plans \

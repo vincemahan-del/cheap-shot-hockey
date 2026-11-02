@@ -38,8 +38,9 @@ Jira ticket
 PR (ci.yml)
   lint · unit · build · dependency-review · CodeQL
   preview ─┬─ mabl-smoke   CSH-SMOKE-PR on this PR's preview URL
-           └─ mabl-impact  test impact analysis → impacted tests (cap 10,
-                           retry once, each with its plan's login) → PR comment
+           └─ mabl-impact  test impact analysis → changed behavior + blast
+                           radius (cap 10, retry once, each with its plan's
+                           login) → PR comment
   Copilot code review   advisory, a different vendor from the coding agent
                         (ruleset "Copilot code review"; every PR and push)
   human-approved (label)

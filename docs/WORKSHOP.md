@@ -40,6 +40,9 @@ change).
 - **Test impact varies run to run.** The same change returned 7 tests on one
   run and 1 on the next. Say so; it's why the gate starts advisory and has a
   waiver.
+- **The guidance sets the breadth.** Asked for "the top-priority handful", the
+  gate ran only the test for the new feature and skipped the regression guards
+  around it. It now asks for the changed behavior plus its blast radius.
 - **Analyze and run on the mabl branch.** With `--mabl-branch`, a test fixed on
   the branch is judged and run by its new steps; without it, by master's. The
   mabl branch has the git branch's name, slashes included. mabl's by-name branch
