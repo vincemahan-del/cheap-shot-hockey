@@ -42,7 +42,9 @@ Required on `main`: `lint`, `unit`, `build`, `dependency-review`, `CodeQL`,
 `mabl-smoke`, `mabl-impact`, `human-approved`. The mabl gates run in the cloud
 only when the PR changes app code or the gate (`scripts/app-changed.sh`);
 otherwise they pass and say why. Dependabot PRs get smoke only.
-`MABL_CLOUD_GATE=disabled` pauses all mabl cloud runs.
+`MABL_CLOUD_GATE=disabled` pauses all mabl cloud runs. Copilot reviews every PR
+(advisory, ruleset "Copilot code review"): fix or answer each comment before
+asking for `human-approved`.
 
 ## mabl
 

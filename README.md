@@ -17,6 +17,7 @@ and a human approves every merge.
 | Every PR (`ci.yml`) | `lint`, `unit`, `build`, `dependency-review`, `CodeQL` | required |
 | | `mabl-smoke`: `CSH-SMOKE-PR` on **this PR's** Vercel preview | required |
 | | `mabl-impact`: mabl test impact analysis picks the existing tests the change reaches and runs them on the preview; sticky PR comment | required (`test-impact-gate-exempt` waives) |
+| | Copilot code review: requested on every PR and push by a repository ruleset; a different vendor from the coding agent reviews its code | advisory |
 | | `human-approved`: a maintainer applies the label | required |
 | Merge to `main` (`postdeploy.yml`) | Vercel deploys production; `CSH-SMOKE-POSTDEPLOY` runs on that exact build by its unique URL | — |
 | Nightly (`nightly.yml`) | Full `type-rt` regression locally on the runner against prod (0 credits); local failures re-run once in the cloud for mabl's failure analysis | — |
