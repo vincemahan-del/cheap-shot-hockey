@@ -23,6 +23,7 @@ jobs:
       PROD_URL: https://cheap-shot-hockey.vercel.app
       CREDENTIALS_ID: JxWK20l5gOOFOtWjaJHfOg-c
       CLOUD_GATE: ${{ vars.MABL_CLOUD_GATE || 'enabled' }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
