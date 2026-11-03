@@ -4,8 +4,9 @@
 # failures are re-run once in the mabl cloud as one deployment event, where
 # mabl's failure analysis and categorization apply.
 #
-# Env: APP_ID ENV_ID PROD_URL CREDENTIALS_ID; optional CLOUD_GATE (disabled =
-# no cloud re-run), SLACK_WEBHOOK_URL (posts the outcome).
+# Env: APP_ID ENV_ID PROD_URL CREDENTIALS_ID; optional ADMIN_CREDENTIALS_ID (for
+# tests labelled creds-admin), CLOUD_GATE (disabled = no cloud re-run),
+# SLACK_WEBHOOK_URL (posts the outcome).
 set -uo pipefail
 
 CAP=10
@@ -24,6 +25,17 @@ notify() {
 mabl tests list --labels type-rt -o json -l 500 > suite.json
 mapfile -t suite < <(jq -r '.[] | select(.enabled) | .id' suite.json)
 mapfile -t exhibits < <(mabl tests list --labels exhibit -o json -l 500 | jq -r '.[].id')
+# The CLI exposes no per-test credential, so tests that sign in as the admin
+# user carry the creds-admin label; everything else signs in as the demo customer.
+mapfile -t admins < <(mabl tests list --labels creds-admin -o json -l 500 | jq -r '.[].id')
+
+creds_for() {
+  if [[ -n "${ADMIN_CREDENTIALS_ID:-}" && " ${admins[*]} " == *" $1 "* ]]; then
+    echo "$ADMIN_CREDENTIALS_ID"
+  else
+    echo "$CREDENTIALS_ID"
+  fi
+}
 
 failed=()
 ran=0
@@ -32,7 +44,7 @@ for id in "${suite[@]}"; do
   ran=$((ran + 1))
   if ! mabl tests run --id "$id" --headless \
       -a "$APP_ID" -e "$ENV_ID" --url "$PROD_URL" \
-      --credentials-id "$CREDENTIALS_ID" \
+      --credentials-id "$(creds_for "$id")" \
       --allow-billable-features --reporter mabl; then
     failed+=("$id")
   fi
@@ -62,7 +74,7 @@ if [[ ${#failed[@]} -gt $CAP ]]; then
 fi
 
 pairs=()
-for id in "${failed[@]}"; do pairs+=("$id=$CREDENTIALS_ID"); done
+for id in "${failed[@]}"; do pairs+=("$id=$(creds_for "$id")"); done
 
 mabl deployments create -a "$APP_ID" -e "$ENV_ID" \
   --test-ids "${failed[@]}" \

@@ -22,6 +22,7 @@ jobs:
       ENV_ID: ${{ secrets.MABL_ENV_PROD_ID }}
       PROD_URL: https://cheap-shot-hockey.vercel.app
       CREDENTIALS_ID: JxWK20l5gOOFOtWjaJHfOg-c
+      ADMIN_CREDENTIALS_ID: cllS2frME2tXYwTOu5cJrw-c
       CLOUD_GATE: ${{ vars.MABL_CLOUD_GATE || 'enabled' }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     steps:
