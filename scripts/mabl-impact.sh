@@ -119,7 +119,6 @@ mapfile -t creds < <(jq -r --arg d "${DEFAULT_CREDENTIALS_ID:-}" '.[]
 cred_args=()
 [[ ${#creds[@]} -gt 0 ]] && cred_args=(--test-credentials "${creds[@]}")
 
-status=0
 mabl deployments create -a "$APP_ID" -e "$ENV_ID" \
   --test-ids "${ids[@]}" \
   --impact-session-id "$session" \
@@ -130,9 +129,14 @@ mabl deployments create -a "$APP_ID" -e "$ENV_ID" \
   --revision "$HEAD_SHA" \
   --repository-url "https://github.com/$REPO" \
   "${branch_args[@]}" ${branch_args:+--auto-branch} \
-  --await-completion -o json > deployment.json || status=$?
+  --await-completion -o json > deployment.json || true
 
-failed=$(jq '.execution_results.plan_execution_metrics.failed // 0' deployment.json)
+# Judge each selected test by its last execution, so a failure cleared by
+# --retry-failed-tests counts as passed and a test that never ran counts as failed.
+failed=$(jq --slurpfile d deployment.json '[.[] as $t
+  | ([$d[0].execution_results.executions[]?.journey_executions[]?
+      | select((.test_id | split(":")[0]) == $t.test_invariant_id)] | last)
+  | select(.success != true)] | length' selected.json)
 href=$(jq -r '.href // empty' deployment.json)
 rows=$(jq -r --slurpfile d deployment.json '.[] as $t
   | ([$d[0].execution_results.executions[]?.journey_executions[]?
@@ -141,7 +145,7 @@ rows=$(jq -r --slurpfile d deployment.json '.[] as $t
   | "| \(if $u != "" then "[\($t.test_name)](\($u))" else $t.test_name end) | \($t.expected_outcome) | \(if $r.success == true then "passed" elif $r.success == false then "**failed**" else "not run" end) |"' selected.json)
 
 verdict="passed"
-[[ "$status" -ne 0 || "$failed" -ne 0 ]] && verdict="failed"
+[[ "$failed" -ne 0 ]] && verdict="failed"
 hint=""
 [[ "$verdict" == "failed" ]] && hint=" · a test expected to fail by design should be updated on the mabl branch \`$MABL_BRANCH\`; to waive this gate apply \`$EXEMPT_LABEL\` and re-run the job."
 
