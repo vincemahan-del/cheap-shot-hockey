@@ -5,16 +5,22 @@ import { getOrder } from "@/lib/store";
 import { hasGuestOrder } from "@/lib/guest-orders";
 import { findRecentOrder } from "@/lib/order-cookie";
 import { formatPrice } from "@/lib/format";
+import {
+  ORDER_ACTION_LABELS,
+  ORDER_REQUEST_CONFIRMATIONS,
+  allowedRequest,
+  orderActions,
+} from "@/lib/order-actions";
 
 export default async function OrderDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ new?: string }>;
+  searchParams: Promise<{ new?: string; request?: string }>;
 }) {
   const { id } = await params;
-  const { new: isNew } = await searchParams;
+  const { new: isNew, request } = await searchParams;
   const order = (await getOrder(id)) ?? (await findRecentOrder(id));
   if (!order) notFound();
 
@@ -26,6 +32,9 @@ export default async function OrderDetailPage({
   if (!isOwnedByUser && !isAccessibleAsGuest && !isInRecentCookie) notFound();
 
   const isGuestOrder = order.guestEmail != null && order.userId == null;
+  const role = user?.role ?? null;
+  const actions = orderActions(order.status, role);
+  const requested = allowedRequest(request, order.status, role);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -40,6 +49,15 @@ export default async function OrderDetailPage({
               Confirmation sent to <strong>{order.guestEmail}</strong>.
             </span>
           )}
+        </div>
+      )}
+      {requested && (
+        <div
+          data-testid="order-request-banner"
+          role="status"
+          className="mb-6 rounded border border-[color:var(--accent)] bg-[color:var(--surface)] p-4 text-sm"
+        >
+          {ORDER_REQUEST_CONFIRMATIONS[requested]}
         </div>
       )}
       <h1 className="font-display text-3xl md:text-4xl" data-testid="order-id">
@@ -120,15 +138,44 @@ export default async function OrderDetailPage({
         </address>
       </section>
 
+      <section
+        className="mt-4 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] p-5"
+        data-testid="order-actions"
+      >
+        <h2 className="mb-3 font-bold">Actions</h2>
+        {actions.length === 0 ? (
+          <p className="text-sm text-[color:var(--muted)]" data-testid="order-actions-none">
+            No actions available for a cancelled order.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-3 text-sm">
+            {actions.map((key) =>
+              key === "receipt" ? (
+                <a
+                  key={key}
+                  href={`/api/orders/${order.id}/receipt`}
+                  download={`receipt-${order.id}.pdf`}
+                  data-testid={`download-receipt-${order.id}`}
+                  className="rounded bg-[color:var(--accent)] px-4 py-2 font-bold text-[color:var(--background)] hover:opacity-90"
+                >
+                  {ORDER_ACTION_LABELS.receipt}
+                </a>
+              ) : (
+                <Link
+                  key={key}
+                  href={`/orders/${order.id}?request=${key}`}
+                  data-testid={`order-action-${key}`}
+                  className="rounded border border-[color:var(--border)] px-4 py-2 font-semibold hover:border-[color:var(--accent)]"
+                >
+                  {ORDER_ACTION_LABELS[key]}
+                </Link>
+              ),
+            )}
+          </div>
+        )}
+      </section>
+
       <div className="mt-6 flex flex-wrap items-center gap-4 text-sm">
-        <a
-          href={`/api/orders/${order.id}/receipt`}
-          download={`receipt-${order.id}.pdf`}
-          data-testid={`download-receipt-${order.id}`}
-          className="rounded bg-[color:var(--accent)] px-4 py-2 font-bold text-[color:var(--background)] hover:opacity-90"
-        >
-          Download receipt (PDF)
-        </a>
         {user ? (
           <Link
             href="/orders"
