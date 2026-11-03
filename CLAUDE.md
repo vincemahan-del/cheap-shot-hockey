@@ -65,8 +65,9 @@ Use the mabl skills plugin (`mabl@mabl`, enabled in `.claude/settings.json`):
 Labels: `type-smk` + `exec-pr` / `exec-postdeploy` (smoke plans), `type-rt`
 (full regression, nightly), `area-*` (app area), `exhibit` (fails on purpose;
 never `type-rt`), `seed-db` (seeds through mabl's DB connection, which points
-at production; never run on PR previews), and the ticket key on every test
-created for a ticket.
+at production; never run on PR previews), `creds-admin` (signs in as the admin
+user; the nightly runs it with the Admin user credential), and the ticket key
+on every test created for a ticket.
 
 Test edits for a PR happen on the mabl branch with the same name as the git
 branch (slashes included). CI passes `--auto-branch` with it, because mabl's
