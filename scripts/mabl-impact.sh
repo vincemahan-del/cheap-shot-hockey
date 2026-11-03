@@ -110,10 +110,11 @@ $gaps}"
 fi
 
 mapfile -t ids < <(jq -r '.[].test_invariant_id' selected.json)
-# Each test logs in with its plan's credentials; tests in no enabled plan fall
-# back to the default demo customer.
+# Each test logs in with its plan's credentials, else its own, else the
+# default demo customer.
 mapfile -t creds < <(jq -r --arg d "${DEFAULT_CREDENTIALS_ID:-}" '.[]
-  | (.run_context.plan_credentials_id // $d) as $c | select($c != "")
+  | (.run_context.plan_credentials_id // .run_context.defaults.credentials_id // $d) as $c
+  | select($c != "")
   | "\(.test_invariant_id)=\($c)"' selected.json)
 cred_args=()
 [[ ${#creds[@]} -gt 0 ]] && cred_args=(--test-credentials "${creds[@]}")
