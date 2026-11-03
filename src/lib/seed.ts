@@ -591,6 +591,15 @@ export const SEED_USERS: User[] = [
   },
 ];
 
+const DEMO_ADDRESS: Order["shippingAddress"] = {
+  name: "Demo Customer",
+  street: "12 Rink Road",
+  city: "Minneapolis",
+  state: "MN",
+  postalCode: "55401",
+  country: "US",
+};
+
 export const SEED_ORDERS: Order[] = [
   {
     id: "o-1001",
@@ -625,5 +634,70 @@ export const SEED_ORDERS: Order[] = [
       country: "US",
     },
     createdAt: "2026-03-12T09:12:00.000Z",
+  },
+  // One pinned order per remaining status so status-driven UI has stable test data (TAMD-265).
+  {
+    id: "o-1002",
+    userId: "u-001",
+    guestEmail: null,
+    lines: [
+      { productId: "p-pck-001", name: "Official Game Pucks (6-pack)", unitPriceCents: 1299, quantity: 2 },
+    ],
+    subtotalCents: 2598,
+    taxCents: 208,
+    shippingCents: 999,
+    totalCents: 3805,
+    region: "us",
+    status: "pending",
+    shippingAddress: DEMO_ADDRESS,
+    createdAt: "2026-10-28T15:30:00.000Z",
+  },
+  {
+    id: "o-1003",
+    userId: "u-001",
+    guestEmail: null,
+    lines: [
+      { productId: "p-glv-001", name: "Apex GripForce Gloves", unitPriceCents: 9999, quantity: 1 },
+    ],
+    subtotalCents: 9999,
+    taxCents: 800,
+    shippingCents: 0,
+    totalCents: 10799,
+    region: "us",
+    status: "paid",
+    shippingAddress: DEMO_ADDRESS,
+    createdAt: "2026-10-20T18:05:00.000Z",
+  },
+  {
+    id: "o-1004",
+    userId: "u-001",
+    guestEmail: null,
+    lines: [
+      { productId: "p-hlm-001", name: "Apex Fortress Helmet", unitPriceCents: 11999, quantity: 1 },
+    ],
+    subtotalCents: 11999,
+    taxCents: 960,
+    shippingCents: 0,
+    totalCents: 12959,
+    region: "us",
+    status: "shipped",
+    shippingAddress: DEMO_ADDRESS,
+    createdAt: "2026-10-05T12:40:00.000Z",
+  },
+  {
+    id: "o-1005",
+    userId: "u-001",
+    guestEmail: null,
+    lines: [
+      { productId: "p-skt-002", name: "Northbound Tour Intermediate Skates", unitPriceCents: 17999, quantity: 1 },
+    ],
+    subtotalCents: 17999,
+    taxCents: 1440,
+    shippingCents: 0,
+    totalCents: 19439,
+    region: "us",
+    status: "cancelled",
+    shippingAddress: DEMO_ADDRESS,
+    createdAt: "2026-09-14T10:15:00.000Z",
   },
 ];
