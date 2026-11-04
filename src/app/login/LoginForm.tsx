@@ -21,10 +21,14 @@ export function LoginForm({ next }: { next?: string }) {
     });
     if (!res.ok) {
       let msg = "Login failed";
-      try {
-        const body = await res.json();
-        if (body?.message) msg = body.message;
-      } catch {}
+      if (res.status === 401) {
+        msg = "That email and password don't match. Check them and try again.";
+      } else {
+        try {
+          const body = await res.json();
+          if (body?.message) msg = body.message;
+        } catch {}
+      }
       setError(msg);
       setSubmitting(false);
       return;
