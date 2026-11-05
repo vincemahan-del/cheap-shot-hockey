@@ -58,7 +58,7 @@
   },
   "cart": {
     "heading": "Your Cart",
-    "empty": "Your cart is empty. Time to load up.",
+    "empty": "Your cart is empty. Let's fix that.",
     "startShopping": "Start shopping",
     "qualifyFree": "You qualify for FREE shipping",
     "addMoreForFree": "You're {amount} away from FREE shipping",
