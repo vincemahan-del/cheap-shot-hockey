@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
+import { getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { currentPrice, getProductBySlug, listProducts } from "@/lib/store";
 import { ProductThumb } from "@/components/ProductThumb";
@@ -16,6 +17,7 @@ export default async function ProductPage({
 }) {
   const { slug } = await params;
   const region = readRegion(await headers());
+  const t = await getTranslations("product");
   const product = getProductBySlug(slug);
   if (!product) notFound();
 
@@ -90,7 +92,7 @@ export default async function ProductPage({
                 className="ml-auto rounded bg-amber-500/20 px-2 py-0.5 text-amber-400"
                 data-testid="low-stock-notice"
               >
-                Only {product.stock} left
+                {t("lowStock", { count: product.stock })}
               </span>
             )}
           </div>
