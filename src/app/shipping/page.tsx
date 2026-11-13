@@ -128,7 +128,15 @@ export default function ShippingPage() {
           >
             support@cheapshot.test
           </a>
-          {" "}or use the contact form linked in the footer.
+          {" "}or use our{" "}
+          <Link
+            href="/contact"
+            className="text-[color:var(--accent)] hover:opacity-80"
+            data-testid="shipping-contact-form-link"
+          >
+            contact form
+          </Link>
+          .
         </p>
       </section>
     </div>

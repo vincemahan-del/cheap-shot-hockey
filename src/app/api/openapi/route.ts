@@ -284,6 +284,38 @@ const SPEC = {
         },
       },
     },
+    "/api/contact": {
+      post: {
+        summary: "Submit a contact-us message",
+        description:
+          "Accepts a customer-support message and returns it with a generated reference ID (CSH-MSG-…) for follow-up.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["name", "email", "topic", "message"],
+                properties: {
+                  name: { type: "string", minLength: 2, maxLength: 120 },
+                  email: { type: "string", format: "email" },
+                  topic: {
+                    type: "string",
+                    enum: ["order-question", "sizing", "returns", "team-orders", "other"],
+                  },
+                  orderNumber: { type: "string", maxLength: 40 },
+                  message: { type: "string", minLength: 10, maxLength: 2000 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": { description: "Created" },
+          "400": { description: "Validation failed" },
+        },
+      },
+    },
     "/api/team-orders": {
       post: {
         summary: "Submit a team-orders quote request",
