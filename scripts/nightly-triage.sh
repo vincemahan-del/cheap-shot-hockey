@@ -83,9 +83,15 @@ mabl deployments create -a "$APP_ID" -e "$ENV_ID" \
   --retry-failed-tests \
   --app-url "$PROD_URL" --api-url "$PROD_URL/api" \
   --await-completion -o json > rerun.json
-cloud_failed=$(jq '.execution_results.plan_execution_metrics.failed // 1' rerun.json)
-href=$(jq -r '.href // empty' rerun.json)
+cloud_failed=$(jq -r '.execution_results.plan_execution_metrics.failed // empty' rerun.json 2>/dev/null)
+href=$(jq -r '.href // empty' rerun.json 2>/dev/null)
 
+# A rejected or unfinished re-run leaves no failure count; that is not a pass.
+if [[ ! "$cloud_failed" =~ ^[0-9]+$ ]]; then
+  echo "Cloud re-run did not report a result (see the job log); the local failures stand." >> "$SUMMARY"
+  notify "Nightly regression FAILED: ${#failed[@]} of $ran failed locally; the cloud re-run did not report a result."$'\n'"$names"
+  exit 1
+fi
 if [[ "$cloud_failed" -eq 0 ]]; then
   echo "Cloud re-run passed: local failures were flaky or runner-specific. [deployment]($href)" >> "$SUMMARY"
   notify "Nightly regression passed: $ran tests against production; ${#failed[@]} local failure(s) passed on the cloud re-run."$'\n'"$names"$'\n'"$href"
